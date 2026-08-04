@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password: str = "admin123"
 
+    # 允许自助注册；新用户默认 is_active=False，需管理员审批（scripts/manage_users.py approve）
+    allow_registration: bool = True
+    registration_requires_approval: bool = True
+
     max_total_sequence_length: int = 4000
     # 0 = no cap on queued jobs; workers keep pulling until queue empty
     max_jobs_per_user_queued: int = 0

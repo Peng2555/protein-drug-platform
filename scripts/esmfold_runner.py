@@ -120,11 +120,12 @@ def _write_plddt_npz(plddt, job_dir: Path) -> Path:
 
 
 def _attach_pdockq(job_dir: Path, metrics: dict) -> None:
+    """Best-effort in subprocess; worker _ensure_pdockq recomputes in boltz2 env if needed."""
     try:
         from pdockq_runner import compute_pdockq_from_boltz_dir
 
         pq = compute_pdockq_from_boltz_dir(job_dir)
-        if pq.pdockq is not None:
+        if pq.pdockq is not None and pq.pdockq > 0:
             metrics["pdockq"] = pq.pdockq
             metrics["pdockq2"] = pq.pdockq2
     except Exception:

@@ -23,9 +23,14 @@ from boltz_runner import fold_sequences as boltz_fold_sequences, parse_fasta_tex
 from md_runner import run_md_validation
 
 
+def _needs_pdockq(job: Job) -> bool:
+    """Recompute when missing or stuck at 0 (ESMFold subprocess often wrote 0 before worker fix)."""
+    return job.pdockq is None or job.pdockq == 0.0
+
+
 def _ensure_pdockq(work_dir: Path, job: Job) -> None:
     """Compute pDockQ in the worker env (has gemmi); ESMFold subprocess lacks it."""
-    if job.pdockq is not None:
+    if not _needs_pdockq(job):
         return
     try:
         from pdockq_runner import compute_pdockq_from_boltz_dir
@@ -33,13 +38,18 @@ def _ensure_pdockq(work_dir: Path, job: Job) -> None:
         pq = compute_pdockq_from_boltz_dir(work_dir)
         if pq.pdockq is None and pq.pdockq2 is None:
             return
-        job.pdockq = pq.pdockq
-        job.pdockq2 = pq.pdockq2
+        if pq.pdockq is not None and pq.pdockq > 0:
+            job.pdockq = pq.pdockq
+        elif pq.pdockq is not None and job.pdockq is None:
+            job.pdockq = pq.pdockq
+        if pq.pdockq2 is not None and pq.pdockq2 > 0:
+            job.pdockq2 = pq.pdockq2
+        elif pq.pdockq2 is not None and job.pdockq2 is None:
+            job.pdockq2 = pq.pdockq2
         metrics_path = work_dir / "metrics.json"
-        if metrics_path.is_file():
+        if metrics_path.is_file() and job.pdockq is not None:
             payload = json.loads(metrics_path.read_text(encoding="utf-8"))
-            if job.pdockq is not None:
-                payload["pdockq"] = job.pdockq
+            payload["pdockq"] = job.pdockq
             if job.pdockq2 is not None:
                 payload["pdockq2"] = job.pdockq2
             metrics_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

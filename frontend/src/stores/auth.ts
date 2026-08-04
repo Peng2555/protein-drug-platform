@@ -45,11 +45,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function register(username: string, password: string) {
-    await apiJson('/api/auth/register', {
-      method: 'POST',
-      data: { username, password },
-    })
-    await login(username, password)
+    return apiJson<{ message: string; username: string; pending_approval: boolean }>(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        data: { username, password },
+      },
+    )
   }
 
   async function fetchMe() {

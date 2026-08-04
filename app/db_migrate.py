@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy import inspect, text
 
 from app.database import engine
+from app.config import settings
 
 
 def run_migrations() -> None:
@@ -45,3 +46,14 @@ def run_migrations() -> None:
                 conn.execute(text("ALTER TABLE jobs ADD COLUMN pdockq FLOAT"))
             if "pdockq2" not in cols:
                 conn.execute(text("ALTER TABLE jobs ADD COLUMN pdockq2 FLOAT"))
+
+    if insp.has_table("users"):
+        cols = {c["name"] for c in insp.get_columns("users")}
+        with engine.begin() as conn:
+            if "is_admin" not in cols:
+                default_admin = "0" if dialect == "sqlite" else "FALSE"
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT {default_admin}"))
+                conn.execute(
+                    text("UPDATE users SET is_admin = :val WHERE username = :name"),
+                    {"val": True, "name": settings.admin_username},
+                )

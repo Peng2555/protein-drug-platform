@@ -274,7 +274,17 @@ async function doRegister() {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
-    setAuth(data.access_token, data.user);
+    if (data.pending_approval) {
+      alert(data.message || "注册成功，请等待管理员审批后再登录");
+      setAuthTab("login");
+      document.getElementById("loginUser").value = username;
+      return;
+    }
+    const loginData = await api("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+    setAuth(loginData.access_token, loginData.user);
     showApp();
   } catch (e) {
     alert(e.message);

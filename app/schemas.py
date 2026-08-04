@@ -23,9 +23,17 @@ class UserOut(BaseModel):
     id: str
     username: str
     email: str | None
+    is_active: bool = True
+    is_admin: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RegisterOut(BaseModel):
+    message: str
+    username: str
+    pending_approval: bool = True
 
 
 class TokenOut(BaseModel):

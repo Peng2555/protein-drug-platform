@@ -34,6 +34,8 @@ def main() -> None:
             username=settings.admin_username,
             password_hash=hash_password(settings.admin_password),
             email="admin@local",
+            is_active=True,
+            is_admin=True,
         )
         db.add(admin)
         db.commit()

@@ -12,9 +12,11 @@ const username = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
+const success = ref('')
 
 async function submit() {
   error.value = ''
+  success.value = ''
   if (!username.value.trim() || !password.value) {
     error.value = '请输入用户名和密码'
     return
@@ -23,13 +25,22 @@ async function submit() {
   try {
     if (tab.value === 'login') {
       await auth.login(username.value.trim(), password.value)
+      const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/fold'
+      router.replace(redirect)
     } else {
-      await auth.register(username.value.trim(), password.value)
+      const result = await auth.register(username.value.trim(), password.value)
+      if (result.pending_approval) {
+        success.value = result.message || '注册成功，请等待管理员审批后再登录'
+        tab.value = 'login'
+        password.value = ''
+      } else {
+        await auth.login(username.value.trim(), password.value)
+        const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/fold'
+        router.replace(redirect)
+      }
     }
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/fold'
-    router.replace(redirect)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '登录失败'
+    error.value = e instanceof Error ? e.message : tab.value === 'login' ? '登录失败' : '注册失败'
   } finally {
     loading.value = false
   }
@@ -46,10 +57,12 @@ async function submit() {
       <div class="auth-header">
         <h1>BoltzFold</h1>
         <p class="auth-sub">蛋白结构预测与 MD 验证平台</p>
-        <p class="auth-hint">百奥赛图内部工具 · Boltz2 / ESMFold2 折叠与 GROMACS MD 验证</p>
+        <p class="auth-hint">
+          注册后需管理员审批方可登录 · 请联系平台管理员开通账号
+        </p>
       </div>
 
-      <el-tabs v-model="tab" class="auth-tabs">
+      <el-tabs v-model="tab" class="auth-tabs" @tab-change="() => { error = ''; success = '' }">
         <el-tab-pane label="登录" name="login" />
         <el-tab-pane label="注册" name="register" />
       </el-tabs>
@@ -63,13 +76,21 @@ async function submit() {
             v-model="password"
             type="password"
             show-password
-            autocomplete="current-password"
+            :autocomplete="tab === 'login' ? 'current-password' : 'new-password'"
             placeholder="请输入密码"
           />
         </el-form-item>
-        <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="auth-error" />
+        <el-alert
+          v-if="success"
+          :title="success"
+          type="success"
+          show-icon
+          :closable="false"
+          class="auth-notice"
+        />
+        <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="auth-notice" />
         <el-button type="primary" native-type="submit" :loading="loading" class="auth-submit" size="large">
-          {{ tab === 'login' ? '登录' : '注册并登录' }}
+          {{ tab === 'login' ? '登录' : '提交注册' }}
         </el-button>
       </el-form>
     </div>
@@ -141,13 +162,14 @@ h1 {
   margin: 0.35rem 0 0;
   font-size: 0.72rem;
   color: var(--muted);
+  line-height: 1.45;
 }
 
 .auth-tabs {
   margin: 1rem 0 0.25rem;
 }
 
-.auth-error {
+.auth-notice {
   margin-bottom: 0.75rem;
 }
 

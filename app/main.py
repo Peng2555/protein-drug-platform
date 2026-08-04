@@ -6,7 +6,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from sqlalchemy.orm import Session
@@ -21,6 +22,19 @@ from app.schemas import HealthOut
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_WEB_DIR = ROOT / "web"
 VUE_DIST_DIR = ROOT / "frontend" / "dist"
+
+
+class SPAStaticFiles(StaticFiles):
+    """Serve Vue dist; unknown paths fall back to index.html for client-side routing."""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and path not in ("", "/"):
+                return await super().get_response("index.html", scope)
+            raise
+
 
 app = FastAPI(title="BoltzFold Platform", version="1.0.0", description="Protein structure prediction platform")
 
@@ -95,6 +109,6 @@ if LEGACY_WEB_DIR.exists():
     )
 
 if VUE_DIST_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(VUE_DIST_DIR), html=True), name="web")
+    app.mount("/", SPAStaticFiles(directory=str(VUE_DIST_DIR), html=True), name="web")
 elif LEGACY_WEB_DIR.exists():
     app.mount("/", StaticFiles(directory=str(LEGACY_WEB_DIR), html=True), name="web")

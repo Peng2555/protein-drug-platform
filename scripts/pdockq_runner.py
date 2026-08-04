@@ -301,8 +301,12 @@ def compute_pdockq_from_boltz_dir(out_dir: Path, *, contact_a: float = _CONTACT_
     if not interfaces:
         return PDockQResult(None, None, None, len(chain_ids), [], error="no interfaces evaluated")
 
-    best_pdockq = max(i.pdockq for i in interfaces)
-    best_pdockq2 = max(i.pdockq2 for i in interfaces)
+    active = [i for i in interfaces if i.contact_pairs > 0]
+    if not active:
+        return PDockQResult(None, None, None, len(chain_ids), interfaces, error="no inter-chain contacts")
+
+    best_pdockq = max(i.pdockq for i in active)
+    best_pdockq2 = max(i.pdockq2 for i in active)
     mpdockq = None
     if len(chain_ids) > 2 and total_contacts > 0:
         avg_global = weighted_plddt_sum / max(1, sum(1 for i in interfaces if i.contact_pairs > 0))

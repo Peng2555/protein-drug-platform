@@ -148,7 +148,7 @@ def extract_metrics(out_dir: Path, seconds: float | None = None) -> dict:
         from pdockq_runner import compute_pdockq_from_boltz_dir
 
         pq = compute_pdockq_from_boltz_dir(out_dir)
-        if pq.pdockq is not None:
+        if pq.pdockq is not None and pq.pdockq > 0:
             metrics["pdockq"] = pq.pdockq
             metrics["pdockq2"] = pq.pdockq2
             metrics["pdockq_interfaces"] = [
