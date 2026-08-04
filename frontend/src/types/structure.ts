@@ -163,8 +163,8 @@ export const IX_TYPE_LABELS: Record<string, string> = {
   water_bridge: '水桥',
 }
 
-/** Draw in 3D; hydrophobic contacts omitted to avoid wire clutter. */
-export const IX_DRAW_IN_3D = new Set(['hbond', 'salt_bridge', 'pi_stacking', 'pi_cation', 'water_bridge'])
+/** Draw in 3D: only well-defined point-to-point interactions (PLIP atom coords). */
+export const IX_DRAW_IN_3D = new Set(['hbond', 'salt_bridge'])
 
 export const IX_COLORS: Record<string, number> = {
   hbond: 0xf59e0b,
@@ -185,12 +185,12 @@ export const IX_LINE_CSS: Record<string, string> = {
 }
 
 export const IX_LINE_RADIUS: Record<string, number> = {
-  hbond: 0.035,
-  salt_bridge: 0.085,
-  hydrophobic: 0.025,
-  pi_stacking: 0.055,
-  pi_cation: 0.055,
-  water_bridge: 0.04,
+  hbond: 0.02,
+  salt_bridge: 0.028,
+  hydrophobic: 0.02,
+  pi_stacking: 0.025,
+  pi_cation: 0.025,
+  water_bridge: 0.022,
 }
 
 export const IFACE_CHAIN_PALETTE = {

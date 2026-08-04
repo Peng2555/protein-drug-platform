@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 FOLD_ENGINES: frozenset[str] = frozenset({"boltz2", "esmfold2"})
+MATURATION_ENGINE = "iggm_maturation"
 DEFAULT_FOLD_ENGINE = "boltz2"
 
 

@@ -14,6 +14,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 VALID_AA = set("ACDEFGHIKLMNPQRSTVWY")
+# Boltz2 truncates chain names to 4 chars internally; longer IDs cause silent preprocess failure.
+BOLTZ_MAX_CHAIN_ID_LEN = 4
 
 BOLTZ_BIN = Path(os.environ.get("BOLTZ_BIN", "/home/pengpai/data/envs/boltz2/bin/boltz"))
 DEFAULT_OUT_ROOT = Path(os.environ.get("BOLTZ2_OUT_ROOT", "/home/pengpai/data/Company_Project/Boltz2/outputs"))
@@ -91,6 +93,25 @@ def validate_seq(seq: str, chain_id: str, source: str) -> str:
     return seq
 
 
+def validate_boltz_chain_ids(seqs: dict[str, str]) -> None:
+    """Boltz2 requires chain IDs ≤4 characters (internal truncation breaks MSA mapping)."""
+    too_long = sorted(cid for cid in seqs if len(cid) > BOLTZ_MAX_CHAIN_ID_LEN)
+    if too_long:
+        examples = ", ".join(f">{cid}" for cid in too_long[:3])
+        raise ValueError(
+            f"Boltz2 链 ID 不能超过 {BOLTZ_MAX_CHAIN_ID_LEN} 个字符，"
+            f"当前过长: {too_long}。"
+            f"请将 FASTA 头改为短 ID（如 >A、>H），例如把 {examples} 改为 ≤4 字符的唯一 ID。"
+        )
+    truncated = [cid[:BOLTZ_MAX_CHAIN_ID_LEN] for cid in seqs]
+    if len(truncated) != len(set(truncated)):
+        dupes = sorted({t for t in truncated if truncated.count(t) > 1})
+        raise ValueError(
+            f"Boltz2 链 ID 在前 {BOLTZ_MAX_CHAIN_ID_LEN} 个字符内必须唯一（Boltz 会截断长 ID），"
+            f"冲突: {dupes}"
+        )
+
+
 def write_boltz_yaml(seqs: dict[str, str], path: Path) -> None:
     lines = ["version: 1", "sequences:"]
     for chain_id, seq in seqs.items():
@@ -115,6 +136,31 @@ def job_id_from_seqs(seqs: dict[str, str], prefix: str | None = None) -> str:
         safe = re.sub(r"[^\w\-]", "_", prefix)[:40]
         return f"{safe}_{digest}"
     return digest
+
+
+def _boltz_run_error(out_dir: Path, proc: subprocess.CompletedProcess) -> str:
+    """Best-effort message when boltz exits 0 but produces no structure."""
+    log = "\n".join(filter(None, [proc.stderr, proc.stdout])).strip()
+    for line in log.splitlines():
+        if "Failed to process" in line or "KeyError:" in line or "Error:" in line:
+            return line.strip()
+    manifest = out_dir / "boltz_results_input" / "processed" / "manifest.json"
+    if manifest.is_file():
+        try:
+            records = json.loads(manifest.read_text()).get("records") or []
+            if not records:
+                return (
+                    "Boltz2 预处理未生成有效输入（常见原因：链 ID 超过 4 个字符，"
+                    "请将 FASTA 头改为 >A、>H 等短 ID 后重试）"
+                )
+        except json.JSONDecodeError:
+            pass
+    err_log = out_dir / "error.log"
+    if err_log.is_file():
+        return err_log.read_text(encoding="utf-8").strip()[-4000:]
+    if log:
+        return log[-4000:]
+    return "boltz predict finished without structure output"
 
 
 def extract_metrics(out_dir: Path, seconds: float | None = None) -> dict:
@@ -284,6 +330,8 @@ def fold_sequences(
         )
 
     try:
+        validate_boltz_chain_ids(seqs)
+
         fasta_out = job_dir / "input.fasta"
         yaml_out = job_dir / "input.yaml"
         write_fasta(seqs, fasta_out)
@@ -301,6 +349,28 @@ def fold_sequences(
 
         if proc.returncode != 0:
             err = (proc.stderr or proc.stdout or "boltz predict failed").strip()
+            (job_dir / "error.log").write_text(err, encoding="utf-8")
+            result = FoldResult(
+                job_id=job_id,
+                status="failed",
+                fasta=str(fasta_path or fasta_out),
+                num_chains=len(seqs),
+                total_length=total_len,
+                chains=chains_len,
+                pred_cif=None,
+                pred_pdb=None,
+                iptm=None,
+                ptm=None,
+                confidence_score=None,
+                complex_plddt=None,
+                seconds=elapsed,
+                error=err[-4000:],
+            )
+            result_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
+            return result
+
+        if not sorted(job_dir.rglob("*_model_0.cif")):
+            err = _boltz_run_error(job_dir, proc)
             (job_dir / "error.log").write_text(err, encoding="utf-8")
             result = FoldResult(
                 job_id=job_id,

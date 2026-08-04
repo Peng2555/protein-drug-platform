@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import SessionLocal, engine
 from app.db_migrate import run_migrations
 from app.models import Job, JobStatus
-from app.routers import auth, batches, jobs, md_jobs
+from app.routers import auth, batches, jobs, md_jobs, maturation_jobs
 from app.schemas import HealthOut
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +50,7 @@ app.include_router(auth.router)
 app.include_router(jobs.router)
 app.include_router(batches.router)
 app.include_router(md_jobs.router)
+app.include_router(maturation_jobs.router)
 
 
 @app.on_event("startup")

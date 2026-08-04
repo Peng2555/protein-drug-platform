@@ -3,7 +3,8 @@ import { defineStore } from 'pinia'
 import { fetchBatches, fetchBatch, fetchBatchJobs } from '@/api/batches'
 import { fetchJob, fetchJobs } from '@/api/jobs'
 import { fetchMdJob, fetchMdJobs } from '@/api/md'
-import type { Batch, BatchDetail, Job, MdJob } from '@/api/types'
+import { fetchMaturationJob, fetchMaturationJobs } from '@/api/maturation'
+import type { Batch, BatchDetail, Job, MdJob, MaturationJob } from '@/api/types'
 import { BATCH_JOBS_PAGE_SIZE } from '@/utils/constants'
 
 export type TaskFilter = 'all' | 'single' | 'batch'
@@ -12,12 +13,13 @@ export const useFoldTasksStore = defineStore('foldTasks', () => {
   const jobs = ref<Job[]>([])
   const batches = ref<Batch[]>([])
   const mdJobs = ref<MdJob[]>([])
+  const maturationJobs = ref<MaturationJob[]>([])
   const taskFilter = ref<TaskFilter>('all')
   const loading = ref(false)
   const pollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
   const hasActiveTasks = computed(() =>
-    [...jobs.value, ...batches.value, ...mdJobs.value].some((t) =>
+    [...jobs.value, ...batches.value, ...mdJobs.value, ...maturationJobs.value].some((t) =>
       ['queued', 'running'].includes(t.status),
     ),
   )
@@ -53,8 +55,17 @@ export const useFoldTasksStore = defineStore('foldTasks', () => {
     mdJobs.value = data.items
   }
 
+  async function refreshMaturationTasks() {
+    try {
+      const data = await fetchMaturationJobs(50)
+      maturationJobs.value = data.items ?? []
+    } catch {
+      /* keep previous list on transient API errors */
+    }
+  }
+
   async function refreshAll() {
-    await Promise.all([refreshFoldTasks(), refreshMdTasks()])
+    await Promise.all([refreshFoldTasks(), refreshMdTasks(), refreshMaturationTasks()])
     if (hasActiveTasks.value) startPolling()
   }
 
@@ -79,6 +90,7 @@ export const useFoldTasksStore = defineStore('foldTasks', () => {
     const tick = async () => {
       await refreshFoldTasks()
       await refreshMdTasks()
+      await refreshMaturationTasks()
       await onTick?.()
       if (!hasActiveTasks.value) stopPolling()
     }
@@ -89,12 +101,14 @@ export const useFoldTasksStore = defineStore('foldTasks', () => {
     jobs,
     batches,
     mdJobs,
+    maturationJobs,
     taskFilter,
     loading,
     hasActiveTasks,
     mergedTaskItems,
     refreshFoldTasks,
     refreshMdTasks,
+    refreshMaturationTasks,
     refreshAll,
     startPolling,
     stopPolling,
@@ -161,4 +175,8 @@ export async function pollJobDetail(jobId: string) {
 
 export async function pollMdJobDetail(jobId: string) {
   return fetchMdJob(jobId)
+}
+
+export async function pollMaturationJobDetail(jobId: string) {
+  return fetchMaturationJob(jobId)
 }

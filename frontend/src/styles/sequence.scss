@@ -68,8 +68,21 @@
   margin-bottom: 0.85rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  overflow: hidden;
   background: #fff;
+}
+
+.chain-seq-body {
+  padding: 0.65rem 0.75rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+.chain-seq-numbered {
+  min-width: min-content;
+  width: max-content;
 }
 
 .chain-seq-head {
@@ -86,12 +99,6 @@
     color: var(--bio-blue);
     font-family: var(--mono);
   }
-}
-
-.chain-seq-numbered {
-  padding: 0.65rem 0.75rem;
-  overflow-x: auto;
-  min-width: min-content;
 }
 
 .seq-res-grid {

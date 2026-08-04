@@ -333,6 +333,9 @@ onMounted(() => {
           >
             <div class="el-upload__text">拖放 FASTA 或点击上传</div>
           </el-upload>
+          <p v-if="foldEngine === 'boltz2'" class="form-hint">
+            Boltz2 要求 FASTA 链 ID 不超过 4 个字符（如 &gt;A、&gt;H），勿使用 antigen、parent 等长名称。
+          </p>
         </el-form-item>
         <div class="form-actions">
           <el-button size="small" @click="loadExample">加载示例</el-button>
@@ -519,4 +522,11 @@ onMounted(() => {
 
 <style scoped lang="scss">
 @use '@/styles/fold-workspace.scss';
+
+.form-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+}
 </style>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { apiJson } from '@/api/client'
+import { api, apiJson } from '@/api/client'
 import InterfaceViewer3d from '@/components/structure/InterfaceViewer3d.vue'
-import { IX_TYPE_LABELS } from '@/types/structure'
+import { IX_LINE_CSS, IX_TYPE_LABELS } from '@/types/structure'
 import type {
   InteractionFilter,
   InterfaceInteraction,
@@ -15,11 +15,9 @@ const props = withDefaults(
   defineProps<{
     jobId: string
     cifText?: string | null
-    /** When provided, skips API fetch. */
     interfaceData?: JobInterfaceData | null
     loading?: boolean
     error?: string | null
-    /** Minimum chain count to show section (legacy: 2). */
     minChains?: number
     chainCount?: number
   }>(),
@@ -41,46 +39,55 @@ const emit = defineEmits<{
 const viewerRef = ref<InstanceType<typeof InterfaceViewer3d> | null>(null)
 const internalLoading = ref(false)
 const internalError = ref('')
+const internalCifText = ref<string | null>(null)
 const data = ref<JobInterfaceData | null>(props.interfaceData)
 const ixFilter = ref<InteractionFilter>('all')
 const activeRowIndex = ref<number | null>(null)
 
 const isLoading = computed(() => props.loading || internalLoading.value)
 const errorMessage = computed(() => props.error || internalError.value)
-
+const cifTextResolved = computed(() => props.cifText || internalCifText.value)
 const primary = computed(() => data.value?.primary_interface ?? null)
 
 const methodText = computed(() => {
   if (!data.value || !primary.value) return ''
   return (
     data.value.method ||
-    `${primary.value.label_a} ↔ ${primary.value.label_b} · 非共价相互作用分析`
+    `${primary.value.label_a} ↔ ${primary.value.label_b} · PLIP 非共价相互作用 · pDockQ 8 Å 接触`
   )
 })
 
-const summaryStats = computed(() => {
+const pdockqTier = computed(() => {
+  const v = primary.value?.pdockq
+  if (v == null) return 'low'
+  if (v >= 0.49) return 'high'
+  if (v >= 0.23) return 'mid'
+  return 'low'
+})
+
+const pdockqHint = computed(() => {
+  if (pdockqTier.value === 'high') return '界面质量较高（pDockQ ≥ 0.49）'
+  if (pdockqTier.value === 'mid') return '界面质量中等（0.23 ≤ pDockQ < 0.49）'
+  return '界面质量偏低（pDockQ < 0.23）'
+})
+
+const interactionChips = computed(() => {
   const p = primary.value
   if (!p) return []
   const ixSum = p.interaction_summary || {}
-  const extraIx =
-    (ixSum.n_pi_stacking ?? 0) + (ixSum.n_water_bridges ?? 0) + (ixSum.n_polar_contacts ?? 0)
   return [
-    { label: 'pDockQ', value: p.pdockq?.toFixed(3) ?? '—' },
+    { label: '氢键', value: ixSum.n_hbonds ?? 0, color: IX_LINE_CSS.hbond },
+    { label: '盐桥', value: ixSum.n_salt_bridges ?? 0, color: IX_LINE_CSS.salt_bridge },
+    { label: '疏水', value: ixSum.n_hydrophobic ?? 0, color: IX_LINE_CSS.hydrophobic },
     {
-      label: 'PLIP 相互作用',
-      value: String(ixSum.n_total ?? p.interactions?.length ?? 0),
-    },
-    { label: '氢键', value: String(ixSum.n_hbonds ?? 0) },
-    { label: '盐桥', value: String(ixSum.n_salt_bridges ?? 0) },
-    { label: '疏水', value: String(ixSum.n_hydrophobic ?? 0) },
-    { label: 'π/水桥等', value: String(extraIx) },
-    {
-      label: `${p.label_a || p.chain_a} 界面残基`,
-      value: String(p.residues_a?.length || 0),
+      label: 'π/水桥等',
+      value: (ixSum.n_pi_stacking ?? 0) + (ixSum.n_water_bridges ?? 0) + (ixSum.n_polar_contacts ?? 0),
+      color: IX_LINE_CSS.pi_stacking,
     },
     {
-      label: `${p.label_b || p.chain_b} 界面残基`,
-      value: String(p.residues_b?.length || 0),
+      label: '界面残基',
+      value: (p.residues_a?.length || 0) + (p.residues_b?.length || 0),
+      color: '#64748b',
     },
   ]
 })
@@ -99,10 +106,7 @@ const filterOptions = computed(() => {
   const types = ['all', ...Object.keys(IX_TYPE_LABELS).filter((t) => counts[t])]
   return types.map((t) => ({
     value: t as InteractionFilter,
-    label:
-      t === 'all'
-        ? `全部 (${counts.all})`
-        : `${IX_TYPE_LABELS[t]} (${counts[t]})`,
+    label: t === 'all' ? `全部 (${counts.all})` : `${IX_TYPE_LABELS[t]} (${counts[t]})`,
   }))
 })
 
@@ -117,6 +121,31 @@ const showSection = computed(() => props.chainCount >= props.minChains)
 const hasContent = computed(
   () => !!primary.value?.contact_pairs && !errorMessage.value && !isLoading.value,
 )
+
+const chainBadgeA = computed(() => ({
+  id: primary.value?.chain_a ?? 'A',
+  label: primary.value?.label_a || primary.value?.chain_a || '链 A',
+  role: 'target' as const,
+}))
+
+const chainBadgeB = computed(() => ({
+  id: primary.value?.chain_b ?? 'B',
+  label: primary.value?.label_b || primary.value?.chain_b || '链 B',
+  role: 'binder' as const,
+}))
+
+async function fetchStructureText(): Promise<void> {
+  if (props.cifText || !props.jobId) return
+  try {
+    const resp = await api.get<string>(`/api/jobs/${props.jobId}/structure`, {
+      responseType: 'text',
+      transformResponse: [(d) => d],
+    })
+    internalCifText.value = resp.data
+  } catch {
+    internalCifText.value = null
+  }
+}
 
 async function fetchInterface(): Promise<void> {
   if (props.interfaceData) {
@@ -155,12 +184,17 @@ function interactionTypeLabel(type: string): string {
   return IX_TYPE_LABELS[type] || type
 }
 
+function ixTypeClass(type: string): string {
+  return `ix-type-pill ix-type-${type}`
+}
+
 watch(
-  () => [props.jobId, props.interfaceData] as const,
+  () => [props.jobId, props.interfaceData, props.cifText] as const,
   () => {
     ixFilter.value = 'all'
     activeRowIndex.value = null
-    void fetchInterface()
+    if (!props.cifText) internalCifText.value = null
+    void Promise.all([fetchInterface(), fetchStructureText()])
   },
   { immediate: true, deep: true },
 )
@@ -174,12 +208,26 @@ watch(
 </script>
 
 <template>
-  <section v-if="showSection" class="interface-panel">
-    <div class="interface-panel__head">
-      <h3>结合界面 · PLIP</h3>
-    </div>
+  <section v-if="showSection" class="interface-section-card">
+    <header class="interface-section-head">
+      <div>
+        <h2>结合界面分析</h2>
+        <p v-if="methodText" class="interface-method">{{ methodText }}</p>
+      </div>
+      <div v-if="primary?.contact_pairs" class="interface-chain-badges">
+        <span class="interface-chain-badge interface-chain-badge--target">
+          <span class="interface-chain-badge__swatch" style="background: #5b8def" />
+          {{ chainBadgeA.label }}
+        </span>
+        <span class="interface-chain-vs">↔</span>
+        <span class="interface-chain-badge interface-chain-badge--binder">
+          <span class="interface-chain-badge__swatch" style="background: #e07a5f" />
+          {{ chainBadgeB.label }}
+        </span>
+      </div>
+    </header>
 
-    <div v-if="isLoading" v-loading="true" class="interface-panel__loading">
+    <div v-if="isLoading" v-loading="true" class="interface-loading">
       正在分析结合界面…
     </div>
 
@@ -205,202 +253,156 @@ watch(
     </template>
 
     <div v-else-if="hasContent" class="interface-panel__content">
-      <p v-if="methodText" class="interface-panel__method">{{ methodText }}</p>
+      <div class="interface-hero-metrics">
+        <div class="interface-pdockq-card" :class="`interface-pdockq-card--${pdockqTier}`">
+          <div class="interface-pdockq-card__label">pDockQ</div>
+          <div class="interface-pdockq-card__value">
+            {{ primary?.pdockq?.toFixed(3) ?? '—' }}
+          </div>
+          <div class="interface-pdockq-card__hint">{{ pdockqHint }}</div>
+        </div>
 
-      <div class="interface-summary">
-        <div v-for="stat in summaryStats" :key="stat.label" class="interface-stat">
-          <div class="val">{{ stat.value }}</div>
-          <div class="lbl">{{ stat.label }}</div>
+        <div class="interface-ix-chips">
+          <div v-for="chip in interactionChips" :key="chip.label" class="interface-ix-chip">
+            <span class="interface-ix-chip__dot" :style="{ background: chip.color }" />
+            <span class="interface-ix-chip__val">{{ chip.value }}</span>
+            <span class="interface-ix-chip__lbl">{{ chip.label }}</span>
+          </div>
         </div>
       </div>
 
-      <InterfaceViewer3d
-        v-if="cifText"
-        ref="viewerRef"
-        :cif-text="cifText"
-        :data="data!"
-        :primary="primary"
-      />
-
-      <div class="interface-interaction-panel">
-        <h4>PLIP 相互作用</h4>
-
-        <div class="interaction-filters">
-          <el-button
-            v-for="opt in filterOptions"
-            :key="opt.value"
-            size="small"
-            round
-            :type="ixFilter === opt.value ? 'primary' : 'default'"
-            plain
-            @click="setFilter(opt.value)"
-          >
-            {{ opt.label }}
-          </el-button>
+      <div class="interface-layout">
+        <div class="interface-layout__viewer">
+          <InterfaceViewer3d
+            v-if="cifTextResolved"
+            ref="viewerRef"
+            :cif-text="cifTextResolved"
+            :data="data!"
+            :primary="primary"
+          />
+          <div v-else class="interface-loading">正在加载结构…</div>
         </div>
 
-        <div v-if="!filteredInteractions.length" class="interaction-empty">
-          暂无该类相互作用
-        </div>
-
-        <div v-else class="interaction-table-wrap">
-          <el-table
-            :data="filteredInteractions"
-            size="small"
-            stripe
-            highlight-current-row
-            :current-row-key="activeRowIndex ?? undefined"
-            @row-click="(row) => onRowClick(row, filteredInteractions.indexOf(row))"
-          >
-            <el-table-column label="类型" width="100">
-              <template #default="{ row }">
-                <el-tag
-                  size="small"
-                  :type="
-                    row.type === 'salt_bridge'
-                      ? 'danger'
-                      : row.type === 'hbond'
-                        ? 'warning'
-                        : 'info'
-                  "
-                  effect="plain"
-                  class="ix-type-pill"
+        <div class="interface-layout__side">
+          <div class="interface-side-card">
+            <div class="interface-side-card__head">
+              PLIP 相互作用
+              <span style="font-weight: 400; color: var(--muted); margin-left: 0.35rem">
+                {{ primary?.interaction_summary?.n_total ?? primary?.interactions?.length ?? 0 }} 条
+              </span>
+            </div>
+            <div class="interface-side-card__body">
+              <div class="interaction-filters">
+                <button
+                  v-for="opt in filterOptions"
+                  :key="opt.value"
+                  type="button"
+                  class="interaction-filter-pill"
+                  :class="{ active: ixFilter === opt.value }"
+                  @click="setFilter(opt.value)"
                 >
-                  {{ interactionTypeLabel(row.type) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="受体/链 A" min-width="120">
-              <template #default="{ row }">
-                {{ row.resname_a }} {{ row.chain_a }}{{ row.resnum_a }}
-              </template>
-            </el-table-column>
-            <el-table-column label="抗体/链 B" min-width="120">
-              <template #default="{ row }">
-                {{ row.resname_b }} {{ row.chain_b }}{{ row.resnum_b }}
-              </template>
-            </el-table-column>
-            <el-table-column label="距离 (Å)" width="90" align="right">
-              <template #default="{ row }">
-                {{ row.distance_angstrom.toFixed(2) }}
-              </template>
-            </el-table-column>
-            <el-table-column label="详情" min-width="160" show-overflow-tooltip>
-              <template #default="{ row }">
-                {{ row.detail || `${row.atom_a} ↔ ${row.atom_b}` }}
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-      </div>
+                  {{ opt.label }}
+                </button>
+              </div>
 
-      <div v-if="data?.reference_tools?.length" class="interface-ref-tools">
-        参考工具：
-        <el-link
-          v-for="tool in data.reference_tools"
-          :key="tool.url"
-          :href="tool.url"
-          target="_blank"
-          type="primary"
-        >
-          {{ tool.name }}
-        </el-link>
+              <div v-if="!filteredInteractions.length" class="interaction-empty">
+                暂无该类相互作用
+              </div>
+
+              <div v-else class="interaction-table-wrap">
+                <el-table
+                  :data="filteredInteractions"
+                  size="small"
+                  stripe
+                  highlight-current-row
+                  :row-class-name="({ rowIndex }) => (activeRowIndex === rowIndex ? 'ix-row-active' : '')"
+                  @row-click="(row) => onRowClick(row, filteredInteractions.indexOf(row))"
+                >
+                  <el-table-column label="类型" width="88">
+                    <template #default="{ row }">
+                      <span :class="ixTypeClass(row.type)">
+                        {{ interactionTypeLabel(row.type) }}
+                      </span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="链 A" min-width="96">
+                    <template #default="{ row }">
+                      {{ row.resname_a }} {{ row.chain_a }}{{ row.resnum_a }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="链 B" min-width="96">
+                    <template #default="{ row }">
+                      {{ row.resname_b }} {{ row.chain_b }}{{ row.resnum_b }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="Å" width="56" align="right">
+                    <template #default="{ row }">
+                      {{ row.distance_angstrom.toFixed(1) }}
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+            </div>
+          </div>
+
+          <div class="interface-side-card">
+            <div class="interface-side-card__head">界面残基</div>
+            <div class="interface-side-card__body">
+              <div class="interface-residue-panel">
+                <div class="interface-residue-col">
+                  <h4>{{ chainBadgeA.label }} ({{ primary?.residues_a?.length ?? 0 }})</h4>
+                  <ul class="interface-res-list">
+                    <li v-for="r in primary?.residues_a ?? []" :key="`${r.chain_id}-${r.seq_num}`">
+                      {{ r.resname }} {{ r.chain_id }}{{ r.seq_num }}
+                    </li>
+                  </ul>
+                </div>
+                <div class="interface-residue-col">
+                  <h4>{{ chainBadgeB.label }} ({{ primary?.residues_b?.length ?? 0 }})</h4>
+                  <ul class="interface-res-list">
+                    <li v-for="r in primary?.residues_b ?? []" :key="`${r.chain_id}-${r.seq_num}`">
+                      {{ r.resname }} {{ r.chain_id }}{{ r.seq_num }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="data?.reference_tools?.length" class="interface-ref-tools">
+            参考：
+            <el-link
+              v-for="tool in data.reference_tools"
+              :key="tool.url"
+              :href="tool.url"
+              target="_blank"
+              type="primary"
+            >
+              {{ tool.name }}
+            </el-link>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 </template>
 
+<style lang="scss">
+@use '@/styles/interface.scss';
+</style>
+
 <style scoped lang="scss">
-.interface-panel {
-  margin-top: 1.25rem;
-
-  &__head h3 {
-    margin: 0 0 0.75rem;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--title);
-  }
-
-  &__loading {
-    min-height: 80px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--muted);
-    font-size: 0.88rem;
-  }
-
-  &__method {
-    margin: 0 0 0.75rem;
-    font-size: 0.82rem;
-    color: var(--muted);
-  }
-
-  &__content {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-}
-
-.interface-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 0.5rem;
-}
-
-.interface-stat {
-  padding: 0.55rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: #fff;
-
-  .val {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--title);
-  }
-
-  .lbl {
-    margin-top: 0.15rem;
-    font-size: 0.68rem;
-    color: var(--muted);
-  }
-}
-
-.interface-interaction-panel h4 {
-  margin: 0 0 0.45rem;
-  font-size: 0.9rem;
-  color: var(--title);
-}
-
-.interaction-filters {
+.interface-panel__content {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 0.5rem;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
-.interaction-empty {
-  padding: 0.75rem;
-  font-size: 0.85rem;
-  color: var(--muted);
+:deep(.ix-row-active) {
+  background: rgba(0, 172, 161, 0.08) !important;
 }
 
-.interaction-table-wrap {
-  max-height: 280px;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: #fff;
-}
-
-.interface-ref-tools {
-  font-size: 0.78rem;
-  color: var(--muted);
-
-  :deep(.el-link) {
-    margin-right: 0.35rem;
-  }
+:deep(.el-table__row) {
+  cursor: pointer;
 }
 </style>

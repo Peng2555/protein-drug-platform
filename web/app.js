@@ -1250,8 +1250,8 @@ const IX_TYPE_LABELS = {
   water_bridge: "水桥",
 };
 
-/** 3D 中绘制：疏水接触过多会糊成线网，仅在下表展示 */
-const IX_DRAW_IN_3D = new Set(["hbond", "salt_bridge", "pi_stacking", "pi_cation", "water_bridge"]);
+/** 3D 中绘制：疏水/π 等坐标多为环心或质心，预测结构下易误导；仅画氢键/盐桥 */
+const IX_DRAW_IN_3D = new Set(["hbond", "salt_bridge"]);
 
 const IX_COLORS = {
   hbond: 0xf59e0b,
@@ -1272,12 +1272,12 @@ const IX_LINE_CSS = {
 };
 
 const IX_LINE_RADIUS = {
-  hbond: 0.035,
-  salt_bridge: 0.085,
-  hydrophobic: 0.025,
-  pi_stacking: 0.055,
-  pi_cation: 0.055,
-  water_bridge: 0.04,
+  hbond: 0.02,
+  salt_bridge: 0.028,
+  hydrophobic: 0.02,
+  pi_stacking: 0.025,
+  pi_cation: 0.025,
+  water_bridge: 0.022,
 };
 
 const IFACE_CHAIN_PALETTE = {
@@ -1349,14 +1349,10 @@ function drawInterfaceInteractionGraphics(viewer, interactions) {
     if (!IX_DRAW_IN_3D.has(ix.type)) continue;
     if (!ix.coord_a?.length || !ix.coord_b?.length) continue;
     const color = IX_COLORS[ix.type] || 0x64748b;
-    const radius = IX_LINE_RADIUS[ix.type] || 0.04;
+    const radius = IX_LINE_RADIUS[ix.type] || 0.02;
     const start = { x: ix.coord_a[0], y: ix.coord_a[1], z: ix.coord_a[2] };
     const end = { x: ix.coord_b[0], y: ix.coord_b[1], z: ix.coord_b[2] };
-    viewer.addCylinder({ start, end, radius, color, fromCap: 1, toCap: 1 });
-    if (ix.type === "hbond" || ix.type === "salt_bridge") {
-      viewer.addSphere({ center: start, radius: ix.type === "salt_bridge" ? 0.18 : 0.12, color });
-      viewer.addSphere({ center: end, radius: ix.type === "salt_bridge" ? 0.18 : 0.12, color });
-    }
+    viewer.addCylinder({ start, end, radius, color, fromCap: 0, toCap: 0 });
   }
 }
 
@@ -1385,15 +1381,10 @@ function paintInterfaceViewer(viewer, primary, chains) {
     viewer.addStyle({ chain: r.chain_id, resi: r.seq_num }, {
       cartoon: {
         color: baseColor,
-        opacity: inIx ? 1 : 0.82,
-        thickness: inIx ? 0.52 : 0.4,
+        opacity: inIx ? 0.95 : 0.72,
+        thickness: inIx ? 0.42 : 0.32,
       },
     });
-    if (inIx) {
-      viewer.addStyle({ chain: r.chain_id, resi: r.seq_num }, {
-        stick: { colorscheme: "greenCarbon", radius: 0.11, opacity: 0.88 },
-      });
-    }
   }
 
   drawInterfaceInteractionGraphics(viewer, interactions);

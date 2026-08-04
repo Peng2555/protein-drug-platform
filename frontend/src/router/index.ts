@@ -58,6 +58,24 @@ const router = createRouter({
           ],
         },
         {
+          path: 'maturation',
+          component: () => import('@/views/maturation/MaturationWorkspaceView.vue'),
+          meta: { title: '亲和力成熟' },
+          children: [
+            {
+              path: '',
+              name: 'maturation',
+              component: () => import('@/views/maturation/MaturationEmptyView.vue'),
+            },
+            {
+              path: 'jobs/:id',
+              name: 'maturation-job',
+              component: () => import('@/views/maturation/MaturationJobDetailView.vue'),
+              meta: { title: '成熟详情' },
+            },
+          ],
+        },
+        {
           path: 'legacy',
           name: 'legacy',
           component: () => import('@/views/LegacyFrameView.vue'),

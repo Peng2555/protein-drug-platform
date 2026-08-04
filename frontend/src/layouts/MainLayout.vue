@@ -7,10 +7,16 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
-const activeModule = computed(() => (route.path.startsWith('/md') ? 'md' : 'fold'))
+const activeModule = computed(() => {
+  if (route.path.startsWith('/md')) return 'md'
+  if (route.path.startsWith('/maturation')) return 'maturation'
+  return 'fold'
+})
 
-function goModule(mod: 'fold' | 'md') {
-  router.push(mod === 'md' ? '/md' : '/fold')
+function goModule(mod: 'fold' | 'md' | 'maturation') {
+  if (mod === 'md') router.push('/md')
+  else if (mod === 'maturation') router.push('/maturation')
+  else router.push('/fold')
 }
 
 function onLogout() {
@@ -38,7 +44,7 @@ function onLogout() {
           <div class="brand-divider" aria-hidden="true" />
           <RouterLink to="/fold" class="product-brand">
             <span class="product-name">BoltzFold</span>
-            <span class="product-tagline">结构预测 · MD 验证</span>
+            <span class="product-tagline">结构预测 · 亲和力成熟 · MD 验证</span>
           </RouterLink>
         </div>
 
@@ -51,6 +57,15 @@ function onLogout() {
           >
             <span class="module-tab-icon">⬡</span>
             结构预测
+          </button>
+          <button
+            type="button"
+            class="module-tab"
+            :class="{ active: activeModule === 'maturation' }"
+            @click="goModule('maturation')"
+          >
+            <span class="module-tab-icon">◆</span>
+            亲和力成熟
           </button>
           <button
             type="button"

@@ -37,7 +37,7 @@ from app.vhh_panel import HeavyChainSpec, prepare_panel_jobs
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-from boltz_runner import parse_fasta_text
+from boltz_runner import parse_fasta_text, validate_boltz_chain_ids
 
 router = APIRouter(prefix="/api/batches", tags=["batches"])
 
@@ -141,6 +141,12 @@ def create_vhh_panel(body: VhhPanelCreate, db: Session = Depends(get_db), user: 
         heavy_chain_id=body.heavy_chain_id,
         heavy_chains=heavy_chains,
     )
+
+    if body.engine == "boltz2":
+        try:
+            validate_boltz_chain_ids({target.chain_id: target.sequence, body.heavy_chain_id: "A"})
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     batch = Batch(
         user_id=user.id,

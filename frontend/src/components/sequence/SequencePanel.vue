@@ -79,11 +79,12 @@ function clearSelection() {
         </span>
       </div>
 
-      <div
-        class="chain-seq-numbered"
-        :style="{ '--seq-len': residuesForChain(ch).length }"
-      >
-        <div class="seq-res-grid">
+      <div class="chain-seq-body">
+        <div
+          class="chain-seq-numbered"
+          :style="{ '--seq-len': residuesForChain(ch).length }"
+        >
+          <div class="seq-res-grid">
           <span
             v-for="r in residuesForChain(ch)"
             :key="`${ch.chain_id}-${r.index}`"
@@ -105,6 +106,7 @@ function clearSelection() {
             <span class="res-aa">{{ r.aa }}</span>
           </span>
         </div>
+      </div>
       </div>
 
       <div v-if="ch.cdr_spans?.length" class="cdr-tags">

@@ -25,6 +25,15 @@ export const MD_STAGE_LABELS: Record<string, string> = {
   done: '完成',
 }
 
+export const MATURATION_STAGE_LABELS: Record<string, string> = {
+  queued: '排队',
+  fold: '结构预测',
+  prep: '准备输入',
+  maturation: '亲和力成熟',
+  aggregate: '结果汇总',
+  done: '完成',
+}
+
 export const BATCH_JOBS_PAGE_SIZE = 100
 
 export const EXAMPLE_FASTA = `>H

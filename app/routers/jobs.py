@@ -22,7 +22,7 @@ from app.schemas import JobCreate, JobInterfaceOut, JobListOut, JobOut, JobSeque
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-from boltz_runner import parse_fasta_text
+from boltz_runner import parse_fasta_text, validate_boltz_chain_ids
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -43,6 +43,11 @@ def create_job(body: JobCreate, db: Session = Depends(get_db), user: User = Depe
     total_len = sum(len(s) for s in seqs.values())
     if total_len > settings.max_total_sequence_length:
         raise HTTPException(400, f"Total length {total_len} exceeds limit {settings.max_total_sequence_length}")
+    if body.engine == "boltz2":
+        try:
+            validate_boltz_chain_ids(seqs)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     fasta_text = fasta_from_seqs(seqs)
     job = create_and_queue_job(
@@ -80,6 +85,11 @@ async def create_job_multipart(
     total_len = sum(len(s) for s in seqs.values())
     if total_len > settings.max_total_sequence_length:
         raise HTTPException(400, f"Total length {total_len} exceeds limit {settings.max_total_sequence_length}")
+    if engine == "boltz2":
+        try:
+            validate_boltz_chain_ids(seqs)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     job = create_and_queue_job(
         db,

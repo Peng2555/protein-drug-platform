@@ -109,3 +109,25 @@ export interface MdJobListOut {
   items: MdJob[]
   total: number
 }
+
+export interface MaturationJob extends Job {}
+
+export interface MaturationJobListOut {
+  items: MaturationJob[]
+  total: number
+}
+
+export interface MaturationVariant {
+  method: string | null
+  antibody_seq_h: string | null
+  frequency: number | null
+  diff: string | null
+  mutations: string | null
+  extra: Record<string, unknown>
+}
+
+export interface MaturationVariantsOut {
+  items: MaturationVariant[]
+  total: number
+  columns: string[]
+}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   createViewer,
   destroyViewer,
@@ -32,6 +32,9 @@ const props = defineProps<{
 
 const viewerEl = ref<HTMLElement | null>(null)
 const viewer = ref<Mol3DViewer | null>(null)
+const loadError = ref('')
+const focusSelectionsCache = ref<Array<{ chain: string; resi: number }>>([])
+let resizeObserver: ResizeObserver | null = null
 
 const primaryInterface = computed(() => props.primary ?? props.data.primary_interface ?? null)
 const chains = computed(() => props.data.chains ?? [])
@@ -69,14 +72,11 @@ function drawInterfaceInteractionGraphics(v: Mol3DViewer, interactions: Interfac
     if (!IX_DRAW_IN_3D.has(ix.type)) continue
     if (!ix.coord_a?.length || !ix.coord_b?.length) continue
     const color = IX_COLORS[ix.type] ?? 0x64748b
-    const radius = IX_LINE_RADIUS[ix.type] ?? 0.04
+    const radius = IX_LINE_RADIUS[ix.type] ?? 0.02
     const start = { x: ix.coord_a[0], y: ix.coord_a[1], z: ix.coord_a[2] }
     const end = { x: ix.coord_b[0], y: ix.coord_b[1], z: ix.coord_b[2] }
-    v.addCylinder({ start, end, radius, color, fromCap: 1, toCap: 1 })
-    if (ix.type === 'hbond' || ix.type === 'salt_bridge') {
-      v.addSphere({ center: start, radius: ix.type === 'salt_bridge' ? 0.18 : 0.12, color })
-      v.addSphere({ center: end, radius: ix.type === 'salt_bridge' ? 0.18 : 0.12, color })
-    }
+    // Single thin cylinder between PLIP atom coordinates (non-covalent; not stick/bond inference).
+    v.addCylinder({ start, end, radius, color, fromCap: 0, toCap: 0 })
   }
 }
 
@@ -98,10 +98,11 @@ function paintInterfaceViewer(
     }
     const baseColor = palette[ch.chain_id] ?? hexColorToInt(ch.color)
     v.setStyle({ chain: ch.chain_id }, {
-      cartoon: { color: baseColor, opacity: 0.2, thickness: 0.22 },
+      cartoon: { color: baseColor, opacity: 0.18, thickness: 0.2 },
     })
   }
 
+  // Cartoon only — no stick (avoids 3Dmol distance-based false bonds at crowded interfaces).
   for (const r of ifaceRes) {
     const key = `${r.chain_id}:${r.seq_num}`
     const baseColor = palette[r.chain_id] ?? IFACE_CHAIN_PALETTE.target
@@ -109,15 +110,10 @@ function paintInterfaceViewer(
     v.addStyle({ chain: r.chain_id, resi: r.seq_num }, {
       cartoon: {
         color: baseColor,
-        opacity: inIx ? 1 : 0.82,
-        thickness: inIx ? 0.52 : 0.4,
+        opacity: inIx ? 0.95 : 0.72,
+        thickness: inIx ? 0.42 : 0.32,
       },
     })
-    if (inIx) {
-      v.addStyle({ chain: r.chain_id, resi: r.seq_num }, {
-        stick: { colorscheme: 'greenCarbon', radius: 0.11, opacity: 0.88 },
-      })
-    }
   }
 
   drawInterfaceInteractionGraphics(v, interactions)
@@ -128,6 +124,17 @@ function paintInterfaceViewer(
     focusSelections.push({ chain, resi: parseInt(resi, 10) })
   }
   return focusSelections
+}
+
+function applyCamera(focusSelections: Array<{ chain: string; resi: number }>): void {
+  if (!viewer.value) return
+  if (focusSelections.length) {
+    viewer.value.zoomTo({ or: focusSelections })
+    viewer.value.zoom(1.15)
+  } else {
+    viewer.value.zoomTo()
+  }
+  viewer.value.render()
 }
 
 const overlayChainRows = computed(() => {
@@ -157,10 +164,11 @@ const overlayIxRows = computed(() => {
     .map(([k, lbl]) => ({ type: k, label: lbl, css: IX_LINE_CSS[k] }))
 })
 
-const showHydrophobicNote = computed(() => {
+const showExtraIxNote = computed(() => {
   const primary = primaryInterface.value
   if (!primary) return false
-  return (primary.interactions || []).some((ix) => ix.type === 'hydrophobic')
+  const types = new Set((primary.interactions || []).map((ix) => ix.type))
+  return types.has('hydrophobic') || types.has('pi_stacking') || types.has('pi_cation') || types.has('water_bridge')
 })
 
 async function loadViewer(): Promise<void> {
@@ -171,23 +179,38 @@ async function loadViewer(): Promise<void> {
     return
   }
 
+  loadError.value = ''
   try {
     await load3DmolLib()
     destroyViewer(viewer.value, viewerEl.value)
     viewer.value = createViewer(viewerEl.value, '0xf8fafc')
     viewer.value.addModel(props.cifText, 'cif')
 
-    const focusSelections = paintInterfaceViewer(viewer.value, primary, chains.value)
-    if (focusSelections.length) {
-      viewer.value.zoomTo({ or: focusSelections })
-      viewer.value.zoom(1.12)
-    } else {
-      viewer.value.zoomTo()
-    }
-    viewer.value.render()
+    focusSelectionsCache.value = paintInterfaceViewer(viewer.value, primary, chains.value)
+    applyCamera(focusSelectionsCache.value)
   } catch (e) {
+    loadError.value = e instanceof Error ? e.message : '3D 界面视图加载失败'
     console.error('interface viewer', e)
   }
+}
+
+function onViewerResize(): void {
+  if (!viewerEl.value) return
+  if (viewer.value) {
+    viewer.value.render()
+    return
+  }
+  if (viewerEl.value.clientWidth > 0 && viewerEl.value.clientHeight > 0) {
+    scheduleLoadViewer()
+  }
+}
+
+function scheduleLoadViewer(): void {
+  void nextTick(() => loadViewer())
+}
+
+function resetView(): void {
+  applyCamera(focusSelectionsCache.value)
 }
 
 function focusInteraction(ix: InterfaceInteraction | null | undefined): void {
@@ -197,135 +220,80 @@ function focusInteraction(ix: InterfaceInteraction | null | undefined): void {
     y: (ix.coord_a[1] + ix.coord_b[1]) / 2,
     z: (ix.coord_a[2] + ix.coord_b[2]) / 2,
   }
-  viewer.value.zoomTo({ center: mid, radius: 7 })
+  viewer.value.zoomTo({ center: mid, radius: 6.5 })
   viewer.value.render()
 }
 
 watch(
   () => [props.cifText, props.data, primaryInterface.value] as const,
   () => {
-    void loadViewer()
+    scheduleLoadViewer()
   },
-  { immediate: true, deep: true },
+  { deep: true },
 )
 
+onMounted(() => {
+  scheduleLoadViewer()
+  const shell = viewerEl.value?.parentElement
+  if (typeof ResizeObserver !== 'undefined' && shell) {
+    resizeObserver = new ResizeObserver(() => onViewerResize())
+    resizeObserver.observe(shell)
+  }
+})
+
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
   destroyViewer(viewer.value, viewerEl.value)
   viewer.value = null
 })
 
-defineExpose({ focusInteraction, getViewer: () => viewer.value })
+defineExpose({ focusInteraction, resetView, getViewer: () => viewer.value })
 </script>
 
 <template>
   <div v-if="primaryInterface?.contact_pairs" class="interface-viewer-shell">
     <div ref="viewerEl" class="interface-viewer__canvas" />
 
-    <div class="interface-viewer-overlay">
-      <div class="interface-viewer-overlay-title">结合界面</div>
+    <div class="interface-viewer-toolbar">
+      <el-button size="small" round @click="resetView">重置视角</el-button>
+    </div>
+
+    <div v-if="loadError" class="interface-viewer-error">
+      {{ loadError }}
+    </div>
+
+    <div class="interface-viewer-legend">
+      <div class="interface-viewer-legend-title">链与界面</div>
       <div
         v-for="ch in overlayChainRows"
         :key="ch.id"
-        class="interface-viewer-overlay-row"
+        class="interface-viewer-legend-row"
       >
         <span class="interface-viewer-swatch" :style="{ background: hexCssFromInt(ch.color) }" />
-        <span>{{ ch.label }} · 链 {{ ch.id }}</span>
+        <span>{{ ch.label }} · {{ ch.id }}</span>
       </div>
 
       <template v-if="overlayIxRows.length">
-        <div class="interface-viewer-overlay-title overlay-ix-title">PLIP 相互作用</div>
+        <div class="interface-viewer-legend-title" style="margin-top: 0.45rem">相互作用</div>
         <div
           v-for="row in overlayIxRows"
           :key="row.type"
-          class="interface-viewer-overlay-row"
+          class="interface-viewer-legend-row"
         >
           <span class="interface-viewer-line" :style="{ background: row.css }" />
           <span>{{ row.label }}</span>
         </div>
       </template>
 
-      <div v-if="showHydrophobicNote" class="interface-viewer-overlay-note">
-        疏水接触见下方表格（3D 中省略以避免线网过密）
+      <div class="interface-viewer-legend-note">
+        细线为 PLIP 原子坐标连线（氢键/盐桥，非共价键）
+        <template v-if="showExtraIxNote">；π/疏水/水桥等见右侧表格</template>
       </div>
     </div>
   </div>
 </template>
 
-<style scoped lang="scss">
-.interface-viewer-shell {
-  position: relative;
-  border-radius: calc(var(--radius-sm) + 2px);
-  overflow: hidden;
-  height: min(620px, 62vh);
-  min-height: 420px;
-  border: 1px solid #dbe3ee;
-  background: linear-gradient(165deg, #ffffff 0%, #f8fafc 48%, #eef2f7 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.interface-viewer__canvas {
-  width: 100%;
-  height: 100%;
-}
-
-.interface-viewer-overlay {
-  position: absolute;
-  left: 14px;
-  bottom: 14px;
-  z-index: 20;
-  max-width: min(320px, calc(100% - 28px));
-  padding: 0.6rem 0.75rem;
-  border-radius: 10px;
-  border: 1px solid rgba(203, 213, 225, 0.95);
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-  font-size: 0.72rem;
-  color: var(--body);
-  pointer-events: none;
-}
-
-.interface-viewer-overlay-title {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 0.35rem;
-
-  &.overlay-ix-title {
-    margin-top: 0.45rem;
-  }
-}
-
-.interface-viewer-overlay-row {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0.2rem 0;
-}
-
-.interface-viewer-swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  flex-shrink: 0;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-}
-
-.interface-viewer-line {
-  width: 24px;
-  height: 3px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-
-.interface-viewer-overlay-note {
-  margin-top: 0.45rem;
-  padding-top: 0.4rem;
-  border-top: 1px dashed var(--border);
-  font-size: 0.65rem;
-  color: var(--muted);
-  line-height: 1.35;
-}
+<style lang="scss">
+@use '@/styles/interface.scss';
 </style>

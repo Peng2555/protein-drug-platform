@@ -47,8 +47,11 @@ class Settings(BaseSettings):
     celery_gpu_queue: str = "gpu"  # unified queue: fold + MD share all GPUs
 
     md_out_root: Path = ROOT / "md_outputs"
+    maturation_out_root: Path = ROOT / "maturation_outputs"
     gmx_bin: str = "/home/pengpai/data/envs/IgGM/bin/gmx"
     gemmi_py: str = "/home/pengpai/data/envs/IgGM/bin/python"
+    iggm_py: str = "/home/pengpai/data/envs/IgGM/bin/python"
+    iggm_root: str = "/home/pengpai/data/Company_Project/IgGM"
     md_production_ns: float = 1.0
     md_replicas: int = 1
     md_parallel_replicas: bool = True  # run multiple replicas on different GPUs when idle
@@ -63,6 +66,7 @@ settings = Settings()
 # Ensure output dirs exist
 settings.boltz2_out_root.mkdir(parents=True, exist_ok=True)
 settings.md_out_root.mkdir(parents=True, exist_ok=True)
+settings.maturation_out_root.mkdir(parents=True, exist_ok=True)
 (ROOT / "data").mkdir(parents=True, exist_ok=True)
 
 # Propagate cache env vars for boltz subprocess
@@ -76,4 +80,7 @@ os.environ.setdefault("ESMFOLD_PY", settings.esmfold_py)
 os.environ.setdefault("ESMFOLD_MODEL", settings.esmfold_model)
 os.environ.setdefault("GMX_BIN", settings.gmx_bin)
 os.environ.setdefault("GEMMI_PY", settings.gemmi_py)
+os.environ.setdefault("IGGM_PY", settings.iggm_py)
+os.environ.setdefault("IGGM_ROOT", settings.iggm_root)
 os.environ.setdefault("MD_OUT_ROOT", str(settings.md_out_root))
+os.environ.setdefault("MATURATION_OUT_ROOT", str(settings.maturation_out_root))
