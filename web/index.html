@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BoltzFold · 百奥赛图 结构预测平台</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="bg-pattern" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand-row">
+        <a class="brand-link" href="https://biocytogen.com.cn/" target="_blank" rel="noopener noreferrer" title="百奥赛图官网">
+          <img src="/assets/biocytogen-logo.png" alt="百奥赛图 Biocytogen" class="brand-logo" />
+        </a>
+        <div class="brand-divider" aria-hidden="true"></div>
+        <div class="product-brand">
+          <span class="product-name">BoltzFold</span>
+          <span class="product-tagline">结构预测 · MD 验证</span>
+        </div>
+      </div>
+      <div id="userBar" class="user-bar hidden">
+        <span class="user-pill">
+          <span class="user-dot"></span>
+          <span id="usernameDisplay"></span>
+        </span>
+        <button class="btn btn-ghost btn-sm" onclick="logout()">退出</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Auth -->
+  <div id="authPanel" class="auth-screen">
+    <div class="auth-card card">
+      <div class="auth-logo-wrap">
+        <img src="/assets/biocytogen-logo.png" alt="百奥赛图" class="auth-logo" />
+      </div>
+      <div class="auth-header">
+        <h2>BoltzFold 结构预测平台</h2>
+        <p class="hint">百奥赛图内部工具 · Boltz2 / ESMFold2 折叠与 GROMACS MD 验证</p>
+      </div>
+      <div class="auth-tabs">
+        <button class="active" onclick="setAuthTab('login')">登录</button>
+        <button onclick="setAuthTab('register')">注册</button>
+      </div>
+      <div id="loginForm" class="auth-form">
+        <div class="field">
+          <label for="loginUser">用户名</label>
+          <input id="loginUser" type="text" autocomplete="username" placeholder="admin" />
+        </div>
+        <div class="field">
+          <label for="loginPass">密码</label>
+          <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••" />
+        </div>
+        <button id="loginBtn" class="btn btn-primary btn-block" onclick="doLogin()">登录</button>
+      </div>
+      <div id="registerForm" class="auth-form hidden">
+        <div class="field">
+          <label for="regUser">用户名</label>
+          <input id="regUser" type="text" placeholder="至少 2 个字符" />
+        </div>
+        <div class="field">
+          <label for="regPass">密码</label>
+          <input id="regPass" type="password" placeholder="至少 6 位" />
+        </div>
+        <button id="registerBtn" class="btn btn-primary btn-block" onclick="doRegister()">创建账号</button>
+      </div>
+      <p class="auth-foot hint">Your Partner from Targets to Therapeutics</p>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="appPanel" class="app-layout hidden">
+    <aside class="sidebar">
+      <nav class="module-nav" aria-label="功能模块">
+        <button type="button" class="module-tab active" data-module="fold" onclick="setModule('fold')">结构预测</button>
+        <button type="button" class="module-tab" data-module="md" onclick="setModule('md')">MD 验证</button>
+      </nav>
+
+      <!-- 结构预测模块 -->
+      <div id="foldModule" class="sidebar-module">
+        <div class="sub-nav" role="tablist" aria-label="预测类型">
+          <button type="button" class="sub-nav-btn active" data-fold-mode="single" onclick="setFoldMode('single')">单条预测</button>
+          <button type="button" class="sub-nav-btn" data-fold-mode="panel" onclick="setFoldMode('panel')">VHH 批量</button>
+        </div>
+
+        <div class="sidebar-form-wrap">
+          <section id="singleJobPanel" class="sidebar-form card">
+            <h3 class="form-title">新建单条预测</h3>
+            <div class="field">
+              <label for="foldEngine">预测引擎</label>
+              <select id="foldEngine" onchange="onFoldEngineChange()">
+                <option value="boltz2" selected>Boltz2（MSA，推荐复合物）</option>
+                <option value="esmfold2">ESMFold2（单序列，更快）</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="jobName">任务名称</label>
+              <input id="jobName" type="text" placeholder="vhh_lysozyme（可选）" />
+            </div>
+            <div class="field">
+              <label>FASTA 输入</label>
+              <div class="input-tabs">
+                <button type="button" class="input-tab active" data-input-tab="paste" onclick="setFastaTab('paste')">粘贴</button>
+                <button type="button" class="input-tab" data-input-tab="file" onclick="setFastaTab('file')">上传</button>
+              </div>
+              <div id="fastaPastePanel">
+                <textarea id="fastaInput" placeholder=">H&#10;SEQ...&#10;>A&#10;SEQ..."></textarea>
+              </div>
+              <div id="fastaFilePanel" class="hidden">
+                <div id="fastaDropZone" class="file-drop-zone">
+                  <input id="fastaFile" type="file" accept=".fasta,.fa,.fas,.txt,.seq" hidden />
+                  <p class="file-drop-title">拖拽 FASTA 到此处，或点击选择</p>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('fastaFile').click()">选择文件</button>
+                  <p id="fastaFileName" class="file-selected-name"></p>
+                </div>
+                <textarea id="fastaFilePreview" class="hidden" readonly placeholder="文件内容预览…"></textarea>
+              </div>
+              <p class="hint">纳米抗体 H/A · Fab H/L/A</p>
+            </div>
+            <div id="msaHintSingle" class="field hidden">
+              <p class="hint">Boltz2 将自动请求 MSA（配对 MSAs 用于复合物界面）</p>
+            </div>
+            <div id="esmfoldOptsSingle" class="field hidden">
+              <label>ESMFold2 参数</label>
+              <div class="field-row">
+                <div class="field">
+                  <label for="esmNumLoops">Trunk loops</label>
+                  <input id="esmNumLoops" type="number" min="1" max="30" value="10" />
+                </div>
+                <div class="field">
+                  <label for="esmSamplingSteps">Diffusion 步数</label>
+                  <input id="esmSamplingSteps" type="number" min="1" max="200" value="68" />
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label for="esmDiffusionSamples">采样数</label>
+                  <input id="esmDiffusionSamples" type="number" min="1" max="25" value="5" />
+                </div>
+                <div class="field">
+                  <label for="esmSeed">随机种子</label>
+                  <input id="esmSeed" type="number" min="0" value="0" />
+                </div>
+              </div>
+              <p class="hint">默认与内部 benchmark 一致；采样数越多越慢，通常按 ipTM 选最优</p>
+            </div>
+            <div class="btn-row">
+              <button id="submitBtn" class="btn btn-primary" onclick="submitJob()">提交预测</button>
+              <button class="btn btn-secondary btn-sm" onclick="loadExample()">示例</button>
+            </div>
+          </section>
+
+          <section id="vhhPanelPanel" class="sidebar-form card hidden">
+            <h3 class="form-title">VHH 批量面板</h3>
+            <p class="hint form-intro">固定靶点 × 多条重链，自动展开 H+A 预测</p>
+
+            <div class="panel-step">
+              <div class="panel-step-title">① 靶点抗原</div>
+              <div class="field">
+                <label for="targetName">靶点名称</label>
+                <input id="targetName" type="text" placeholder="PDL1" />
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label for="targetChainId">链 ID</label>
+                  <input id="targetChainId" type="text" value="A" maxlength="8" />
+                </div>
+                <div class="field">
+                  <label for="heavyChainId">重链 ID</label>
+                  <input id="heavyChainId" type="text" value="H" maxlength="8" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="targetSeq">抗原序列</label>
+                <textarea id="targetSeq" class="compact-textarea" placeholder="KVFGRCELAAAMKRH..."></textarea>
+              </div>
+            </div>
+
+            <div class="panel-step">
+              <div class="panel-step-title">② 重链库</div>
+              <div class="input-tabs">
+                <button type="button" class="input-tab active" data-hc-tab="csv" onclick="setHeavyTab('csv')">CSV</button>
+                <button type="button" class="input-tab" data-hc-tab="fasta" onclick="setHeavyTab('fasta')">FASTA</button>
+              </div>
+              <div id="heavyCsvPanel">
+                <textarea id="heavyCsvInput" class="compact-textarea" placeholder="vhh_id,sequence&#10;VHH_001,DVQLVES..."></textarea>
+              </div>
+              <div id="heavyFastaPanel" class="hidden">
+                <textarea id="heavyFastaInput" class="compact-textarea" placeholder=">VHH_001&#10;DVQLVES..."></textarea>
+              </div>
+              <div class="field" style="margin-top:0.5rem">
+                <input id="heavyCsvFile" type="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm" hidden />
+                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('heavyCsvFile').click()">导入 CSV / TXT / Excel</button>
+                <p id="heavyCsvFileHint" class="hint file-selected-name">
+                  支持 CSV、TXT（UTF-8/GBK）、Excel (.xlsx)<br />
+                  格式：ID&lt;Tab&gt;序列（可无表头）· vhh_id,sequence · FASTA（&gt;ID）
+                </p>
+              </div>
+            </div>
+
+            <div class="panel-step">
+              <div class="panel-step-title">③ 提交</div>
+              <div class="field">
+                <label for="panelEngine">预测引擎</label>
+                <select id="panelEngine" onchange="onPanelEngineChange()">
+                  <option value="boltz2" selected>Boltz2（MSA，推荐复合物）</option>
+                  <option value="esmfold2">ESMFold2（单序列，更快）</option>
+                </select>
+              </div>
+              <div id="esmfoldOptsPanel" class="field hidden">
+                <label>ESMFold2 参数</label>
+                <div class="field-row">
+                  <div class="field">
+                    <label for="panelEsmNumLoops">Trunk loops</label>
+                    <input id="panelEsmNumLoops" type="number" min="1" max="30" value="10" />
+                  </div>
+                  <div class="field">
+                    <label for="panelEsmSamplingSteps">Diffusion 步数</label>
+                    <input id="panelEsmSamplingSteps" type="number" min="1" max="200" value="68" />
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label for="panelEsmDiffusionSamples">采样数</label>
+                    <input id="panelEsmDiffusionSamples" type="number" min="1" max="25" value="5" />
+                  </div>
+                  <div class="field">
+                    <label for="panelEsmSeed">随机种子</label>
+                    <input id="panelEsmSeed" type="number" min="0" value="0" />
+                  </div>
+                </div>
+                <p class="hint">批次内所有任务使用相同参数</p>
+              </div>
+              <div class="field">
+                <label for="batchName">批次名称（可选）</label>
+                <input id="batchName" type="text" placeholder="PDL1_VHH_panel" />
+              </div>
+              <p id="panelPreview" class="panel-preview hint">填写靶点与重链后将显示预览</p>
+              <button id="submitPanelBtn" class="btn btn-primary btn-block" type="button" onclick="submitVhhPanel()">开始批量预测</button>
+            </div>
+          </section>
+        </div>
+
+        <section class="sidebar-section">
+          <div class="section-head">
+            <h2>我的任务</h2>
+            <button class="btn-icon-only" onclick="refreshFoldTasks()" title="刷新">↻</button>
+          </div>
+          <div class="filter-pills" role="tablist" aria-label="任务筛选">
+            <button type="button" class="filter-pill active" data-task-filter="all" onclick="setTaskFilter('all')">全部</button>
+            <button type="button" class="filter-pill" data-task-filter="single" onclick="setTaskFilter('single')">单条</button>
+            <button type="button" class="filter-pill" data-task-filter="batch" onclick="setTaskFilter('batch')">批次</button>
+          </div>
+          <div id="foldTaskList" class="task-list"><div class="empty-state">加载中…</div></div>
+        </section>
+      </div>
+
+      <!-- MD 验证模块 -->
+      <div id="mdModule" class="sidebar-module hidden">
+        <section class="sidebar-form card">
+          <h3 class="form-title">新建 MD 任务</h3>
+          <p class="hint form-intro">GROMACS · CHARMM36 · 默认 1 ns × 1 复本</p>
+          <div class="field">
+            <label for="mdJobName">任务名称</label>
+            <input id="mdJobName" type="text" placeholder="md_vhh_demo（可选）" />
+          </div>
+          <div class="field">
+            <label for="mdParentJob">来源结构</label>
+            <select id="mdParentJob">
+              <option value="">— 选择已完成折叠任务 —</option>
+            </select>
+          </div>
+          <div class="field">
+            <input id="mdStructureFile" type="file" accept=".cif,.mmcif,.pdb" hidden />
+            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('mdStructureFile').click()">或上传 CIF/PDB</button>
+            <span id="mdFileName" class="file-selected-name"></span>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="mdAntigenChain">抗原链</label>
+              <input id="mdAntigenChain" type="text" value="A" maxlength="8" />
+            </div>
+            <div class="field">
+              <label for="mdBinderChain">纳米抗体链</label>
+              <input id="mdBinderChain" type="text" value="H" maxlength="8" />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="mdProductionNs">时长 (ns)</label>
+              <input id="mdProductionNs" type="number" min="0.1" max="500" step="0.1" value="1" />
+            </div>
+            <div class="field">
+              <label for="mdReplicas">复本数</label>
+              <input id="mdReplicas" type="number" min="1" max="5" step="1" value="1" />
+            </div>
+          </div>
+          <button id="submitMdBtn" class="btn btn-primary btn-block" type="button" onclick="submitMdJob()">提交 MD 任务</button>
+        </section>
+
+        <section class="sidebar-section">
+          <div class="section-head">
+            <h2>MD 任务</h2>
+            <button class="btn-icon-only" onclick="loadMdJobs()" title="刷新">↻</button>
+          </div>
+          <div id="mdJobList" class="task-list"><div class="empty-state">加载中…</div></div>
+        </section>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div id="detailEmpty" class="empty-hero" data-module="fold">
+        <div class="empty-hero-top">
+          <div class="empty-icon">
+            <svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="1.5" opacity=".25"/><path d="M24 8v32M8 24h32" stroke="currentColor" stroke-width="1.5" opacity=".2"/><circle cx="24" cy="24" r="6" fill="currentColor" opacity=".35"/></svg>
+          </div>
+          <h3 id="emptyHeroTitle">选择任务查看详情</h3>
+          <p id="emptyHeroDesc">在左侧提交或选择任务，此处将显示结果与 3D 结构</p>
+        </div>
+
+        <div id="emptyHeroFold" class="empty-hero-body">
+          <div class="empty-workflow">
+            <div class="empty-step">
+              <span class="empty-step-num">1</span>
+              <div>
+                <strong>提交结构预测</strong>
+                <span>单条 FASTA 或 VHH 批量面板</span>
+              </div>
+            </div>
+            <div class="empty-step-arrow" aria-hidden="true">→</div>
+            <div class="empty-step">
+              <span class="empty-step-num">2</span>
+              <div>
+                <strong>筛选候选</strong>
+                <span>ipTM · pDockQ · pLDDT · Kabat CDR · 3D</span>
+              </div>
+            </div>
+            <div class="empty-step-arrow" aria-hidden="true">→</div>
+            <div class="empty-step">
+              <span class="empty-step-num">3</span>
+              <div>
+                <strong>MD 界面验证</strong>
+                <span>GROMACS 复核结合稳定性</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="empty-feature-grid">
+            <div class="empty-feature">
+              <span class="empty-feature-icon">⬡</span>
+              <div>
+                <strong>Boltz2 折叠</strong>
+                <p>纳米抗体 H+A、Fab H+L+A 复合物预测</p>
+              </div>
+            </div>
+            <div class="empty-feature">
+              <span class="empty-feature-icon">⊕</span>
+              <div>
+                <strong>VHH 批量</strong>
+                <p>固定靶点 × 多条重链，按 ipTM 排序</p>
+              </div>
+            </div>
+            <div class="empty-feature">
+              <span class="empty-feature-icon">◈</span>
+              <div>
+                <strong>3D 可视化</strong>
+                <p>AlphaFold 风格 pLDDT 着色与结构下载</p>
+              </div>
+            </div>
+            <div class="empty-feature">
+              <span class="empty-feature-icon">◎</span>
+              <div>
+                <strong>MD 验证</strong>
+                <p>显式溶剂模拟与界面稳定性分析</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="empty-quick-actions">
+            <button type="button" class="btn btn-primary btn-sm" onclick="setModule('fold'); setFoldMode('single')">新建单条预测</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="setModule('fold'); setFoldMode('panel')">VHH 批量</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="setModule('md')">MD 验证</button>
+          </div>
+        </div>
+
+        <div id="emptyHeroMd" class="empty-hero-body hidden">
+          <div class="empty-workflow empty-workflow-md">
+            <div class="empty-step">
+              <span class="empty-step-num">1</span>
+              <div>
+                <strong>选择结构</strong>
+                <span>已完成折叠任务或上传 CIF/PDB</span>
+              </div>
+            </div>
+            <div class="empty-step-arrow" aria-hidden="true">→</div>
+            <div class="empty-step">
+              <span class="empty-step-num">2</span>
+              <div>
+                <strong>GROMACS 模拟</strong>
+                <span>CHARMM36 · 溶剂化 · 生产 MD</span>
+              </div>
+            </div>
+            <div class="empty-step-arrow" aria-hidden="true">→</div>
+            <div class="empty-step">
+              <span class="empty-step-num">3</span>
+              <div>
+                <strong>界面分析</strong>
+                <span>接触保留 · RMSD · 复本一致性</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="empty-md-tips card">
+            <h4>MD 模块说明</h4>
+            <ul>
+              <li>建议对 ipTM 较高的候选先做短时长测试（默认 1 ns）</li>
+              <li>正式验证可调整为 100 ns × 多复本</li>
+              <li>Kabat CDR 界面指标用于复核结合模式是否稳定</li>
+            </ul>
+          </div>
+
+          <div class="empty-quick-actions">
+            <button type="button" class="btn btn-primary btn-sm" onclick="setModule('md'); document.getElementById('mdParentJob')?.focus()">提交 MD 任务</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="setModule('fold')">返回结构预测</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="batchPanel" class="detail-panel hidden">
+        <div class="card">
+          <div class="detail-title-row">
+            <div>
+              <h2 id="batchTitle"></h2>
+              <p id="batchMeta" class="detail-meta"></p>
+            </div>
+            <div class="detail-actions">
+              <span id="batchStatus" class="status-badge"></span>
+              <button id="exportBatchBtn" class="btn btn-secondary btn-sm" type="button">导出 CSV</button>
+              <button id="deleteBatchBtn" class="btn btn-danger btn-sm" type="button">删除批次</button>
+            </div>
+          </div>
+          <div id="batchProgress" class="batch-progress"></div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>重链预测结果 · 按 ipTM 排序</h2>
+          </div>
+          <div class="batch-table-wrap">
+            <table class="batch-table" id="batchJobsTable">
+              <thead>
+                <tr>
+                  <th>重链 ID</th>
+                  <th>状态</th>
+                  <th>ipTM</th>
+                  <th>pDockQ</th>
+                  <th>pLDDT</th>
+                  <th>置信度</th>
+                  <th>耗时</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="batchJobsBody"></tbody>
+            </table>
+          </div>
+          <div id="batchJobsPager" class="batch-pager hint hidden"></div>
+        </div>
+      </div>
+
+      <div id="mdDetailPanel" class="detail-panel hidden">
+        <div class="detail-header card">
+          <div class="detail-title-row">
+            <div>
+              <h2 id="mdDetailTitle"></h2>
+              <p id="mdDetailMeta" class="detail-meta"></p>
+            </div>
+            <div class="detail-actions">
+              <span id="mdDetailStatus" class="status-badge"></span>
+              <button id="mdDeleteBtn" class="btn btn-danger btn-sm" type="button">删除</button>
+            </div>
+          </div>
+          <div id="mdStageBar" class="md-stage-bar"></div>
+          <div id="mdMetricsGrid" class="metrics-grid"></div>
+        </div>
+        <pre id="mdErrorBox" class="error-box hidden"></pre>
+        <div class="card">
+          <div class="card-head"><h2>MD 分析摘要</h2></div>
+          <pre id="mdSummaryBox" class="md-summary-box">暂无分析结果</pre>
+        </div>
+      </div>
+
+      <div id="detailPanel" class="detail-panel hidden">
+        <div id="detailBackBar" class="detail-back-bar hidden">
+          <button id="backFromJobBtn" class="btn btn-secondary btn-sm" type="button">← 返回批次</button>
+        </div>
+        <div class="detail-header card">
+          <div class="detail-title-row">
+            <div>
+              <h2 id="detailTitle"></h2>
+              <p id="detailMeta" class="detail-meta"></p>
+            </div>
+            <div class="detail-actions">
+              <span id="detailStatus" class="status-badge"></span>
+              <button id="startMdBtn" class="btn btn-secondary btn-sm hidden" type="button">MD 验证</button>
+              <button id="deleteBtn" class="btn btn-danger btn-sm" type="button" title="删除任务">删除</button>
+            </div>
+          </div>
+          <div id="metricsGrid" class="metrics-grid"></div>
+        </div>
+
+        <div id="sequencePanel" class="card hidden">
+          <div class="card-head seq-panel-head">
+            <h2>输入序列 · Kabat CDR 标注</h2>
+            <button id="clearSeqSelectionBtn" class="btn btn-secondary btn-sm hidden" type="button">清除选择</button>
+          </div>
+          <div id="sequenceLegend" class="seq-legend"></div>
+          <div id="sequenceChains"></div>
+        </div>
+
+        <pre id="errorBox" class="error-box hidden"></pre>
+
+        <div class="card viewer-card">
+          <div class="card-head viewer-card-head">
+            <h2>3D 结构</h2>
+            <div class="viewer-head-actions">
+              <label class="viewer-mode-label">
+                着色
+                <select id="viewerColorMode" class="viewer-mode-select">
+                  <option value="chain" selected>按链区分</option>
+                  <option value="plddt">pLDDT</option>
+                </select>
+              </label>
+              <button id="downloadBtn" class="btn btn-secondary btn-sm hidden" type="button">↓ 下载 mmCIF</button>
+            </div>
+          </div>
+          <div class="viewer-wrap main-viewer">
+            <div id="viewer3d"></div>
+            <div id="chainLegend" class="chain-legend-overlay hidden"></div>
+            <div id="plddtLegend" class="plddt-overlay hidden">
+              <div class="plddt-overlay-title">pLDDT 着色</div>
+              <div class="plddt-af-legend">
+                <div class="plddt-af-item">
+                  <span class="plddt-af-label">很高 (&gt;90)</span>
+                  <span class="plddt-af-bar plddt-high"></span>
+                </div>
+                <div class="plddt-af-item">
+                  <span class="plddt-af-label">较好 (70–90)</span>
+                  <span class="plddt-af-bar plddt-good"></span>
+                </div>
+                <div class="plddt-af-item">
+                  <span class="plddt-af-label">一般 (50–70)</span>
+                  <span class="plddt-af-bar plddt-low"></span>
+                </div>
+                <div class="plddt-af-item">
+                  <span class="plddt-af-label">偏低 (&lt;50)</span>
+                  <span class="plddt-af-bar plddt-poor"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="interfaceSection" class="card viewer-card interface-section-card hidden">
+          <div class="interface-section-head">
+            <h2>结合界面</h2>
+            <p id="interfaceMethod" class="detail-meta">pDockQ 8 Å 接触分析</p>
+          </div>
+          <div id="interfaceLoading" class="interface-loading hidden">正在分析结合界面…</div>
+          <div id="interfaceError" class="interface-error hidden"></div>
+          <div id="interfaceContent" class="interface-content hidden">
+            <div id="interfaceSummary" class="interface-summary"></div>
+            <div class="viewer-wrap viewer-wrap-lg interface-viewer-shell">
+              <div id="interfaceViewer3d"></div>
+              <div id="interfaceViewerOverlay" class="interface-viewer-overlay"></div>
+            </div>
+            <div id="interfaceInteractionPanel" class="interface-interaction-panel">
+              <h4>PLIP 相互作用明细 <span class="hint">氢键 · 盐桥 · 疏水 · π-堆积 · 水桥</span></h4>
+              <div id="interfaceInteractionFilters" class="interaction-filters"></div>
+              <div id="interfaceInteractionTable" class="interaction-table-wrap"></div>
+            </div>
+            <p id="interfaceRefTools" class="interface-ref-tools hint"></p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <span>© 百奥赛图 Biocytogen</span>
+    <span class="footer-tagline">从靶点到治疗药物 · Your Partner from Targets to Therapeutics</span>
+  </footer>
+
+  <script src="/app.js?v=20260804c"></script>
+</body>
+</html>

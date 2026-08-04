@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: boltzfold-postgres
+    environment:
+      POSTGRES_USER: boltz
+      POSTGRES_PASSWORD: boltz
+      POSTGRES_DB: boltzfold
+    ports:
+      - "5433:5432"
+    volumes:
+      - boltzfold_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boltz -d boltzfold"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: boltzfold-redis
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  boltzfold_pg:

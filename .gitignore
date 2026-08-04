@@ -1,0 +1,77 @@
+# ── BoltzFold 本地仓库：跟踪平台源码，不上传预测产物 ──
+
+# 结构预测 / MD 运行输出（体量大，本地生成）
+outputs/
+md_outputs/
+
+# 运行时日志与 pid
+logs/
+*.log
+*.pid
+
+# 本地数据库与运行时数据
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# 环境变量（含密码/密钥；请保留 .env.example）
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 结构文件与预测中间结果（防止漏网之鱼）
+*.cif
+*.pdb
+*.ent
+*.mmcif
+*.npz
+*.gro
+*.xtc
+*.trr
+*.edr
+*.tpr
+*.dcd
+*.psf
+
+# PLIP / 界面分析临时文件
+*plip*
+pred_plip.pdb
+
+# 编辑器 / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node（若后续前端构建）
+node_modules/
+npm-debug.log*
+
+# Docker 本地卷缓存（如有）
+.docker/

@@ -1,0 +1,4 @@
+# Web service only (boltz2 env already has boltz CLI)
+fastapi>=0.110
+uvicorn>=0.27
+pydantic>=2.0
