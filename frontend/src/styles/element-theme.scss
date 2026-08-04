@@ -1,0 +1,58 @@
+/** Element Plus theme aligned with Biocytogen brand */
+:root {
+  --el-color-primary: #00aca1;
+  --el-color-primary-light-3: #4dc4bc;
+  --el-color-primary-light-5: #80d6d0;
+  --el-color-primary-light-7: #b3e8e5;
+  --el-color-primary-light-8: #ccf0ee;
+  --el-color-primary-light-9: #e6f7f6;
+  --el-color-primary-dark-2: #007a72;
+
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-font-family: var(--font);
+  --el-text-color-primary: var(--title);
+  --el-text-color-regular: var(--body);
+  --el-text-color-secondary: var(--muted);
+  --el-border-color: var(--border);
+  --el-border-color-light: #e8edf3;
+  --el-fill-color-blank: #ffffff;
+  --el-bg-color: var(--bg);
+  --el-bg-color-page: var(--bg);
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--bio-green);
+  --el-button-border-color: var(--bio-green);
+  --el-button-hover-bg-color: var(--bio-green-dark);
+  --el-button-hover-border-color: var(--bio-green-dark);
+  --el-button-active-bg-color: var(--bio-green-darkest);
+  --el-button-active-border-color: var(--bio-green-darkest);
+}
+
+.el-tabs__item.is-active {
+  color: var(--bio-green-dark);
+}
+
+.el-tabs__active-bar {
+  background-color: var(--bio-green);
+}
+
+.el-input__wrapper:focus-within,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--bio-green) inset !important;
+}
+
+.el-table {
+  --el-table-header-bg-color: var(--bio-blue-light);
+  --el-table-header-text-color: var(--bio-blue-dark);
+  --el-table-row-hover-bg-color: rgba(0, 172, 161, 0.04);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.el-tag.el-tag--success {
+  --el-tag-bg-color: var(--bio-green-light);
+  --el-tag-border-color: rgba(0, 172, 161, 0.25);
+  --el-tag-text-color: var(--bio-green-dark);
+}

@@ -19,7 +19,8 @@ from app.routers import auth, batches, jobs, md_jobs
 from app.schemas import HealthOut
 
 ROOT = Path(__file__).resolve().parents[1]
-WEB_DIR = ROOT / "web"
+LEGACY_WEB_DIR = ROOT / "web"
+VUE_DIST_DIR = ROOT / "frontend" / "dist"
 
 app = FastAPI(title="BoltzFold Platform", version="1.0.0", description="Protein structure prediction platform")
 
@@ -86,5 +87,14 @@ def health():
     )
 
 
-if WEB_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+if LEGACY_WEB_DIR.exists():
+    app.mount(
+        "/legacy-app",
+        StaticFiles(directory=str(LEGACY_WEB_DIR), html=True),
+        name="legacy-web",
+    )
+
+if VUE_DIST_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(VUE_DIST_DIR), html=True), name="web")
+elif LEGACY_WEB_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(LEGACY_WEB_DIR), html=True), name="web")

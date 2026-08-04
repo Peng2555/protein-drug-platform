@@ -1,0 +1,77 @@
+@use './tokens.scss';
+@use './element-theme.scss';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--body);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--bio-blue);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--bio-blue-dark);
+  }
+}
+
+.page-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s ease;
+}
+
+.page-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.page-card--accent {
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--bio-green), var(--bio-blue));
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c8d3df;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #aab8c9;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

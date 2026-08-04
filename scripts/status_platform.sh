@@ -36,6 +36,9 @@ curl -s "http://127.0.0.1:${PORT}/api/health" 2>/dev/null | \
   python3 -c "import sys,json; d=json.load(sys.stdin); print(f\"HTTP:   {d.get('status','?')}  queue={d.get('queue_depth','?')}  running={d.get('running_jobs','?')}  workers={d.get('gpu_workers','?')}\")" \
   2>/dev/null || curl -s -o /dev/null -w "HTTP:   %{http_code} http://127.0.0.1:${PORT}/api/health\n" "http://127.0.0.1:${PORT}/api/health" 2>/dev/null || echo "HTTP:   unreachable"
 
+echo ""
+bash "$ROOT/scripts/show_access_urls.sh"
+
 if command -v nvidia-smi >/dev/null 2>&1; then
   echo ""
   echo "=== GPU utilization ==="
