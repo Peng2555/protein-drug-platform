@@ -1,194 +1,68 @@
-# BoltzFold — 蛋白质结构预测平台
+# BoltzFold
 
-**给序列 → 队列调度 → Boltz2 预测 → 网页查看 / 下载**
+结构预测 · 序列改造 · 小分子对接 · 亲和力成熟 · MD 验证
 
-支持：用户登录、任务历史、异步 GPU Worker、3D 结构查看（3Dmol.js）。
+把抗体或复合物序列交给平台，任务进入 GPU 队列，完成后在网页里看 3D、下结构和后续分析。账号登录、任务历史、四卡并行都已接好。
 
----
+局域网默认打开 [http://192.168.8.25:8765/](http://192.168.8.25:8765/)，本机则是 [http://127.0.0.1:8765/](http://127.0.0.1:8765/)。
 
-## 架构
 
-```
-浏览器 (web/)
-    ↓ REST + JWT
-FastAPI (app/main.py)
-    ↓ enqueue
-Redis + Celery Worker (worker/tasks.py)
-    ↓ subprocess
-boltz_runner.py → pred.cif
-    ↓
-PostgreSQL（任务元数据）+ outputs/（结构文件）
-```
+## 能做什么
 
----
+**结构预测**　粘贴 FASTA 或批量 VHH，用 Boltz2 / ESMFold2 出复合物结构，网页里用 3Dmol 查看。
 
-## 快速启动
+**序列改造**　本地 ESM-2 3B 标出可以突变的位点、以及能换成哪些氨基酸。亲水性用 Kyte–Doolittle 差值标注，不在这一步替你做决定。
 
-### 0. Docker Rootless（无 sudo / 无 docker 组）
+**小分子对接**　受体结构 + 配体 SMILES，ETKDG 采样后全局 Vina。
 
-本机已配置 **Docker Rootless**，脚本会自动加载 `scripts/docker_rootless.env`。
+**亲和力成熟**　IgGM 在指定 CDR 上采样变体，再汇总去重。
 
-首次安装（已完成可跳过）：
-```bash
-dockerd-rootless-setuptool.sh install
-# 开机自启 Docker（可选，需管理员一次）：
-# sudo loginctl enable-linger pengpai
-```
+**合成筛选**　把 IgGM 结果和测序表对齐，筛可下单序列。
 
-手动使用 docker 前：
-```bash
-source scripts/docker_rootless.env
-docker ps
-```
+**MD 验证**　从已完成折叠或上传的 CIF/PDB 发起 GROMACS 显式溶剂模拟。
 
-### 1. 基础设施（PostgreSQL + Redis）
 
-```bash
-cd /home/pengpai/data/Company_Project/Boltz2
-bash scripts/start_infra.sh   # docker compose up
-cp .env.example .env            # 首次
-```
+## 怎么跑
 
-### 2. 一键启动平台（API + Celery Worker）
+第一次先准备好 PostgreSQL 和 Redis，再复制环境文件：
 
-```bash
-bash scripts/start_platform.sh
-# 或（脚本已 chmod +x 后）：
-./scripts/start_platform.sh
+    bash scripts/start_infra.sh
+    cp .env.example .env
 
-# 停止 / 查看状态：
-bash scripts/stop_platform.sh
-bash scripts/status_platform.sh
-# 浏览器打开（见脚本输出的地址）：
-#   本机:     http://127.0.0.1:8765
-#   其他电脑: http://<服务器IP>:8765   （不要用 127.0.0.1）
-```
+之后日常只用：
 
-默认管理员（首次 `init_db` 创建）：
-- 用户名：`admin`
-- 密码：`admin123`（请尽快修改）
+    bash scripts/start_platform.sh
+    bash scripts/status_platform.sh
+    bash scripts/stop_platform.sh
 
-### 3. 无 Docker 原型模式
+脚本会打印本机和局域网地址。别的电脑请用服务器 IP，不要用 127.0.0.1。
 
-不启动 Docker 时，默认使用 **SQLite**（`data/boltzfold.db`）+ 仍需 **Redis** 给 Celery。
+首次初始化会有管理员账号 `admin` / `admin123`，请尽快改掉。没有 Docker 时可以只用 SQLite（注释掉 `.env` 里的 `DATABASE_URL`），Celery 仍然需要 Redis。
 
-```bash
-# 仅 Redis（或改 REDIS_URL 指向已有实例）
-docker compose up -d redis
 
-# 编辑 .env：注释 DATABASE_URL 行即回退 SQLite
-bash scripts/start_platform.sh
-```
+## 任务怎么走
 
----
+浏览器带着 JWT 打 FastAPI，任务进 Redis 队列，每张 GPU 一个 Celery Worker 拉任务，结构写到 `outputs/`，元数据进 PostgreSQL。折叠和 MD 共用队列 `gpu`。四张卡都有活时会跑满；任务少于四条就只占对应数量的卡。
 
-## 目录
+改 GPU 数量：在 `.env` 里设 `CELERY_GPU_COUNT`，然后重启平台。排队是否设上限看 `MAX_JOBS_PER_USER_QUEUED`（`0` 表示不限制）。
 
-```
-Boltz2/
-├── app/                    # FastAPI 后端
-│   ├── main.py
-│   ├── models.py           # User, Job
-│   ├── routers/            # auth, jobs
-│   └── celery_app.py
-├── worker/tasks.py         # Celery 预测任务
-├── scripts/
-│   ├── boltz_runner.py     # 核心预测逻辑
-│   ├── fold_fasta.py       # CLI（无需 Web）
-│   ├── init_db.py
-│   ├── start_infra.sh
-│   └── start_platform.sh
-├── web/                    # 前端（登录 / 提交 / 3D）
-├── docker-compose.yml
-├── outputs/                # 结构文件 {job_uuid}/
-└── data/                   # SQLite（可选）
-```
 
----
+## 主要目录
 
-## 命令行（仍可用）
+`app/` 是 FastAPI 与各模块路由，`worker/` 是 Celery 任务，`scripts/` 里是预测、对接、ESM-2、平台启停脚本。前端在 `frontend/`。运行产物都在本地：`outputs/`、`md_outputs/`、`docking_outputs/`、`maturation_outputs/`、`synthesis_outputs/`、`developability_outputs/`，不会进 git。
 
-```bash
-/home/pengpai/data/envs/boltz2/bin/python scripts/fold_fasta.py \
-  -i inputs/example_vhh_lysozyme.fasta -o outputs/
-```
+命令行折叠仍然可用：
 
----
+    /home/pengpai/data/envs/boltz2/bin/python scripts/fold_fasta.py -i inputs/example_vhh_lysozyme.fasta -o outputs/
 
-## API 示例
 
-```bash
-TOKEN=$(curl -s -X POST http://127.0.0.1:8765/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+## 环境与安全
 
-curl -X POST http://127.0.0.1:8765/api/jobs \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"fasta": ">H\nSEQ...\n>A\nSEQ...", "name": "test"}'
+`.env` 里需要关心的主要是数据库和 Redis 地址、`SECRET_KEY`、输出目录、管理员账号，以及 `CELERY_GPU_COUNT`、`GMX_BIN` 这类路径。生产环境务必改密钥和密码，按实际卡数设 Worker，前面加 Nginx + HTTPS。旧任务目录可以定期清。
 
-curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8765/api/jobs
-```
+用户注册默认需要管理员审批：`bash scripts/manage_users.sh list --pending`。
 
----
 
-## 环境变量（.env）
+## 旧版
 
-| 变量 | 说明 |
-|------|------|
-| `DATABASE_URL` | PostgreSQL 连接串；不设则用 SQLite |
-| `REDIS_URL` | Celery 队列 |
-| `SECRET_KEY` | JWT 密钥 |
-| `BOLTZ2_OUT_ROOT` | 结构输出目录 |
-| `ADMIN_USERNAME/PASSWORD` | 首次初始化管理员 |
-| `CELERY_GPU_COUNT` | GPU Worker 数量（默认 4，每卡 1 进程） |
-| `CELERY_GPU_QUEUE` | 统一任务队列名（默认 `gpu`，折叠+MD 共用） |
-| `MAX_JOBS_PER_USER_QUEUED` | 每用户排队上限；`0`=不限制，任务可一直入队直到 Worker 消化 |
-
----
-
-## 多人并发与 GPU 占满策略
-
-平台启动 **4 个 GPU Worker**（GPU 0–3 各 1 进程），**折叠与 MD 共用同一队列 `gpu`**：
-
-- 队列里 **≥4 个任务** 时，4 张卡 **同时跑满**
-- 任务 **少于 4 个** 时，只占用对应数量 GPU（正常）
-- **不再**单独占用 GPU 0 的 MD Worker，避免空卡
-- 单用户可连续提交/批量入队，Worker 按 FIFO 自动拉取（批量任务、单条任务一致）
-
-```bash
-bash scripts/status_platform.sh   # 看 queue / running / nvidia-smi
-```
-
-修改 GPU 数量：`.env` 中 `CELERY_GPU_COUNT=2` 后重启平台。
-
----
-
-## MD 界面验证（GROMACS）
-
-侧边栏 **MD 验证** 模块：从已完成 Boltz2 任务或上传 CIF/PDB 发起 GROMACS 显式溶剂 MD。
-
-| 变量 | 说明 |
-|------|------|
-| `MD_PRODUCTION_NS` | 生产模拟时长（默认 **1 ns** MVP；生产可改为 100） |
-| `MD_REPLICAS` | 复本数（默认 1） |
-| `GMX_BIN` / `GEMMI_PY` | GROMACS / CIF 转换（IgGM 环境） |
-
-API：`POST /api/md-jobs`、`POST /api/md-jobs/upload`、`GET /api/md-jobs/{id}`
-
-输出目录：`md_outputs/{任务名}__{uuid}/`
-
----
-
-## 生产建议
-
-- 修改 `SECRET_KEY` 与 admin 密码
-- 按机器 GPU 数设置 `CELERY_GPU_COUNT`
-- Nginx 反代 + HTTPS
-- 定期清理 `outputs/`、`md_outputs/` 旧任务
-
----
-
-## 旧版 MVP
-
-`app/server.py` + `scripts/start_server.sh` 为无数据库的单机版，已被本平台替代。
+`app/server.py` 是无数据库的单机原型，已被当前平台替代。
