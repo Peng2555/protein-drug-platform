@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { fetchJobs } from '@/api/jobs'
@@ -44,6 +44,20 @@ const activeId = computed(() =>
   route.name === 'maturation-job' ? (route.params.id as string) : null,
 )
 
+const needsFasta = computed(
+  () => structureSource.value === 'boltz2' || structureSource.value === 'esmfold2',
+)
+
+const fastaHint = computed(() => {
+  if (structureSource.value === 'fold_job') {
+    return '可选：留空则从所选折叠任务自动读取序列'
+  }
+  if (structureSource.value === 'upload') {
+    return '可选：留空则从上传的结构文件按链 ID 自动提取'
+  }
+  return 'Boltz2/ESMFold2 预测结构前必须提供序列'
+})
+
 const cdrOptions = ['CDR-H1', 'CDR-H2', 'CDR-H3', 'CDR-L1', 'CDR-L2', 'CDR-L3']
 
 async function loadParentOptions() {
@@ -67,10 +81,21 @@ function onUploadChange(uploadFileArg: { raw?: File }) {
   uploadFile.value = uploadFileArg.raw || null
 }
 
+watch(parentJobId, (id) => {
+  if (!id || structureSource.value !== 'fold_job') return
+  const parent = parentOptions.value.find((j) => j.id === id)
+  if (!parent?.chains_json) return
+  const keys = Object.keys(parent.chains_json)
+  if (keys.length >= 2) {
+    binderChainId.value = keys[0]
+    antigenChainId.value = keys[1]
+  }
+})
+
 async function submit() {
   const fasta = fastaInput.value.trim()
-  if (!fasta) {
-    ElMessage.warning('请填写 Parent FASTA（重链 + 抗原）')
+  if (needsFasta.value && !fasta) {
+    ElMessage.warning('Boltz2/ESMFold2 预测结构需要填写 Parent FASTA')
     return
   }
   if (structureSource.value === 'upload' && !uploadFile.value) {
@@ -95,7 +120,8 @@ async function submit() {
     }
     let job: MaturationJob
     if (structureSource.value === 'upload') {
-      job = await uploadMaturationJob(fasta, uploadFile.value!, {
+      job = await uploadMaturationJob(uploadFile.value!, {
+        fasta: fasta || null,
         name: jobName.value.trim() || null,
         binder_chain_id: binderChainId.value,
         antigen_chain_id: antigenChainId.value,
@@ -104,7 +130,7 @@ async function submit() {
       })
     } else {
       job = await createMaturationJob({
-        fasta,
+        fasta: fasta || null,
         name: jobName.value.trim() || null,
         structure_source: structureSource.value,
         fold_job_id: structureSource.value === 'fold_job' ? parentJobId.value : null,
@@ -181,13 +207,14 @@ onMounted(async () => {
           <el-input v-model="jobName" />
         </el-form-item>
 
-        <el-form-item label="Parent FASTA">
+        <el-form-item :label="needsFasta ? 'Parent FASTA（必填）' : 'Parent FASTA（可选）'">
           <el-input
             v-model="fastaInput"
             type="textarea"
             :rows="6"
-            placeholder=">H&#10;EVQLV...&#10;>A&#10;QVQVV..."
+            :placeholder="needsFasta ? '>H\nEVQLV...\n>A\nQVQVV...' : '留空则从结构自动提取序列'"
           />
+          <p class="field-hint">{{ fastaHint }}</p>
         </el-form-item>
 
         <div class="inline-fields">
@@ -244,7 +271,7 @@ onMounted(async () => {
         <el-divider content-position="left">IgGM 参数</el-divider>
 
         <div class="inline-fields">
-          <el-form-item label="采样数/位点">
+          <el-form-item label="每位点采样数">
             <el-input-number v-model="numSamples" :min="1" :max="500" />
           </el-form-item>
           <el-form-item label="扩散步数">
@@ -270,6 +297,9 @@ onMounted(async () => {
         <el-form-item label="PyRosetta relax">
           <el-switch v-model="relax" />
         </el-form-item>
+        <p class="field-hint">
+          总推理次数 ≈ 每位点采样数 × CDR 掩码氨基酸位数（如 100×12≈1200）。多 GPU 并行完成同一批任务。
+        </p>
 
         <el-button type="primary" size="small" :loading="submitting" @click="submit">
           提交成熟任务
@@ -339,6 +369,13 @@ onMounted(async () => {
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
+}
+
+.field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
 }
 
 h3 {

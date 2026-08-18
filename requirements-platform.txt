@@ -14,3 +14,6 @@ python-multipart>=0.0.9
 anarci>=2024.5.21
 plip>=3.0.1
 openbabel>=3.2.0
+rdkit>=2023.9.1
+meeko>=0.6.0
+vina>=1.2.5

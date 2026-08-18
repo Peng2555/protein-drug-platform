@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 from boltz_runner import cif_to_pdb, fold_sequences as boltz_fold_sequences, parse_fasta_text
 from iggm_mask_builder import build_maturation_fastas, write_maturation_fastas
+from iggm_mutation_table import build_mutation_table
 
 IGGM_ROOT = Path(os.environ.get("IGGM_ROOT", "/home/pengpai/data/Company_Project/IgGM"))
 IGGM_PY = Path(os.environ.get("IGGM_PY", "/home/pengpai/data/envs/IgGM/bin/python"))
@@ -366,6 +367,19 @@ def run_maturation_pipeline(
             gpu_ids=iggm_params.get("gpu_ids"),
             on_stage=on_stage,
         )
+        if result.status == "ok" and result.results:
+            try:
+                mutation_meta = build_mutation_table(
+                    fasta_dir=work_dir / "maturation",
+                    origin_fasta=origin_path,
+                    mask_fasta=mask_path,
+                    out_dir=work_dir / "results" / "maturation",
+                    chain_id=binder_chain,
+                )
+                result.results["cdr3_csv"] = mutation_meta["cdr3_csv"]
+                result.results["mutation_table"] = mutation_meta
+            except Exception as exc:
+                result.results["mutation_table_error"] = str(exc)[:2000]
         result.seconds = time.time() - t0
         (work_dir / "result.json").write_text(
             json.dumps(asdict(result), indent=2, ensure_ascii=False),

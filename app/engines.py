@@ -4,6 +4,10 @@ from __future__ import annotations
 
 FOLD_ENGINES: frozenset[str] = frozenset({"boltz2", "esmfold2"})
 MATURATION_ENGINE = "iggm_maturation"
+SYNTHESIS_ENGINE = "synthesis_select"
+RAS_DOCKING_ENGINE = "ras_tricomplex_docking"
+SMALL_MOLECULE_DOCKING_ENGINE = "small_molecule_docking"
+DEVELOPABILITY_ENGINE = "esm2_developability"
 DEFAULT_FOLD_ENGINE = "boltz2"
 
 

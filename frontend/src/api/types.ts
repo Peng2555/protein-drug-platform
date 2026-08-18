@@ -110,6 +110,20 @@ export interface MdJobListOut {
   total: number
 }
 
+export interface RasDockingJob extends Job {}
+
+export interface RasDockingJobListOut {
+  items: RasDockingJob[]
+  total: number
+}
+
+export interface DockingJob extends Job {}
+
+export interface DockingJobListOut {
+  items: DockingJob[]
+  total: number
+}
+
 export interface MaturationJob extends Job {}
 
 export interface MaturationJobListOut {
@@ -131,3 +145,136 @@ export interface MaturationVariantsOut {
   total: number
   columns: string[]
 }
+
+export interface MaturationLogSection {
+  id: string
+  title: string
+  content: string
+  truncated: boolean
+}
+
+export interface MaturationLogsOut {
+  stage: string | null
+  status: string
+  summary_lines: string[]
+  progress: {
+    num_samples?: number
+    gpu_count?: number
+    steps?: number
+    mask_position_count?: number
+    inference_total?: number
+    completion_percent?: number
+    maturation_fastas?: number
+  }
+  sections: MaturationLogSection[]
+}
+
+export interface SynthesisSelectOut {
+  job_id?: string | null
+  parent_cdr3?: string | null
+  parent_v_gene?: string | null
+  cdr3_region?: string | null
+  shm_filtered: number
+  matched_count: number
+  matched_cdr3_kinds: number
+  unmatched_iggm_count: number
+  order_count: number
+  a_count: number
+  b_count: number
+  matched_csv: string
+  unmatched_csv: string
+  order_csv: string
+  order_txt: string
+  out_dir: string
+}
+
+export interface SynthesisCandidate {
+  synthesis_id: string | null
+  priority: string | null
+  recommend: string | null
+  iggm_variant_id: string | null
+  iggm_cdr3: string | null
+  seq_count: number | null
+  shm_row: number | null
+  cdr3_mutation_sites: string | null
+  extra_mutation_sites: string | null
+  all_mutation_sites_for_synthesis: string | null
+  n_total_mutations: number | null
+  synthesis_sequence: string | null
+  nucleotide_sequence: string | null
+  v_gene: string | null
+  j_gene: string | null
+  PI: string | null
+  note: string | null
+  has_extra_shm?: string | null
+  cdr3_mutation_sites_in_shm_row?: string | null
+  extra_mutation_sites_in_shm_row?: string | null
+  aa_sequence?: string | null
+  iggm_frequency?: number | null
+  iggm_cdr3_mutations?: string | null
+  extra: Record<string, unknown>
+}
+
+export interface SynthesisCandidatesOut {
+  items: SynthesisCandidate[]
+  total: number
+  columns: string[]
+  summary: Record<string, unknown> | null
+}
+
+export interface SynthesisJob extends Job {}
+
+export interface SynthesisJobListOut {
+  items: SynthesisJob[]
+  total: number
+}
+
+export interface DevelopabilityJob extends Job {
+  fasta_text?: string | null
+}
+
+export interface DevelopabilityJobListOut {
+  items: DevelopabilityJob[]
+  total: number
+}
+
+export interface DevelopabilityAaScore {
+  aa: string
+  ll: number
+  dll: number
+  is_wt: boolean
+}
+
+export interface DevelopabilityResidue {
+  index: number
+  aa: string
+  kabat: string
+  region: string
+  tier: 'freeze' | 'candidate' | 'avoid'
+  freeze_reason: string | null
+  wt_ll: number | null
+  best_aa: string | null
+  best_dll: number | null
+  aa_scores: DevelopabilityAaScore[]
+}
+
+export interface DevelopabilityCandidate {
+  rank: number
+  parent_id: string
+  chain: string
+  seq_pos: number
+  kabat: string
+  wt: string
+  mut: string
+  mutation: string
+  region: string
+  buried: boolean | null
+  interface: boolean
+  esm_dll: number
+  hydro_delta: number
+  pass_esm: boolean
+  pass_hydro: boolean
+  pass_tm: boolean | null
+  status: string
+}
+

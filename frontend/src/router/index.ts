@@ -76,6 +76,46 @@ const router = createRouter({
           ],
         },
         {
+          path: 'synthesis',
+          component: () => import('@/views/synthesis/SynthesisWorkspaceView.vue'),
+          meta: { title: '合成候选筛选' },
+          children: [
+            {
+              path: '',
+              name: 'synthesis',
+              component: () => import('@/views/synthesis/SynthesisEmptyView.vue'),
+            },
+            {
+              path: 'jobs/:id',
+              name: 'synthesis-job',
+              component: () => import('@/views/synthesis/SynthesisJobDetailView.vue'),
+              meta: { title: '筛选结果' },
+            },
+          ],
+        },
+        {
+          path: 'developability',
+          component: () => import('@/views/developability/DevelopabilityWorkspaceView.vue'),
+          meta: { title: '序列改造' },
+          children: [
+            { path: '', name: 'developability', component: () => import('@/views/developability/DevelopabilityEmptyView.vue') },
+            { path: 'jobs/:id', name: 'developability-job', component: () => import('@/views/developability/DevelopabilityJobDetailView.vue') },
+          ],
+        },
+        {
+          path: 'ras-docking/:pathMatch(.*)*',
+          redirect: (to) => (to.params.pathMatch ? `/docking/${to.params.pathMatch}` : '/docking'),
+        },
+        {
+          path: 'docking',
+          component: () => import('@/views/docking/DockingWorkspaceView.vue'),
+          meta: { title: '小分子对接' },
+          children: [
+            { path: '', name: 'docking', component: () => import('@/views/docking/DockingEmptyView.vue') },
+            { path: 'jobs/:id', name: 'docking-job', component: () => import('@/views/docking/DockingJobDetailView.vue') },
+          ],
+        },
+        {
           path: 'legacy',
           name: 'legacy',
           component: () => import('@/views/LegacyFrameView.vue'),

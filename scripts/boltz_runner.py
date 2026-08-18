@@ -216,19 +216,77 @@ def extract_metrics(out_dir: Path, seconds: float | None = None) -> dict:
 
 
 def cif_to_pdb(cif_path: Path, pdb_path: Path) -> None:
+    """Convert mmCIF to PDB for downstream tools (IgGM, DockQ, etc.)."""
+    cif_path = Path(cif_path)
+    pdb_path = Path(pdb_path)
+    pdb_path.parent.mkdir(parents=True, exist_ok=True)
+
     try:
         from biotite.structure.io.pdbx import CIFFile, get_structure
         from biotite.structure.io.pdb import PDBFile
+
+        cif = CIFFile.read(str(cif_path))
+        stack = get_structure(cif, model=1, use_author_fields=True)
+        pdb = PDBFile()
+        pdb.set_structure(stack)
+        pdb.write(str(pdb_path))
+        return
+    except ImportError:
+        pass
+
+    try:
+        import gemmi
+
+        structure = gemmi.read_structure(str(cif_path))
+        structure.write_pdb(str(pdb_path))
+        return
     except ImportError as exc:
         raise ImportError(
-            "biotite required for PDB export; install in boltz2 env or set write_pdb=False"
+            "CIF→PDB conversion requires biotite or gemmi; "
+            "install biotite in boltz2 env or ensure boltz (gemmi) is available"
         ) from exc
 
-    cif = CIFFile.read(str(cif_path))
-    stack = get_structure(cif, model=1, use_author_fields=True)
-    pdb = PDBFile()
-    pdb.set_structure(stack)
-    pdb.write(str(pdb_path))
+
+def sequences_from_structure(structure_path: Path | str) -> dict[str, str]:
+    """Extract one-letter protein sequences per chain from PDB/mmCIF."""
+    import gemmi
+
+    path = Path(structure_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Structure not found: {path}")
+
+    structure = gemmi.read_structure(str(path))
+    if len(structure) == 0:
+        raise ValueError(f"No models in structure: {path}")
+
+    out: dict[str, str] = {}
+    for chain in structure[0]:
+        letters: list[str] = []
+        for res in chain:
+            tab = gemmi.find_tabulated_residue(res.name)
+            if tab is None or not tab.is_amino_acid():
+                continue
+            code = tab.one_letter_code
+            if code and code != "?":
+                letters.append(code)
+        if letters:
+            out[chain.name] = "".join(letters)
+
+    if not out:
+        raise ValueError(f"No protein chains found in structure: {path}")
+    return out
+
+
+def pick_chain_key(seqs: dict[str, str], chain_id: str) -> str:
+    chain_id = chain_id.strip()
+    if chain_id in seqs:
+        return chain_id
+    upper_map = {k.upper(): k for k in seqs}
+    if chain_id.upper() in upper_map:
+        return upper_map[chain_id.upper()]
+    raise ValueError(
+        f"Chain {chain_id!r} not found in structure; available: {', '.join(sorted(seqs))}"
+    )
 
 
 def boltz_env() -> dict[str, str]:

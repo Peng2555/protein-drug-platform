@@ -10,12 +10,18 @@ const auth = useAuthStore()
 const activeModule = computed(() => {
   if (route.path.startsWith('/md')) return 'md'
   if (route.path.startsWith('/maturation')) return 'maturation'
+  if (route.path.startsWith('/synthesis')) return 'synthesis'
+  if (route.path.startsWith('/developability')) return 'developability'
+  if (route.path.startsWith('/docking') || route.path.startsWith('/ras-docking')) return 'docking'
   return 'fold'
 })
 
-function goModule(mod: 'fold' | 'md' | 'maturation') {
+function goModule(mod: 'fold' | 'md' | 'maturation' | 'synthesis' | 'docking' | 'developability') {
   if (mod === 'md') router.push('/md')
   else if (mod === 'maturation') router.push('/maturation')
+  else if (mod === 'synthesis') router.push('/synthesis')
+  else if (mod === 'developability') router.push('/developability')
+  else if (mod === 'docking') router.push('/docking')
   else router.push('/fold')
 }
 
@@ -44,11 +50,20 @@ function onLogout() {
           <div class="brand-divider" aria-hidden="true" />
           <RouterLink to="/fold" class="product-brand">
             <span class="product-name">BoltzFold</span>
-            <span class="product-tagline">结构预测 · 亲和力成熟 · MD 验证</span>
+            <span class="product-tagline">结构预测 · 序列改造 · 小分子对接 · 亲和力成熟 · MD 验证</span>
           </RouterLink>
         </div>
 
         <nav class="module-tabs" aria-label="功能模块">
+          <button
+            type="button"
+            class="module-tab"
+            :class="{ active: activeModule === 'docking' }"
+            @click="goModule('docking')"
+          >
+            <span class="module-tab-icon">⌖</span>
+            小分子对接
+          </button>
           <button
             type="button"
             class="module-tab"
@@ -66,6 +81,24 @@ function onLogout() {
           >
             <span class="module-tab-icon">◆</span>
             亲和力成熟
+          </button>
+          <button
+            type="button"
+            class="module-tab"
+            :class="{ active: activeModule === 'developability' }"
+            @click="goModule('developability')"
+          >
+            <span class="module-tab-icon">△</span>
+            序列改造
+          </button>
+          <button
+            type="button"
+            class="module-tab"
+            :class="{ active: activeModule === 'synthesis' }"
+            @click="goModule('synthesis')"
+          >
+            <span class="module-tab-icon">◇</span>
+            合成候选
           </button>
           <button
             type="button"

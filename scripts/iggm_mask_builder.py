@@ -96,6 +96,43 @@ def build_maturation_fastas(
     return origin, mask
 
 
+def count_mask_positions(
+    seqs: dict[str, str],
+    *,
+    binder_chain_id: str,
+    antigen_chain_id: str,
+    cdr_mask: list[str],
+) -> int:
+    """Count X-masked positions used by IgGM affinity_maturation batching."""
+    origin = normalize_iggm_seqs(
+        seqs,
+        binder_chain_id=binder_chain_id,
+        antigen_chain_id=antigen_chain_id,
+    )
+    masked_h = mask_binder_sequence(origin["H"], cdr_mask)
+    return masked_h.count("X")
+
+
+def estimate_maturation_inference(
+    seqs: dict[str, str],
+    *,
+    binder_chain_id: str,
+    antigen_chain_id: str,
+    cdr_mask: list[str],
+    num_samples: int,
+) -> tuple[int, int]:
+    """Return (mask_position_count, total_inference_tasks)."""
+    mask_positions = count_mask_positions(
+        seqs,
+        binder_chain_id=binder_chain_id,
+        antigen_chain_id=antigen_chain_id,
+        cdr_mask=cdr_mask,
+    )
+    if mask_positions <= 0:
+        raise ValueError("CDR 掩码位点数为 0，请检查成熟区域选择")
+    return mask_positions, num_samples * mask_positions
+
+
 def write_maturation_fastas(
     work_dir: Path,
     origin: dict[str, str],

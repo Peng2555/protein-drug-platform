@@ -34,6 +34,14 @@ export const MATURATION_STAGE_LABELS: Record<string, string> = {
   done: '完成',
 }
 
+export const DEVELOPABILITY_STAGE_LABELS: Record<string, string> = {
+  queued: '排队',
+  load_model: '加载 ESM-2',
+  score: '位点打分',
+  write: '写出候选',
+  done: '完成',
+}
+
 export const BATCH_JOBS_PAGE_SIZE = 100
 
 export const EXAMPLE_FASTA = `>H
@@ -52,6 +60,7 @@ export function batchStatusLabel(status: string) {
 export function engineLabel(engine?: string) {
   if (engine === 'esmfold2') return 'ESMFold2'
   if (engine === 'boltz2') return 'Boltz2'
+  if (engine === 'esm2_developability') return 'ESM-2 序列改造'
   return engine || '—'
 }
 

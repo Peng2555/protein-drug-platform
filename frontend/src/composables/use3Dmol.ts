@@ -8,18 +8,40 @@ export type { Mol3DViewer, ViewerColorMode } from '@/types/structure'
 
 let mol3dLoadPromise: Promise<void> | null = null
 
-/** Dynamically load 3Dmol.js (same CDN as legacy app.js). */
+/** Prefer local vendor copy; fall back to CDN if missing. */
+const MOL3D_SOURCES = [
+  '/vendor/3Dmol-min.js',
+  'https://3Dmol.org/build/3Dmol-min.js',
+]
+
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = src
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error(`无法加载 ${src}`))
+    document.head.appendChild(script)
+  })
+}
+
+/** Dynamically load 3Dmol.js. */
 export function load3DmolLib(): Promise<void> {
   if (window.$3Dmol) return Promise.resolve()
   if (!mol3dLoadPromise) {
-    mol3dLoadPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script')
-      script.src = 'https://3Dmol.org/build/3Dmol-min.js'
-      script.async = true
-      script.onload = () => resolve()
-      script.onerror = () => reject(new Error('3D 库加载失败'))
-      document.head.appendChild(script)
-    })
+    mol3dLoadPromise = (async () => {
+      let lastError: unknown
+      for (const src of MOL3D_SOURCES) {
+        try {
+          await loadScript(src)
+          if (window.$3Dmol) return
+        } catch (err) {
+          lastError = err
+        }
+      }
+      mol3dLoadPromise = null
+      throw lastError instanceof Error ? lastError : new Error('3D 库加载失败')
+    })()
   }
   return mol3dLoadPromise
 }
@@ -38,6 +60,13 @@ export function createViewer(
 export function destroyViewer(viewer: Mol3DViewer | null, container?: HTMLElement | null): void {
   if (container) container.innerHTML = ''
   if (viewer?.clear) viewer.clear()
+}
+
+/** Force WebGL canvas to match container size after it becomes visible. */
+export function resizeViewer(viewer: Mol3DViewer | null): void {
+  if (!viewer) return
+  if (typeof viewer.resize === 'function') viewer.resize()
+  viewer.render()
 }
 
 /** AlphaFold/Boltz-style pLDDT color (B-factor in mmCIF, 0–100). */

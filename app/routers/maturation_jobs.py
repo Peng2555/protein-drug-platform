@@ -18,6 +18,7 @@ from app.deps import get_current_user
 from app.engines import MATURATION_ENGINE
 from app.job_paths import remove_job_outputs
 from app.maturation_service import (
+    collect_maturation_logs,
     create_and_queue_maturation_job,
     prepare_maturation_from_body,
     save_uploaded_structure,
@@ -28,6 +29,7 @@ from app.schemas import (
     MaturationJobCreate,
     MaturationJobListOut,
     MaturationJobOut,
+    MaturationLogsOut,
     MaturationVariantOut,
     MaturationVariantsOut,
 )
@@ -68,8 +70,8 @@ def create_maturation_job(
 
 @router.post("/upload", response_model=MaturationJobOut, status_code=status.HTTP_201_CREATED)
 async def create_maturation_upload(
-    fasta: str = Form(...),
     structure: UploadFile = File(...),
+    fasta: str | None = Form(default=None),
     name: str | None = Form(default=None),
     binder_chain_id: str = Form(default="H"),
     antigen_chain_id: str = Form(default="A"),
@@ -86,7 +88,7 @@ async def create_maturation_upload(
 ):
     cdr_list = [x.strip() for x in cdr_mask.split(",") if x.strip()]
     body = MaturationJobCreate(
-        fasta=fasta,
+        fasta=fasta.strip() if fasta and fasta.strip() else None,
         name=name,
         structure_source="upload",
         binder_chain_id=binder_chain_id,
@@ -147,6 +149,19 @@ def get_maturation_job(job_id: str, db: Session = Depends(get_db), user: User = 
     if not job or job.user_id != user.id or job.engine != MATURATION_ENGINE:
         raise HTTPException(404, "Maturation job not found")
     return _out(job)
+
+
+@router.get("/{job_id}/logs", response_model=MaturationLogsOut)
+def get_maturation_logs(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    tail_lines: int = Query(250, ge=50, le=2000),
+):
+    job = db.get(Job, job_id)
+    if not job or job.user_id != user.id or job.engine != MATURATION_ENGINE:
+        raise HTTPException(404, "Maturation job not found")
+    return MaturationLogsOut(**collect_maturation_logs(job, tail_lines=tail_lines))
 
 
 @router.get("/{job_id}/variants", response_model=MaturationVariantsOut)

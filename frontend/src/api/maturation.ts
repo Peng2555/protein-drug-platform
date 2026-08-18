@@ -1,5 +1,5 @@
 import { apiJson } from './client'
-import type { MaturationJob, MaturationJobListOut, MaturationVariantsOut } from './types'
+import type { MaturationJob, MaturationJobListOut, MaturationLogsOut, MaturationVariantsOut } from './types'
 
 export async function fetchMaturationJobs(limit = 50) {
   return apiJson<MaturationJobListOut>(`/api/maturation-jobs?limit=${limit}`)
@@ -9,8 +9,12 @@ export async function fetchMaturationJob(id: string) {
   return apiJson<MaturationJob>(`/api/maturation-jobs/${id}`)
 }
 
+export async function fetchMaturationLogs(id: string, tailLines = 250) {
+  return apiJson<MaturationLogsOut>(`/api/maturation-jobs/${id}/logs?tail_lines=${tailLines}`)
+}
+
 export async function createMaturationJob(body: {
-  fasta: string
+  fasta?: string | null
   name?: string | null
   structure_source: 'upload' | 'boltz2' | 'esmfold2' | 'fold_job'
   fold_job_id?: string | null
@@ -35,9 +39,9 @@ export async function createMaturationJob(body: {
 }
 
 export async function uploadMaturationJob(
-  fasta: string,
   structure: File,
   meta: {
+    fasta?: string | null
     name?: string | null
     binder_chain_id?: string
     antigen_chain_id?: string
@@ -52,8 +56,8 @@ export async function uploadMaturationJob(
   },
 ) {
   const fd = new FormData()
-  fd.append('fasta', fasta)
   fd.append('structure', structure)
+  if (meta.fasta?.trim()) fd.append('fasta', meta.fasta.trim())
   if (meta.name) fd.append('name', meta.name)
   if (meta.binder_chain_id) fd.append('binder_chain_id', meta.binder_chain_id)
   if (meta.antigen_chain_id) fd.append('antigen_chain_id', meta.antigen_chain_id)

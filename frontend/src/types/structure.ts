@@ -145,6 +145,7 @@ export interface Mol3DViewer {
   addSphere: (spec: Mol3DSphereSpec) => void
   zoomTo: (sel?: Mol3DSelection | Record<string, unknown>) => void
   zoom: (factor: number) => void
+  resize?: () => void
   render: () => void
   clear?: () => void
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { api } from '@/api/client'
 import {
@@ -7,6 +7,7 @@ import {
   createViewer,
   destroyViewer,
   load3DmolLib,
+  resizeViewer,
 } from '@/composables/use3Dmol'
 import {
   applyPyMOLSelectionView,
@@ -41,6 +42,7 @@ const emit = defineEmits<{
 const selectionStore = useSelectionStore()
 const { selectedSeqResidues } = storeToRefs(selectionStore)
 
+const wrapEl = ref<HTMLElement | null>(null)
 const viewerEl = ref<HTMLElement | null>(null)
 const viewer = ref<Mol3DViewer | null>(null)
 const colorMode = ref<ViewerColorMode>('chain')
@@ -48,6 +50,7 @@ const loading = ref(false)
 const loadError = ref('')
 const loadedJobId = ref<string | null>(null)
 const internalCifText = ref<string | null>(null)
+let resizeObserver: ResizeObserver | null = null
 
 const selectionCount = computed(() => selectedSeqResidues.value.size)
 
@@ -62,8 +65,14 @@ const placeholderMessage = computed(() => {
   return '暂无 3D 结构'
 })
 
-const showViewer = computed(
-  () => !loading.value && !loadError.value && viewer.value && loadedJobId.value,
+/** Overlay chrome (legend etc.) only after a successful mount. */
+const showOverlay = computed(
+  () => !loading.value && !loadError.value && !!viewer.value && !!loadedJobId.value,
+)
+
+/** Keep canvas mounted whenever we intend to show a done structure. */
+const keepCanvas = computed(
+  () => !!props.jobId && props.status === 'done',
 )
 
 function refreshViewerStyles(): void {
@@ -75,7 +84,7 @@ function refreshViewerStyles(): void {
   } else {
     applyViewerStyles(v, colorMode.value, props.chains)
   }
-  v.render()
+  resizeViewer(v)
 }
 
 async function fetchStructureText(jobId: string): Promise<string> {
@@ -86,8 +95,19 @@ async function fetchStructureText(jobId: string): Promise<string> {
   return resp.data
 }
 
+async function waitForVisibleCanvas(maxFrames = 30): Promise<boolean> {
+  for (let i = 0; i < maxFrames; i += 1) {
+    await nextTick()
+    const el = viewerEl.value
+    if (el && el.clientWidth > 0 && el.clientHeight > 0) return true
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  }
+  return !!(viewerEl.value && viewerEl.value.clientWidth > 0 && viewerEl.value.clientHeight > 0)
+}
+
 async function mountStructure(jobId: string, text: string): Promise<void> {
   await load3DmolLib()
+  await waitForVisibleCanvas()
   if (!viewerEl.value) return
 
   destroyViewer(viewer.value, viewerEl.value)
@@ -102,7 +122,10 @@ async function mountStructure(jobId: string, text: string): Promise<void> {
   loadedJobId.value = jobId
   refreshViewerStyles()
   viewer.value.zoomTo()
-  viewer.value.render()
+  resizeViewer(viewer.value)
+  // One more frame after layout settles (avoids blank WebGL after route switch).
+  await nextTick()
+  requestAnimationFrame(() => resizeViewer(viewer.value))
   emit('loaded', { jobId, cifText: text })
 }
 
@@ -138,6 +161,8 @@ async function loadStructure(): Promise<void> {
     emit('error', message)
   } finally {
     loading.value = false
+    await nextTick()
+    resizeViewer(viewer.value)
   }
 }
 
@@ -148,6 +173,10 @@ function clearSelection(): void {
 
 function onColorModeChange(): void {
   refreshViewerStyles()
+}
+
+function onViewerResize(): void {
+  resizeViewer(viewer.value)
 }
 
 watch(
@@ -166,7 +195,16 @@ watch(
 
 watch(selectedSeqResidues, () => refreshViewerStyles(), { deep: true })
 
+onMounted(() => {
+  if (typeof ResizeObserver !== 'undefined' && wrapEl.value) {
+    resizeObserver = new ResizeObserver(() => onViewerResize())
+    resizeObserver.observe(wrapEl.value)
+  }
+})
+
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
   destroyViewer(viewer.value, viewerEl.value)
   viewer.value = null
 })
@@ -206,18 +244,20 @@ defineExpose({
       </div>
     </div>
 
-    <div class="structure-viewer__wrap" :class="{ 'is-loading': loading }">
+    <div ref="wrapEl" class="structure-viewer__wrap" :class="{ 'is-loading': loading }">
+      <!-- Canvas stays laid out (not display:none) so WebGL gets a real size. -->
       <div
-        v-show="showViewer"
+        v-show="keepCanvas"
         ref="viewerEl"
         class="structure-viewer__canvas"
+        :class="{ 'is-ready': showOverlay }"
       />
 
-      <div v-if="!showViewer" v-loading="loading" class="structure-viewer__placeholder">
+      <div v-if="!showOverlay" v-loading="loading" class="structure-viewer__placeholder">
         <span>{{ placeholderMessage }}</span>
       </div>
 
-      <div v-if="showViewer && colorMode === 'plddt'" class="plddt-overlay">
+      <div v-if="showOverlay && colorMode === 'plddt'" class="plddt-overlay">
         <div class="plddt-overlay-title">pLDDT</div>
         <div class="plddt-af-legend">
           <div class="plddt-af-item">
@@ -240,7 +280,7 @@ defineExpose({
       </div>
 
       <div
-        v-if="showViewer && colorMode === 'chain' && props.chains?.length"
+        v-if="showOverlay && colorMode === 'chain' && props.chains?.length"
         class="chain-legend"
       >
         <div class="chain-legend-title">链标注</div>
@@ -309,6 +349,12 @@ defineExpose({
     width: 100%;
     height: 100%;
     cursor: crosshair;
+    /* Stay in layout while loading so createViewer sees non-zero size. */
+    visibility: hidden;
+
+    &.is-ready {
+      visibility: visible;
+    }
 
     &:active {
       cursor: grabbing;
@@ -316,16 +362,18 @@ defineExpose({
   }
 
   &__placeholder {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    width: 100%;
-    height: 100%;
     padding: 1rem;
     text-align: center;
     font-size: 0.88rem;
     color: var(--muted);
+    background: linear-gradient(180deg, #eef2f7 0%, #e4eaf2 100%);
+    z-index: 2;
   }
 }
 

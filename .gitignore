@@ -1,8 +1,13 @@
 # ── BoltzFold 本地仓库：跟踪平台源码，不上传预测产物 ──
 
-# 结构预测 / MD 运行输出（体量大，本地生成）
+# 结构预测 / MD / 对接 / 成熟 / 合成 / 序列改造 运行输出（体量大，本地生成）
 outputs/
 md_outputs/
+docking_outputs/
+ras_docking_outputs/
+maturation_outputs/
+synthesis_outputs/
+developability_outputs/
 
 # 运行时日志与 pid
 logs/
