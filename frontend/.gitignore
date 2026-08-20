@@ -1,4 +1,17 @@
-# Logs
+# 前端本地忽略（根目录 .gitignore 已覆盖大部分规则，此处供在 frontend/ 内单独开发时使用）
+
+# 依赖与构建
+node_modules
+dist
+dist-ssr
+.vite
+*.tsbuildinfo
+
+# unplugin 自动生成（npm run dev / build 会重建）
+src/auto-imports.d.ts
+src/components.d.ts
+
+# 日志
 logs
 *.log
 npm-debug.log*
@@ -7,12 +20,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# 本地环境
 *.local
 
-# Editor directories and files
+# 编辑器
 .vscode/*
 !.vscode/extensions.json
 .idea

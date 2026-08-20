@@ -3,9 +3,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# Docker Rootless (no sudo / docker group required)
-# shellcheck disable=SC1091
-source "$ROOT/scripts/docker_rootless.env"
+# Docker Rootless (optional — copy scripts/docker_rootless.env.example if needed)
+if [[ -f "$ROOT/scripts/docker_rootless.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$ROOT/scripts/docker_rootless.env"
+else
+  echo "Tip: 使用 rootless Docker 时，可复制 scripts/docker_rootless.env.example → docker_rootless.env"
+fi
 
 echo "Docker: $DOCKER_HOST"
 docker info >/dev/null 2>&1 || {

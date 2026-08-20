@@ -1,0 +1,3 @@
+[submodule "external/ras-tricomplex-docking"]
+	path = external/ras-tricomplex-docking
+	url = https://github.com/Peng2555/ras-tricomplex-docking.git

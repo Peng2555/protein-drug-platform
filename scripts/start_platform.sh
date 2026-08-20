@@ -23,6 +23,11 @@ fi
 CELERY_GPU_COUNT="${CELERY_GPU_COUNT:-4}"
 CELERY_GPU_QUEUE="${CELERY_GPU_QUEUE:-gpu}"
 
+if [[ ! -f "$ROOT/frontend/dist/index.html" ]]; then
+  echo "WARNING: frontend/dist 不存在，Web 将回退到旧版 web/ 或空白页。"
+  echo "         运行: bash scripts/build_frontend.sh"
+fi
+
 export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
 export HMMER_PATH="${HMMER_PATH:-/home/pengpai/data/envs/IgGM/bin}"
 export GMX_BIN="${GMX_BIN:-/home/pengpai/data/envs/IgGM/bin/gmx}"
