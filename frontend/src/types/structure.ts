@@ -86,88 +86,6 @@ export interface JobInterfaceData {
 
 export type InteractionFilter = 'all' | string
 
-export interface Mol3DAtom {
-  resi?: number
-  chain?: string
-  b?: number
-}
-
-export interface Mol3DSelection {
-  chain?: string
-  resi?: number
-  or?: Array<{ chain: string; resi: number }>
-}
-
-export interface Mol3DCartoonStyle {
-  color?: number
-  colorfunc?: (atom: Mol3DAtom) => number
-  opacity?: number
-  thickness?: number
-  width?: number
-  style?: string
-  arrows?: boolean
-  tubes?: boolean
-  ribbon?: boolean
-}
-
-export interface Mol3DStickStyle {
-  colorscheme?: string
-  radius?: number
-  opacity?: number
-}
-
-export interface Mol3DSphereStyle {
-  radius?: number
-  color?: number
-}
-
-export interface Mol3DCylinderSpec {
-  start: { x: number; y: number; z: number }
-  end: { x: number; y: number; z: number }
-  radius: number
-  color: number
-  fromCap?: number
-  toCap?: number
-}
-
-export interface Mol3DSphereSpec {
-  center: { x: number; y: number; z: number }
-  radius: number
-  color: number
-}
-
-export interface Mol3DViewer {
-  addModel: (data: string, format: string) => void
-  setStyle: (sel: Mol3DSelection | Record<string, unknown>, style: Record<string, unknown>) => void
-  addStyle: (sel: Mol3DSelection | Record<string, unknown>, style: Record<string, unknown>) => void
-  removeAllLabels: () => void
-  setClickable: (
-    sel: Record<string, unknown>,
-    flag: boolean,
-    callback: (atom: Mol3DAtom, viewer: Mol3DViewer, event: MouseEvent) => void,
-  ) => void
-  addCylinder: (spec: Mol3DCylinderSpec) => void
-  addSphere: (spec: Mol3DSphereSpec) => void
-  zoomTo: (sel?: Mol3DSelection | Record<string, unknown>) => void
-  zoom: (factor: number) => void
-  setViewStyle?: (spec: { style?: string; color?: string | number; width?: number }) => void
-  setDefaultCartoonQuality?: (quality: number) => void
-  resize?: () => void
-  render: () => void
-  clear?: () => void
-}
-
-export interface Mol3DGlobal {
-  createViewer: (
-    element: HTMLElement,
-    options?: {
-      backgroundColor?: string
-      cartoonQuality?: number
-      antialias?: boolean
-    },
-  ) => Mol3DViewer
-}
-
 /** PLIP interaction type labels (legacy app.js IX_TYPE_LABELS). */
 export const IX_TYPE_LABELS: Record<string, string> = {
   hbond: '氢键',
@@ -212,9 +130,3 @@ export const IFACE_CHAIN_PALETTE = {
   target: 0x5b8def,
   binder: 0xe07a5f,
 } as const
-
-declare global {
-  interface Window {
-    $3Dmol?: Mol3DGlobal
-  }
-}

@@ -1,25 +1,25 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import {
-  cartoonStyle,
-  createViewer,
-  destroyViewer,
-  hexColorToInt,
-  load3DmolLib,
-} from '@/composables/use3Dmol'
+  createMolstarViewer,
+  destroyMolstarViewer,
+  focusMolstarPoint,
+  focusMolstarResidues,
+  highlightMolstarResidues,
+  loadMolstarCif,
+  resizeMolstarViewer,
+  type MolstarViewer,
+} from '@/composables/useMolstar'
 import type {
   InterfaceChainMeta,
   InterfaceInteraction,
   InterfacePair,
   JobInterfaceData,
-  Mol3DViewer,
 } from '@/types/structure'
 import {
   IFACE_CHAIN_PALETTE,
-  IX_COLORS,
   IX_DRAW_IN_3D,
   IX_LINE_CSS,
-  IX_LINE_RADIUS,
   IX_TYPE_LABELS,
 } from '@/types/structure'
 
@@ -32,9 +32,9 @@ const props = defineProps<{
 }>()
 
 const viewerEl = ref<HTMLElement | null>(null)
-const viewer = ref<Mol3DViewer | null>(null)
+const viewer = shallowRef<MolstarViewer | null>(null)
 const loadError = ref('')
-const focusSelectionsCache = ref<Array<{ chain: string; resi: number }>>([])
+const focusSelectionsCache = ref<Array<{ chain_id: string; seq_num: number }>>([])
 let resizeObserver: ResizeObserver | null = null
 
 const primaryInterface = computed(() => props.primary ?? props.data.primary_interface ?? null)
@@ -68,75 +68,56 @@ function collectInterfaceResidueKeys(primary: InterfacePair) {
   return { interactions, ixResKeys }
 }
 
-function drawInterfaceInteractionGraphics(v: Mol3DViewer, interactions: InterfaceInteraction[]): void {
-  for (const ix of interactions) {
-    if (!IX_DRAW_IN_3D.has(ix.type)) continue
-    if (!ix.coord_a?.length || !ix.coord_b?.length) continue
-    const color = IX_COLORS[ix.type] ?? 0x64748b
-    const radius = IX_LINE_RADIUS[ix.type] ?? 0.02
-    const start = { x: ix.coord_a[0], y: ix.coord_a[1], z: ix.coord_a[2] }
-    const end = { x: ix.coord_b[0], y: ix.coord_b[1], z: ix.coord_b[2] }
-    // Single thin cylinder between PLIP atom coordinates (non-covalent; not stick/bond inference).
-    v.addCylinder({ start, end, radius, color, fromCap: 0, toCap: 0 })
-  }
-}
-
-function paintInterfaceViewer(
-  v: Mol3DViewer,
-  primary: InterfacePair,
-  chainList: InterfaceChainMeta[],
-): Array<{ chain: string; resi: number }> {
-  const palette = getInterfaceChainPalette(primary, chainList)
-  const { interactions, ixResKeys } = collectInterfaceResidueKeys(primary)
+function buildFocusResidues(primary: InterfacePair, ixResKeys: Set<string>) {
   const ifaceRes = [...(primary.residues_a || []), ...(primary.residues_b || [])]
   const ifaceKeys = new Set(ifaceRes.map((r) => `${r.chain_id}:${r.seq_num}`))
-
-  for (const ch of chainList) {
-    const onIface = ch.chain_id === primary.chain_a || ch.chain_id === primary.chain_b
-    if (!onIface) {
-      v.setStyle({ chain: ch.chain_id }, { cartoon: cartoonStyle({ opacity: 0 }) })
-      continue
-    }
-    const baseColor = palette[ch.chain_id] ?? hexColorToInt(ch.color)
-    v.setStyle({ chain: ch.chain_id }, {
-      cartoon: cartoonStyle({ color: baseColor, opacity: 0.22, thickness: 0.28, width: 0.9 }),
-    })
-  }
-
-  // Cartoon only — no stick (avoids 3Dmol distance-based false bonds at crowded interfaces).
-  for (const r of ifaceRes) {
-    const key = `${r.chain_id}:${r.seq_num}`
-    const baseColor = palette[r.chain_id] ?? IFACE_CHAIN_PALETTE.target
-    const inIx = ixResKeys.has(key)
-    v.addStyle({ chain: r.chain_id, resi: r.seq_num }, {
-      cartoon: cartoonStyle({
-        color: baseColor,
-        opacity: inIx ? 0.98 : 0.78,
-        thickness: inIx ? 0.5 : 0.38,
-        width: inIx ? 1.45 : 1.15,
-      }),
-    })
-  }
-
-  drawInterfaceInteractionGraphics(v, interactions)
-
-  const focusSelections: Array<{ chain: string; resi: number }> = []
-  for (const key of ixResKeys.size ? ixResKeys : ifaceKeys) {
-    const [chain, resi] = key.split(':')
-    focusSelections.push({ chain, resi: parseInt(resi, 10) })
-  }
-  return focusSelections
+  const keys = ixResKeys.size ? ixResKeys : ifaceKeys
+  return [...keys].map((key) => {
+    const [chain_id, seq_num] = key.split(':')
+    return { chain_id, seq_num: parseInt(seq_num, 10) }
+  })
 }
 
-function applyCamera(focusSelections: Array<{ chain: string; resi: number }>): void {
-  if (!viewer.value) return
-  if (focusSelections.length) {
-    viewer.value.zoomTo({ or: focusSelections })
-    viewer.value.zoom(1.15)
-  } else {
-    viewer.value.zoomTo()
+async function loadViewer(): Promise<void> {
+  const primary = primaryInterface.value
+  if (!primary?.contact_pairs || !props.cifText || !viewerEl.value) {
+    destroyMolstarViewer(viewer.value, viewerEl.value)
+    viewer.value = null
+    return
   }
-  viewer.value.render()
+
+  loadError.value = ''
+  try {
+    destroyMolstarViewer(viewer.value, viewerEl.value)
+    const v = await createMolstarViewer(viewerEl.value, { viewportBackgroundColor: '0xf8fafc' })
+    viewer.value = v
+    await loadMolstarCif(v, props.cifText)
+
+    const { ixResKeys } = collectInterfaceResidueKeys(primary)
+    const ifaceRes = [...(primary.residues_a || []), ...(primary.residues_b || [])]
+    const interactionResidues = [...ixResKeys].map((key) => {
+      const [chain_id, seq_num] = key.split(':')
+      return { chain_id, seq_num: parseInt(seq_num, 10) }
+    })
+
+    highlightMolstarResidues(v, ifaceRes, 'highlight')
+    if (interactionResidues.length) {
+      highlightMolstarResidues(v, interactionResidues, 'select')
+    }
+
+    focusSelectionsCache.value = buildFocusResidues(primary, ixResKeys)
+    focusMolstarResidues(v, focusSelectionsCache.value)
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : '3D 界面视图加载失败'
+    console.error('interface viewer', e)
+  }
+}
+
+function onViewerResize(): void {
+  resizeMolstarViewer(viewer.value)
+  if (!viewer.value && viewerEl.value && viewerEl.value.clientWidth > 0) {
+    void nextTick(() => loadViewer())
+  }
 }
 
 const overlayChainRows = computed(() => {
@@ -173,69 +154,31 @@ const showExtraIxNote = computed(() => {
   return types.has('hydrophobic') || types.has('pi_stacking') || types.has('pi_cation') || types.has('water_bridge')
 })
 
-async function loadViewer(): Promise<void> {
-  const primary = primaryInterface.value
-  if (!primary?.contact_pairs || !props.cifText || !viewerEl.value) {
-    destroyViewer(viewer.value, viewerEl.value)
-    viewer.value = null
-    return
-  }
-
-  loadError.value = ''
-  try {
-    await load3DmolLib()
-    destroyViewer(viewer.value, viewerEl.value)
-    viewer.value = createViewer(viewerEl.value, '0xf8fafc')
-    viewer.value.addModel(props.cifText, 'cif')
-
-    focusSelectionsCache.value = paintInterfaceViewer(viewer.value, primary, chains.value)
-    applyCamera(focusSelectionsCache.value)
-  } catch (e) {
-    loadError.value = e instanceof Error ? e.message : '3D 界面视图加载失败'
-    console.error('interface viewer', e)
-  }
-}
-
-function onViewerResize(): void {
-  if (!viewerEl.value) return
-  if (viewer.value) {
-    viewer.value.render()
-    return
-  }
-  if (viewerEl.value.clientWidth > 0 && viewerEl.value.clientHeight > 0) {
-    scheduleLoadViewer()
-  }
-}
-
-function scheduleLoadViewer(): void {
-  void nextTick(() => loadViewer())
-}
-
 function resetView(): void {
-  applyCamera(focusSelectionsCache.value)
+  if (viewer.value) focusMolstarResidues(viewer.value, focusSelectionsCache.value)
 }
 
 function focusInteraction(ix: InterfaceInteraction | null | undefined): void {
   if (!viewer.value || !ix?.coord_a?.length || !ix.coord_b?.length) return
-  const mid = {
+  focusMolstarPoint(viewer.value, {
     x: (ix.coord_a[0] + ix.coord_b[0]) / 2,
     y: (ix.coord_a[1] + ix.coord_b[1]) / 2,
     z: (ix.coord_a[2] + ix.coord_b[2]) / 2,
-  }
-  viewer.value.zoomTo({ center: mid, radius: 6.5 })
-  viewer.value.render()
+  })
+  highlightMolstarResidues(viewer.value, [
+    { chain_id: ix.chain_a, seq_num: ix.resnum_a },
+    { chain_id: ix.chain_b, seq_num: ix.resnum_b },
+  ], 'select')
 }
 
 watch(
   () => [props.cifText, props.data, primaryInterface.value] as const,
-  () => {
-    scheduleLoadViewer()
-  },
+  () => { void loadViewer() },
   { deep: true },
 )
 
 onMounted(() => {
-  scheduleLoadViewer()
+  void loadViewer()
   const shell = viewerEl.value?.parentElement
   if (typeof ResizeObserver !== 'undefined' && shell) {
     resizeObserver = new ResizeObserver(() => onViewerResize())
@@ -246,7 +189,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
-  destroyViewer(viewer.value, viewerEl.value)
+  destroyMolstarViewer(viewer.value, viewerEl.value)
   viewer.value = null
 })
 
@@ -255,7 +198,7 @@ defineExpose({ focusInteraction, resetView, getViewer: () => viewer.value })
 
 <template>
   <div v-if="primaryInterface?.contact_pairs" class="interface-viewer-shell">
-    <div ref="viewerEl" class="interface-viewer__canvas" />
+    <div ref="viewerEl" class="interface-viewer__canvas molstar-viewer-host" />
 
     <div class="interface-viewer-toolbar">
       <el-button size="small" round @click="resetView">重置视角</el-button>
@@ -266,7 +209,7 @@ defineExpose({ focusInteraction, resetView, getViewer: () => viewer.value })
     </div>
 
     <div class="interface-viewer-legend">
-      <div class="interface-viewer-legend-title">链与界面</div>
+      <div class="interface-viewer-legend-title">链与界面 · Mol*</div>
       <div
         v-for="ch in overlayChainRows"
         :key="ch.id"
@@ -289,8 +232,8 @@ defineExpose({ focusInteraction, resetView, getViewer: () => viewer.value })
       </template>
 
       <div class="interface-viewer-legend-note">
-        细线为 PLIP 原子坐标连线（氢键/盐桥，非共价键）
-        <template v-if="showExtraIxNote">；π/疏水/水桥等见右侧表格</template>
+        界面残基高亮由 Mol* 渲染；PLIP 详细相互作用见右侧表格
+        <template v-if="showExtraIxNote">（π/疏水/水桥等）</template>
       </div>
     </div>
   </div>
@@ -298,4 +241,9 @@ defineExpose({ focusInteraction, resetView, getViewer: () => viewer.value })
 
 <style lang="scss">
 @use '@/styles/interface.scss';
+
+.molstar-viewer-host .msp-plugin {
+  width: 100%;
+  height: 100%;
+}
 </style>

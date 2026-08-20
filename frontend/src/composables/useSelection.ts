@@ -1,62 +1,19 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { InterfaceChainMeta, Mol3DViewer, SelectedResidue, ViewerColorMode } from '@/types/structure'
-import { cartoonStyle, hexColorToInt, plddtToColor } from '@/composables/use3Dmol'
+import type { MolstarViewer } from '@/composables/useMolstar'
+import { bindMolstarResiduePick, syncMolstarSelection } from '@/composables/useMolstar'
+import type { SelectedResidue } from '@/types/structure'
 
 export type { SelectedResidue } from '@/types/structure'
-
-/** PyMOL default selection color & dimming factors (legacy app.js). */
-export const PYMOL_SEL_COLOR = 0xff00ff
-export const PYMOL_SEL_DIM = 0.22
-export const PYMOL_CHAIN_DIM = 0.38
 
 export function residueSelectionKey(chainId: string, resi: number): string {
   return `${chainId}:${parseInt(String(resi), 10)}`
 }
 
-export function applyPyMOLSelectionView(
-  v: Mol3DViewer,
-  mode: ViewerColorMode,
-  chains?: InterfaceChainMeta[] | null,
-  selected: SelectedResidue[] = [],
-): void {
-  if (!selected.length) return
-
-  const chainsWithSel = new Set(selected.map((r) => r.chainId))
-  const orSel = selected.map((r) => ({ chain: r.chainId, resi: r.resi }))
-
-  if (mode === 'plddt') {
-    v.setStyle({}, {
-      cartoon: cartoonStyle({
-        colorfunc: (atom: { b?: number }) => plddtToColor(atom.b),
-        opacity: PYMOL_SEL_DIM,
-      }),
-    })
-  } else if (chains?.length) {
-    for (const ch of chains) {
-      v.setStyle({ chain: ch.chain_id }, {
-        cartoon: cartoonStyle({
-          color: hexColorToInt(ch.color),
-          opacity: chainsWithSel.has(ch.chain_id) ? PYMOL_CHAIN_DIM : PYMOL_SEL_DIM,
-        }),
-      })
-    }
-  } else {
-    v.setStyle({}, { cartoon: cartoonStyle({ opacity: PYMOL_SEL_DIM }) })
-  }
-
-  for (const cid of chainsWithSel) {
-    v.addStyle({ chain: cid }, { cartoon: cartoonStyle({ opacity: 0.5 }) })
-  }
-
-  v.addStyle({ or: orSel }, {
-    cartoon: cartoonStyle({ color: PYMOL_SEL_COLOR, opacity: 1, thickness: 0.62, width: 1.55 }),
-  })
-}
-
 export const useSelectionStore = defineStore('structureSelection', () => {
   const selectedSeqResidues = ref(new Map<string, SelectedResidue>())
   const lastSeqPickAnchor = ref<SelectedResidue | null>(null)
+  let activeViewer: MolstarViewer | null = null
 
   function getSelectedResiduesList(): SelectedResidue[] {
     return [...selectedSeqResidues.value.values()]
@@ -68,6 +25,7 @@ export const useSelectionStore = defineStore('structureSelection', () => {
 
   function commitSelection(next: Map<string, SelectedResidue>): void {
     selectedSeqResidues.value = next
+    if (activeViewer) syncMolstarSelection(activeViewer, getSelectedResiduesList())
   }
 
   function selectSequenceResidue(
@@ -111,14 +69,19 @@ export const useSelectionStore = defineStore('structureSelection', () => {
   }
 
   function bindViewerResiduePick(
-    v: Mol3DViewer,
-    onPick?: (chainId: string, resi: number, event: MouseEvent) => void,
+    viewer: MolstarViewer,
+    onPick?: (chainId: string, resi: number, event: Pick<MouseEvent, 'shiftKey' | 'ctrlKey' | 'metaKey'>) => void,
   ): void {
-    v.setClickable({}, true, (atom, _viewer, event) => {
-      if (!atom || atom.resi == null || !atom.chain) return
-      selectSequenceResidue(atom.chain, atom.resi, event)
-      onPick?.(atom.chain, atom.resi, event)
+    activeViewer = viewer
+    bindMolstarResiduePick(viewer, (chainId, resi, event) => {
+      selectSequenceResidue(chainId, resi, event)
+      onPick?.(chainId, resi, event)
     })
+    syncMolstarSelection(viewer, getSelectedResiduesList())
+  }
+
+  function detachViewer(): void {
+    activeViewer = null
   }
 
   return {
@@ -129,5 +92,6 @@ export const useSelectionStore = defineStore('structureSelection', () => {
     selectSequenceResidue,
     clearSequenceResidueSelection,
     bindViewerResiduePick,
+    detachViewer,
   }
 })

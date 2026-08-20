@@ -1,19 +1,20 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { api } from '@/api/client'
 import {
-  applyViewerStyles,
-  createViewer,
-  destroyViewer,
-  load3DmolLib,
-  resizeViewer,
-} from '@/composables/use3Dmol'
-import {
-  applyPyMOLSelectionView,
-  useSelectionStore,
-} from '@/composables/useSelection'
-import type { InterfaceChainMeta, Mol3DViewer, ViewerColorMode } from '@/types/structure'
+  applyMolstarChainPalette,
+  applyMolstarColorMode,
+  bindMolstarResiduePick,
+  createMolstarViewer,
+  destroyMolstarViewer,
+  loadMolstarCif,
+  resizeMolstarViewer,
+  syncMolstarSelection,
+  type MolstarViewer,
+} from '@/composables/useMolstar'
+import { useSelectionStore } from '@/composables/useSelection'
+import type { InterfaceChainMeta, ViewerColorMode } from '@/types/structure'
 
 export type { ViewerColorMode } from '@/types/structure'
 
@@ -22,7 +23,6 @@ const props = withDefaults(
     jobId?: string | null
     status?: string | null
     chains?: InterfaceChainMeta[] | null
-    /** Pre-loaded mmCIF text; when omitted, fetched from API using jobId. */
     cifText?: string | null
   }>(),
   {
@@ -44,12 +44,13 @@ const { selectedSeqResidues } = storeToRefs(selectionStore)
 
 const wrapEl = ref<HTMLElement | null>(null)
 const viewerEl = ref<HTMLElement | null>(null)
-const viewer = ref<Mol3DViewer | null>(null)
+const viewer = shallowRef<MolstarViewer | null>(null)
 const colorMode = ref<ViewerColorMode>('chain')
 const loading = ref(false)
 const loadError = ref('')
 const loadedJobId = ref<string | null>(null)
 const internalCifText = ref<string | null>(null)
+let pickUnsub: { unsubscribe: () => void } | null = null
 let resizeObserver: ResizeObserver | null = null
 
 const selectionCount = computed(() => selectedSeqResidues.value.size)
@@ -65,26 +66,24 @@ const placeholderMessage = computed(() => {
   return '暂无 3D 结构'
 })
 
-/** Overlay chrome (legend etc.) only after a successful mount. */
 const showOverlay = computed(
   () => !loading.value && !loadError.value && !!viewer.value && !!loadedJobId.value,
 )
 
-/** Keep canvas mounted whenever we intend to show a done structure. */
 const keepCanvas = computed(
   () => !!props.jobId && props.status === 'done',
 )
 
-function refreshViewerStyles(): void {
+async function refreshViewerStyles(): Promise<void> {
   const v = viewer.value
   if (!v) return
-  v.removeAllLabels()
-  if (selectedSeqResidues.value.size) {
-    applyPyMOLSelectionView(v, colorMode.value, props.chains, selectionStore.getSelectedResiduesList())
+  if (colorMode.value === 'chain' && props.chains?.length) {
+    await applyMolstarChainPalette(v, props.chains)
   } else {
-    applyViewerStyles(v, colorMode.value, props.chains)
+    await applyMolstarColorMode(v, colorMode.value)
   }
-  resizeViewer(v)
+  syncMolstarSelection(v, selectionStore.getSelectedResiduesList())
+  resizeMolstarViewer(v)
 }
 
 async function fetchStructureText(jobId: string): Promise<string> {
@@ -106,34 +105,39 @@ async function waitForVisibleCanvas(maxFrames = 30): Promise<boolean> {
 }
 
 async function mountStructure(jobId: string, text: string): Promise<void> {
-  await load3DmolLib()
   await waitForVisibleCanvas()
   if (!viewerEl.value) return
 
-  destroyViewer(viewer.value, viewerEl.value)
-  viewer.value = createViewer(viewerEl.value, '0xf1f5f9')
-  viewer.value.addModel(text, 'cif')
-  selectionStore.bindViewerResiduePick(viewer.value, (chainId, resi, event) => {
-    emit('residue-click', { chainId, resi, event })
-    refreshViewerStyles()
+  pickUnsub?.unsubscribe()
+  pickUnsub = null
+  destroyMolstarViewer(viewer.value, viewerEl.value)
+  selectionStore.detachViewer()
+
+  const v = await createMolstarViewer(viewerEl.value)
+  viewer.value = v
+  await loadMolstarCif(v, text)
+  pickUnsub = bindMolstarResiduePick(v, (chainId, resi, event) => {
+    selectionStore.selectSequenceResidue(chainId, resi, event)
+    emit('residue-click', { chainId, resi, event: event as MouseEvent })
+    void refreshViewerStyles()
   })
 
   internalCifText.value = text
   loadedJobId.value = jobId
-  refreshViewerStyles()
-  viewer.value.zoomTo()
-  resizeViewer(viewer.value)
-  // One more frame after layout settles (avoids blank WebGL after route switch).
+  await refreshViewerStyles()
   await nextTick()
-  requestAnimationFrame(() => resizeViewer(viewer.value))
+  requestAnimationFrame(() => resizeMolstarViewer(v))
   emit('loaded', { jobId, cifText: text })
 }
 
 async function loadStructure(): Promise<void> {
   const jobId = props.jobId
   if (!jobId || props.status !== 'done') {
-    destroyViewer(viewer.value, viewerEl.value)
+    pickUnsub?.unsubscribe()
+    pickUnsub = null
+    destroyMolstarViewer(viewer.value, viewerEl.value)
     viewer.value = null
+    selectionStore.detachViewer()
     loadedJobId.value = null
     internalCifText.value = null
     loadError.value = ''
@@ -142,7 +146,7 @@ async function loadStructure(): Promise<void> {
   }
 
   if (loadedJobId.value === jobId && viewer.value) {
-    refreshViewerStyles()
+    await refreshViewerStyles()
     return
   }
 
@@ -156,44 +160,47 @@ async function loadStructure(): Promise<void> {
     loadError.value = message
     loadedJobId.value = null
     internalCifText.value = null
-    destroyViewer(viewer.value, viewerEl.value)
+    destroyMolstarViewer(viewer.value, viewerEl.value)
     viewer.value = null
     emit('error', message)
   } finally {
     loading.value = false
     await nextTick()
-    resizeViewer(viewer.value)
+    resizeMolstarViewer(viewer.value)
   }
 }
 
 function clearSelection(): void {
   selectionStore.clearSequenceResidueSelection()
-  refreshViewerStyles()
 }
 
 function onColorModeChange(): void {
-  refreshViewerStyles()
+  void refreshViewerStyles()
 }
 
 function onViewerResize(): void {
-  resizeViewer(viewer.value)
+  resizeMolstarViewer(viewer.value)
 }
 
 watch(
   () => [props.jobId, props.status, props.cifText] as const,
-  () => {
-    void loadStructure()
-  },
+  () => { void loadStructure() },
   { immediate: true },
 )
 
+watch(colorMode, () => {
+  void refreshViewerStyles()
+})
+
 watch(
   () => props.chains,
-  () => refreshViewerStyles(),
+  () => { void refreshViewerStyles() },
   { deep: true },
 )
 
-watch(selectedSeqResidues, () => refreshViewerStyles(), { deep: true })
+watch(selectedSeqResidues, () => {
+  if (viewer.value) syncMolstarSelection(viewer.value, selectionStore.getSelectedResiduesList())
+}, { deep: true })
 
 onMounted(() => {
   if (typeof ResizeObserver !== 'undefined' && wrapEl.value) {
@@ -205,8 +212,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
-  destroyViewer(viewer.value, viewerEl.value)
+  pickUnsub?.unsubscribe()
+  destroyMolstarViewer(viewer.value, viewerEl.value)
   viewer.value = null
+  selectionStore.detachViewer()
 })
 
 defineExpose({
@@ -221,7 +230,7 @@ defineExpose({
     <div class="structure-viewer__head">
       <div class="structure-viewer__titles">
         <h3 class="structure-viewer__title">3D 结构</h3>
-        <p class="structure-viewer__hint">螺旋=圆柱 · β 折叠=箭头（PyMOL 风格 cartoon）</p>
+        <p class="structure-viewer__hint">Mol* 渲染 · 高质量 cartoon（螺旋/折叠清晰）</p>
       </div>
       <div class="structure-viewer__actions">
         <span v-if="selectionCount > 0" class="structure-viewer__sel-count">
@@ -248,11 +257,10 @@ defineExpose({
     </div>
 
     <div ref="wrapEl" class="structure-viewer__wrap" :class="{ 'is-loading': loading }">
-      <!-- Canvas stays laid out (not display:none) so WebGL gets a real size. -->
       <div
         v-show="keepCanvas"
         ref="viewerEl"
-        class="structure-viewer__canvas"
+        class="structure-viewer__canvas molstar-viewer-host"
         :class="{ 'is-ready': showOverlay }"
       />
 
@@ -353,7 +361,7 @@ defineExpose({
     min-height: 400px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+    background: #f1f5f9;
     overflow: hidden;
 
     &.is-loading {
@@ -364,16 +372,10 @@ defineExpose({
   &__canvas {
     width: 100%;
     height: 100%;
-    cursor: crosshair;
-    /* Stay in layout while loading so createViewer sees non-zero size. */
     visibility: hidden;
 
     &.is-ready {
       visibility: visible;
-    }
-
-    &:active {
-      cursor: grabbing;
     }
   }
 
@@ -388,9 +390,14 @@ defineExpose({
     text-align: center;
     font-size: 0.88rem;
     color: var(--muted);
-    background: linear-gradient(180deg, #eef2f7 0%, #e4eaf2 100%);
+    background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
     z-index: 2;
   }
+}
+
+.molstar-viewer-host :deep(.msp-plugin) {
+  width: 100%;
+  height: 100%;
 }
 
 .plddt-overlay {
