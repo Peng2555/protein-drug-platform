@@ -111,7 +111,7 @@ async function mountStructure(jobId: string, text: string): Promise<void> {
   if (!viewerEl.value) return
 
   destroyViewer(viewer.value, viewerEl.value)
-  viewer.value = createViewer(viewerEl.value, '0xeef2f7')
+  viewer.value = createViewer(viewerEl.value, '0xf1f5f9')
   viewer.value.addModel(text, 'cif')
   selectionStore.bindViewerResiduePick(viewer.value, (chainId, resi, event) => {
     emit('residue-click', { chainId, resi, event })
@@ -219,7 +219,10 @@ defineExpose({
 <template>
   <div class="structure-viewer">
     <div class="structure-viewer__head">
-      <h3 class="structure-viewer__title">3D 结构</h3>
+      <div class="structure-viewer__titles">
+        <h3 class="structure-viewer__title">3D 结构</h3>
+        <p class="structure-viewer__hint">螺旋=圆柱 · β 折叠=箭头（PyMOL 风格 cartoon）</p>
+      </div>
       <div class="structure-viewer__actions">
         <span v-if="selectionCount > 0" class="structure-viewer__sel-count">
           已选 {{ selectionCount }} 个残基
@@ -308,11 +311,24 @@ defineExpose({
     margin-bottom: 0.75rem;
   }
 
+  &__titles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
   &__title {
     margin: 0;
     font-size: 1rem;
     font-weight: 700;
     color: var(--title);
+  }
+
+  &__hint {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--muted);
   }
 
   &__actions {
@@ -333,11 +349,11 @@ defineExpose({
 
   &__wrap {
     position: relative;
-    height: min(520px, 55vh);
-    min-height: 360px;
+    height: min(560px, 58vh);
+    min-height: 400px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: linear-gradient(180deg, #eef2f7 0%, #e4eaf2 100%);
+    background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
     overflow: hidden;
 
     &.is-loading {

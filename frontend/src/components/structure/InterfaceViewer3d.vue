@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
+  cartoonStyle,
   createViewer,
   destroyViewer,
   hexColorToInt,
@@ -93,12 +94,12 @@ function paintInterfaceViewer(
   for (const ch of chainList) {
     const onIface = ch.chain_id === primary.chain_a || ch.chain_id === primary.chain_b
     if (!onIface) {
-      v.setStyle({ chain: ch.chain_id }, { cartoon: { opacity: 0 } })
+      v.setStyle({ chain: ch.chain_id }, { cartoon: cartoonStyle({ opacity: 0 }) })
       continue
     }
     const baseColor = palette[ch.chain_id] ?? hexColorToInt(ch.color)
     v.setStyle({ chain: ch.chain_id }, {
-      cartoon: { color: baseColor, opacity: 0.18, thickness: 0.2 },
+      cartoon: cartoonStyle({ color: baseColor, opacity: 0.22, thickness: 0.28, width: 0.9 }),
     })
   }
 
@@ -108,11 +109,12 @@ function paintInterfaceViewer(
     const baseColor = palette[r.chain_id] ?? IFACE_CHAIN_PALETTE.target
     const inIx = ixResKeys.has(key)
     v.addStyle({ chain: r.chain_id, resi: r.seq_num }, {
-      cartoon: {
+      cartoon: cartoonStyle({
         color: baseColor,
-        opacity: inIx ? 0.95 : 0.72,
-        thickness: inIx ? 0.42 : 0.32,
-      },
+        opacity: inIx ? 0.98 : 0.78,
+        thickness: inIx ? 0.5 : 0.38,
+        width: inIx ? 1.45 : 1.15,
+      }),
     })
   }
 

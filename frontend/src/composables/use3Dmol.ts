@@ -14,6 +14,22 @@ const MOL3D_SOURCES = [
   'https://3Dmol.org/build/3Dmol-min.js',
 ]
 
+/**
+ * PyMOL-like cartoon: cylindrical helices + directional sheet arrows.
+ * 3Dmol assigns secondary structure from backbone geometry when CIF lacks SS records.
+ */
+export const PYMOL_CARTOON = {
+  style: 'rectangle',
+  arrows: true,
+  tubes: true,
+  thickness: 0.55,
+  width: 1.4,
+} as const
+
+export function cartoonStyle(extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return { ...PYMOL_CARTOON, ...extra }
+}
+
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script')
@@ -48,13 +64,25 @@ export function load3DmolLib(): Promise<void> {
 
 export function createViewer(
   container: HTMLElement,
-  backgroundColor = '0xeef2f7',
+  backgroundColor = '0xf1f5f9',
 ): Mol3DViewer {
   if (!window.$3Dmol) {
     throw new Error('3Dmol 尚未加载')
   }
   container.innerHTML = ''
-  return window.$3Dmol.createViewer(container, { backgroundColor })
+  const viewer = window.$3Dmol.createViewer(container, {
+    backgroundColor,
+    cartoonQuality: 22,
+    antialias: true,
+  })
+  // Soft edge outline improves helix/sheet silhouette (closer to PyMOL depth cues).
+  if (typeof viewer.setViewStyle === 'function') {
+    viewer.setViewStyle({ style: 'outline', color: '0x334155', width: 0.05 })
+  }
+  if (typeof viewer.setDefaultCartoonQuality === 'function') {
+    viewer.setDefaultCartoonQuality(22)
+  }
+  return viewer
 }
 
 export function destroyViewer(viewer: Mol3DViewer | null, container?: HTMLElement | null): void {
@@ -88,9 +116,9 @@ export function hexColorToInt(hex: string | undefined | null): number {
 
 export function applyPlddtStyle(v: Mol3DViewer): void {
   v.setStyle({}, {
-    cartoon: {
+    cartoon: cartoonStyle({
       colorfunc: (atom: { b?: number }) => plddtToColor(atom.b),
-    },
+    }),
   })
 }
 
@@ -98,7 +126,10 @@ export function applyChainStyle(v: Mol3DViewer, chains: InterfaceChainMeta[]): v
   v.setStyle({}, {})
   for (const ch of chains) {
     v.setStyle({ chain: ch.chain_id }, {
-      cartoon: { color: hexColorToInt(ch.color), opacity: 0.92 },
+      cartoon: cartoonStyle({
+        color: hexColorToInt(ch.color),
+        opacity: 1,
+      }),
     })
   }
 }

@@ -5,7 +5,7 @@ import type {
   JobInterfaceData,
   Mol3DViewer,
 } from '@/types/structure'
-import { hexColorToInt } from '@/composables/use3Dmol'
+import { cartoonStyle, hexColorToInt } from '@/composables/use3Dmol'
 
 export const IX_TYPE_LABELS: Record<string, string> = {
   hbond: '氢键',
@@ -125,12 +125,12 @@ export function paintInterfaceViewer(
   for (const ch of chains || []) {
     const onIface = ch.chain_id === primary.chain_a || ch.chain_id === primary.chain_b
     if (!onIface) {
-      viewer.setStyle({ chain: ch.chain_id }, { cartoon: { opacity: 0 } })
+      viewer.setStyle({ chain: ch.chain_id }, { cartoon: cartoonStyle({ opacity: 0 }) })
       continue
     }
     const baseColor = palette[ch.chain_id] || hexColorToInt(ch.color)
     viewer.setStyle({ chain: ch.chain_id }, {
-      cartoon: { color: baseColor, opacity: 0.2, thickness: 0.22 },
+      cartoon: cartoonStyle({ color: baseColor, opacity: 0.22, thickness: 0.28, width: 0.9 }),
     })
   }
 
@@ -139,11 +139,12 @@ export function paintInterfaceViewer(
     const baseColor = palette[r.chain_id] || IFACE_CHAIN_PALETTE.target
     const inIx = ixResKeys.has(key)
     viewer.addStyle({ chain: r.chain_id, resi: r.seq_num }, {
-      cartoon: {
+      cartoon: cartoonStyle({
         color: baseColor,
         opacity: inIx ? 1 : 0.82,
         thickness: inIx ? 0.52 : 0.4,
-      },
+        width: inIx ? 1.45 : 1.15,
+      }),
     })
     if (inIx) {
       viewer.addStyle({ chain: r.chain_id, resi: r.seq_num }, {

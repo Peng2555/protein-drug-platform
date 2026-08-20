@@ -856,27 +856,27 @@ function applyPyMOLSelectionView(v, mode, chains) {
 
   if (mode === "plddt") {
     v.setStyle({}, {
-      cartoon: { colorfunc: (atom) => plddtToColor(atom.b), opacity: PYMOL_SEL_DIM },
+      cartoon: cartoonStyle({ colorfunc: (atom) => plddtToColor(atom.b), opacity: PYMOL_SEL_DIM }),
     });
   } else if (chains?.length) {
     for (const ch of chains) {
       v.setStyle({ chain: ch.chain_id }, {
-        cartoon: {
+        cartoon: cartoonStyle({
           color: hexColorToInt(ch.color),
           opacity: chainsWithSel.has(ch.chain_id) ? PYMOL_CHAIN_DIM : PYMOL_SEL_DIM,
-        },
+        }),
       });
     }
   } else {
-    v.setStyle({}, { cartoon: { opacity: PYMOL_SEL_DIM } });
+    v.setStyle({}, { cartoon: cartoonStyle({ opacity: PYMOL_SEL_DIM }) });
   }
 
   for (const cid of chainsWithSel) {
-    v.addStyle({ chain: cid }, { cartoon: { opacity: 0.5 } });
+    v.addStyle({ chain: cid }, { cartoon: cartoonStyle({ opacity: 0.5 }) });
   }
 
   v.addStyle({ or: orSel }, {
-    cartoon: { color: PYMOL_SEL_COLOR, opacity: 1, thickness: 0.46 },
+    cartoon: cartoonStyle({ color: PYMOL_SEL_COLOR, opacity: 1, thickness: 0.62, width: 1.55 }),
   });
 }
 
@@ -1185,11 +1185,33 @@ function hexColorToInt(hex) {
   return parseInt(s, 16);
 }
 
+/** PyMOL-like cartoon: helix tubes + sheet arrows. */
+const PYMOL_CARTOON = {
+  style: "rectangle",
+  arrows: true,
+  tubes: true,
+  thickness: 0.55,
+  width: 1.4,
+};
+
+function cartoonStyle(extra = {}) {
+  return { ...PYMOL_CARTOON, ...extra };
+}
+
+function configureViewerLooks(v) {
+  if (v && typeof v.setViewStyle === "function") {
+    v.setViewStyle({ style: "outline", color: "0x334155", width: 0.05 });
+  }
+  if (v && typeof v.setDefaultCartoonQuality === "function") {
+    v.setDefaultCartoonQuality(22);
+  }
+}
+
 function applyPlddtStyle(v) {
   v.setStyle({}, {
-    cartoon: {
+    cartoon: cartoonStyle({
       colorfunc: (atom) => plddtToColor(atom.b),
-    },
+    }),
   });
 }
 
@@ -1197,7 +1219,7 @@ function applyChainStyle(v, chains) {
   v.setStyle({}, {});
   for (const ch of chains) {
     v.setStyle({ chain: ch.chain_id }, {
-      cartoon: { color: hexColorToInt(ch.color), opacity: 0.92 },
+      cartoon: cartoonStyle({ color: hexColorToInt(ch.color), opacity: 1 }),
     });
   }
 }
@@ -1364,12 +1386,12 @@ function paintInterfaceViewer(viewer, primary, chains) {
   for (const ch of chains || []) {
     const onIface = ch.chain_id === primary.chain_a || ch.chain_id === primary.chain_b;
     if (!onIface) {
-      viewer.setStyle({ chain: ch.chain_id }, { cartoon: { opacity: 0 } });
+      viewer.setStyle({ chain: ch.chain_id }, { cartoon: cartoonStyle({ opacity: 0 }) });
       continue;
     }
     const baseColor = palette[ch.chain_id] || hexColorToInt(ch.color);
     viewer.setStyle({ chain: ch.chain_id }, {
-      cartoon: { color: baseColor, opacity: 0.2, thickness: 0.22 },
+      cartoon: cartoonStyle({ color: baseColor, opacity: 0.22, thickness: 0.28, width: 0.9 }),
     });
   }
 
@@ -1378,11 +1400,12 @@ function paintInterfaceViewer(viewer, primary, chains) {
     const baseColor = palette[r.chain_id] || IFACE_CHAIN_PALETTE.target;
     const inIx = ixResKeys.has(key);
     viewer.addStyle({ chain: r.chain_id, resi: r.seq_num }, {
-      cartoon: {
+      cartoon: cartoonStyle({
         color: baseColor,
         opacity: inIx ? 0.95 : 0.72,
-        thickness: inIx ? 0.42 : 0.32,
-      },
+        thickness: inIx ? 0.5 : 0.38,
+        width: inIx ? 1.45 : 1.15,
+      }),
     });
   }
 
@@ -1564,7 +1587,12 @@ async function loadInterfaceViewer(jobId, cifText, data) {
     if (!elem) return;
     elem.innerHTML = "";
     interfaceCifTextCache = cifText;
-    interfaceViewer = $3Dmol.createViewer(elem, { backgroundColor: "0xf8fafc" });
+    interfaceViewer = $3Dmol.createViewer(elem, {
+      backgroundColor: "0xf8fafc",
+      cartoonQuality: 22,
+      antialias: true,
+    });
+    configureViewerLooks(interfaceViewer);
     interfaceViewer.addModel(cifText, "cif");
 
     const focusSelections = paintInterfaceViewer(interfaceViewer, primary, data.chains || []);
@@ -1617,7 +1645,12 @@ async function loadStructure3D(jobId) {
 
     const elem = document.getElementById("viewer3d");
     elem.innerHTML = "";
-    viewer = $3Dmol.createViewer(elem, { backgroundColor: "0xeef2f7" });
+    viewer = $3Dmol.createViewer(elem, {
+      backgroundColor: "0xf1f5f9",
+      cartoonQuality: 22,
+      antialias: true,
+    });
+    configureViewerLooks(viewer);
     viewer.addModel(text, "cif");
     bindViewerResiduePick(viewer);
 

@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { InterfaceChainMeta, Mol3DViewer, SelectedResidue, ViewerColorMode } from '@/types/structure'
-import { hexColorToInt, plddtToColor } from '@/composables/use3Dmol'
+import { cartoonStyle, hexColorToInt, plddtToColor } from '@/composables/use3Dmol'
 
 export type { SelectedResidue } from '@/types/structure'
 
@@ -27,27 +27,30 @@ export function applyPyMOLSelectionView(
 
   if (mode === 'plddt') {
     v.setStyle({}, {
-      cartoon: { colorfunc: (atom: { b?: number }) => plddtToColor(atom.b), opacity: PYMOL_SEL_DIM },
+      cartoon: cartoonStyle({
+        colorfunc: (atom: { b?: number }) => plddtToColor(atom.b),
+        opacity: PYMOL_SEL_DIM,
+      }),
     })
   } else if (chains?.length) {
     for (const ch of chains) {
       v.setStyle({ chain: ch.chain_id }, {
-        cartoon: {
+        cartoon: cartoonStyle({
           color: hexColorToInt(ch.color),
           opacity: chainsWithSel.has(ch.chain_id) ? PYMOL_CHAIN_DIM : PYMOL_SEL_DIM,
-        },
+        }),
       })
     }
   } else {
-    v.setStyle({}, { cartoon: { opacity: PYMOL_SEL_DIM } })
+    v.setStyle({}, { cartoon: cartoonStyle({ opacity: PYMOL_SEL_DIM }) })
   }
 
   for (const cid of chainsWithSel) {
-    v.addStyle({ chain: cid }, { cartoon: { opacity: 0.5 } })
+    v.addStyle({ chain: cid }, { cartoon: cartoonStyle({ opacity: 0.5 }) })
   }
 
   v.addStyle({ or: orSel }, {
-    cartoon: { color: PYMOL_SEL_COLOR, opacity: 1, thickness: 0.46 },
+    cartoon: cartoonStyle({ color: PYMOL_SEL_COLOR, opacity: 1, thickness: 0.62, width: 1.55 }),
   })
 }
 

@@ -103,6 +103,11 @@ export interface Mol3DCartoonStyle {
   colorfunc?: (atom: Mol3DAtom) => number
   opacity?: number
   thickness?: number
+  width?: number
+  style?: string
+  arrows?: boolean
+  tubes?: boolean
+  ribbon?: boolean
 }
 
 export interface Mol3DStickStyle {
@@ -145,13 +150,22 @@ export interface Mol3DViewer {
   addSphere: (spec: Mol3DSphereSpec) => void
   zoomTo: (sel?: Mol3DSelection | Record<string, unknown>) => void
   zoom: (factor: number) => void
+  setViewStyle?: (spec: { style?: string; color?: string | number; width?: number }) => void
+  setDefaultCartoonQuality?: (quality: number) => void
   resize?: () => void
   render: () => void
   clear?: () => void
 }
 
 export interface Mol3DGlobal {
-  createViewer: (element: HTMLElement, options?: { backgroundColor?: string }) => Mol3DViewer
+  createViewer: (
+    element: HTMLElement,
+    options?: {
+      backgroundColor?: string
+      cartoonQuality?: number
+      antialias?: boolean
+    },
+  ) => Mol3DViewer
 }
 
 /** PLIP interaction type labels (legacy app.js IX_TYPE_LABELS). */
