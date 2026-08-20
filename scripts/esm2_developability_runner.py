@@ -251,12 +251,13 @@ def score_sequences(
                     "kabat": residues[-1]["kabat"],
                     "wt": wt,
                     "mut": mut,
-                    "mutation": f"{chain_id}:{wt}{residues[-1]['kabat']}{mut}",
+                    "mutation": f"{chain_id}:{wt}{i + 1}{mut}",
                     "region": region,
                     "buried": None,
                     "interface": False,
                     "esm_dll": row["dll"],
                     "hydro_delta": hydro_delta,
+                    "maxwell_ddg": None,
                     "pass_esm": True,
                     "pass_hydro": hydro_delta > 0,
                     "pass_tm": None,
@@ -305,8 +306,8 @@ def score_sequences(
         "freeze_all_cdrs": freeze_all_cdrs,
         "max_mutants_per_site": max_mutants_per_site,
         "note": (
-            "ESM-2 给出可突变位点及可替换氨基酸（ΔLL≥阈值）。"
-            "这不是亲和力或亲水性处方，亲水/Tm 列仅作后续参考。"
+            "ESM-2 3B 与 Venus-MAXWELL 平行打分：ΔLL=序列可接受度，ΔΔG=相对稳定性。"
+            "亲水Δ仍是 Kyte–Doolittle 标注。"
         ),
         "parent_id": parent_id,
         "chains": chains_out,
@@ -321,7 +322,7 @@ def write_candidates_csv(path: Path, candidates: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = [
         "rank", "parent_id", "chain", "seq_pos", "kabat", "wt", "mut", "mutation",
-        "region", "buried", "interface", "esm_dll", "hydro_delta",
+        "region", "buried", "interface", "esm_dll", "hydro_delta", "maxwell_ddg",
         "pass_esm", "pass_hydro", "pass_tm", "status",
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
@@ -329,6 +330,173 @@ def write_candidates_csv(path: Path, candidates: list[dict]) -> None:
         writer.writeheader()
         for row in candidates:
             writer.writerow(row)
+
+
+def _polymer_seq(chain) -> str:
+    import gemmi
+
+    seq = []
+    for res in chain:
+        if res.entity_type == gemmi.EntityType.Polymer or res.get_ca():
+            one = gemmi.find_tabulated_residue(res.name).one_letter_code
+            if one and one not in {"X", " ", "?"}:
+                seq.append(one)
+    return "".join(seq)
+
+
+def extract_chain_pdb(structure_path: Path, chain_id: str, dest: Path, expected_seq: str = "") -> str:
+    """Write one chain to PDB (protein residues only). Returns one-letter sequence."""
+    import gemmi
+
+    st = gemmi.read_structure(str(structure_path))
+    st.remove_ligands_and_waters()
+    out = gemmi.Structure()
+    out.cell = st.cell
+    out.spacegroup_hm = st.spacegroup_hm
+    model = gemmi.Model("1")
+    found = None
+    for ch in st[0]:
+        if ch.name == chain_id:
+            found = ch.clone()
+            break
+    if found is None and expected_seq:
+        for ch in st[0]:
+            if _polymer_seq(ch) == expected_seq:
+                found = ch.clone()
+                break
+    if found is None:
+        names = [ch.name for ch in st[0]]
+        raise ValueError(f"结构中没有链 {chain_id}（现有: {', '.join(names) or '无'}）")
+    found.name = chain_id
+    seq = _polymer_seq(found)
+    model.add_chain(found)
+    out.add_model(model)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    out.write_pdb(str(dest))
+    return seq
+
+
+def _run_maxwell_cli(
+    *,
+    python_bin: str,
+    script: Path,
+    pdb_file: Path,
+    chain: str,
+    ckpt: Path,
+    output_file: Path,
+    device: str,
+) -> dict:
+    import subprocess
+
+    proc = subprocess.run(
+        [
+            python_bin,
+            str(script),
+            "--pdb_file", str(pdb_file),
+            "--chain", chain,
+            "--ckpt_path", str(ckpt),
+            "--output_file", str(output_file),
+            "--device", device,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "MAXWELL failed")[-4000:]
+        raise RuntimeError(err)
+    return json.loads(output_file.read_text(encoding="utf-8"))
+
+
+def attach_maxwell_scores(
+    payload: dict,
+    *,
+    structure_path: Path,
+    work_dir: Path,
+    python_bin: str,
+    ckpt: Path,
+    script: Path,
+    device: str = "cuda",
+    on_stage: Callable[[str], None] | None = None,
+) -> dict:
+    """Fill parallel MAXWELL ΔΔG onto residues/candidates. Does not change ESM tiers."""
+    warnings: list[str] = []
+    chain_results: list[dict] = []
+    maxwell_dir = work_dir / "maxwell"
+    maxwell_dir.mkdir(parents=True, exist_ok=True)
+
+    for chain in payload.get("chains") or []:
+        cid = str(chain["chain_id"])
+        fasta_seq = chain.get("sequence") or ""
+        if on_stage:
+            on_stage(f"maxwell:{cid}")
+        try:
+            pdb_path = maxwell_dir / f"chain_{cid}.pdb"
+            pdb_seq = extract_chain_pdb(structure_path, cid, pdb_path, expected_seq=fasta_seq)
+            if pdb_seq and fasta_seq and pdb_seq != fasta_seq:
+                if len(pdb_seq) != len(fasta_seq):
+                    warnings.append(
+                        f"链 {cid} 结构序列长度 {len(pdb_seq)} ≠ FASTA {len(fasta_seq)}，已跳过 MAXWELL"
+                    )
+                    continue
+                warnings.append(f"链 {cid} 结构序列与 FASTA 不完全一致，仍按结构坐标打分")
+            out_json = maxwell_dir / f"chain_{cid}.json"
+            data = _run_maxwell_cli(
+                python_bin=python_bin,
+                script=script,
+                pdb_file=pdb_path,
+                chain=cid,
+                ckpt=ckpt,
+                output_file=out_json,
+                device=device,
+            )
+            seq = data.get("sequence") or pdb_seq
+            ddg_map: dict[tuple[int, str], float] = {}
+            for row in data.get("rows") or []:
+                ddg_map[(int(row["pos"]), str(row["mut"]))] = float(row["ddg"])
+            for res in chain.get("residues") or []:
+                idx = int(res["index"])
+                for score in res.get("aa_scores") or []:
+                    score["maxwell_ddg"] = ddg_map.get((idx, score["aa"]))
+                mut_scores = [
+                    s["maxwell_ddg"]
+                    for s in (res.get("aa_scores") or [])
+                    if not s.get("is_wt") and s.get("maxwell_ddg") is not None
+                ]
+                res["best_maxwell_aa"] = None
+                res["best_maxwell_ddg"] = None
+                if mut_scores:
+                    best = min(
+                        (s for s in res["aa_scores"] if not s.get("is_wt") and s.get("maxwell_ddg") is not None),
+                        key=lambda s: s["maxwell_ddg"],
+                    )
+                    res["best_maxwell_aa"] = best["aa"]
+                    res["best_maxwell_ddg"] = best["maxwell_ddg"]
+            chain_results.append({"chain_id": cid, "length": len(seq), "status": "ok"})
+        except Exception as exc:
+            warnings.append(f"链 {cid} MAXWELL 失败: {exc}")
+            chain_results.append({"chain_id": cid, "status": "failed", "error": str(exc)})
+
+    for cand in payload.get("candidates") or []:
+        chain = next((c for c in payload["chains"] if c["chain_id"] == cand["chain"]), None)
+        ddg = None
+        if chain:
+            res = next((r for r in chain["residues"] if r["index"] == cand["seq_pos"]), None)
+            if res:
+                hit = next((s for s in res.get("aa_scores") or [] if s["aa"] == cand["mut"]), None)
+                if hit:
+                    ddg = hit.get("maxwell_ddg")
+        cand["maxwell_ddg"] = ddg
+        cand["pass_tm"] = (ddg < 0) if ddg is not None else None
+
+    payload["maxwell"] = {
+        "engine": "venus-maxwell-esmif",
+        "structure": str(structure_path),
+        "chains": chain_results,
+        "warnings": warnings,
+        "n_stabilizing": sum(1 for c in payload.get("candidates") or [] if c.get("pass_tm")),
+    }
+    return payload
 
 
 def run_developability_job(
@@ -355,6 +523,35 @@ def run_developability_job(
             parent_id=str(params.get("parent_id") or "parent"),
             on_stage=on_stage,
         )
+        structure_path = params.get("structure_path")
+        run_maxwell = bool(params.get("run_maxwell", True)) and bool(structure_path)
+        if run_maxwell:
+            ckpt = Path(params.get("maxwell_ckpt") or "")
+            py = str(params.get("maxwell_python") or "")
+            script = Path(__file__).resolve().parent / "maxwell_landscape.py"
+            if not ckpt.is_file():
+                payload["maxwell"] = {"engine": "venus-maxwell-esmif", "skipped": "missing checkpoint"}
+            elif not Path(py).is_file():
+                payload["maxwell"] = {"engine": "venus-maxwell-esmif", "skipped": "missing maxwell python"}
+            else:
+                if on_stage:
+                    on_stage("maxwell")
+                device = "cuda" if os.environ.get("CUDA_VISIBLE_DEVICES", "0") != "" else "cpu"
+                payload = attach_maxwell_scores(
+                    payload,
+                    structure_path=Path(structure_path),
+                    work_dir=work_dir,
+                    python_bin=py,
+                    ckpt=ckpt,
+                    script=script,
+                    device=device,
+                    on_stage=on_stage,
+                )
+        else:
+            payload["maxwell"] = {
+                "engine": "venus-maxwell-esmif",
+                "skipped": "no structure (fold job or PDB/CIF upload required)",
+            }
         if on_stage:
             on_stage("write")
         summary_path = work_dir / "summary.json"

@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     esm2_3b_path: Path = Path(
         "/home/pengpai/data/cache/torch/hub/checkpoints/esm2_t36_3B_UR50D.pt"
     )
+    maxwell_python: str = "/home/pengpai/miniconda3/envs/maxwell/bin/python"
+    maxwell_ckpt: Path = Path(
+        "/home/pengpai/data/Company_Project/Venus-MAXWELL/weights/esmif-maxwell.ckpt"
+    )
     gmx_bin: str = "/home/pengpai/data/envs/IgGM/bin/gmx"
     gemmi_py: str = "/home/pengpai/data/envs/IgGM/bin/python"
     iggm_py: str = "/home/pengpai/data/envs/IgGM/bin/python"

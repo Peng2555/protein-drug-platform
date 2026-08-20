@@ -15,6 +15,8 @@ from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 MDP_DIR = Path(__file__).resolve().parent / "md_templates"
+FF_DIR = Path(__file__).resolve().parent / "md_forcefields"
+FORCEFIELD = "charmm36-jul2022"
 
 GMX_BIN = Path(os.environ.get("GMX_BIN", "/home/pengpai/data/envs/IgGM/bin/gmx"))
 GEMMI_PY = os.environ.get("GEMMI_PY", "/home/pengpai/data/envs/IgGM/bin/python")
@@ -87,10 +89,23 @@ def _write_prod_mdp(path: Path, *, production_ns: float, gen_seed: int) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _forcefield_dir() -> Path:
+    path = FF_DIR / f"{FORCEFIELD}.ff"
+    if not path.is_dir():
+        raise FileNotFoundError(
+            f"未找到力场 {path}。请将 CHARMM36 GROMACS 端口放到 scripts/md_forcefields/"
+        )
+    return path
+
+
 def _gmx_env(gpu_id: int) -> dict[str, str]:
     env = os.environ.copy()
     env["GMX_BIN"] = str(GMX_BIN)
     env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    # GROMACS searches GMXLIB in addition to the install tree (2026: cwd, install, GMXLIB).
+    extra = str(FF_DIR)
+    existing = env.get("GMXLIB", "").strip()
+    env["GMXLIB"] = extra if not existing else f"{extra}:{existing}"
     return env
 
 
@@ -191,6 +206,12 @@ def run_md_validation(
         topo_dir = work_dir / "01_topo"
         topo_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(pdb_path, topo_dir / "complex.pdb")
+        ff_src = _forcefield_dir()
+        ff_dst = topo_dir / ff_src.name
+        if ff_dst.exists():
+            shutil.rmtree(ff_dst)
+        shutil.copytree(ff_src, ff_dst)
+        # -ss yes asks y/n for each cysteine pair; auto-accept suggested disulfides.
         _run(
             [
                 str(GMX_BIN),
@@ -202,7 +223,7 @@ def run_md_validation(
                 "-p",
                 "topol.top",
                 "-ff",
-                "charmm36-jul2022",
+                FORCEFIELD,
                 "-water",
                 "tip3p",
                 "-ignh",
@@ -211,6 +232,7 @@ def run_md_validation(
             ],
             cwd=topo_dir,
             env=env,
+            input_text="y\n" * 32,
         )
 
         set_stage("equil")

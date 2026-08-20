@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.developability_service import create_and_queue_developability_job
+from app.developability_service import create_and_queue_developability_job, save_uploaded_structure
 from app.engines import DEVELOPABILITY_ENGINE
 from app.models import Job, JobStatus, User
 from app.schemas import (
@@ -43,9 +44,56 @@ def create_job(
         "freeze_all_cdrs": body.freeze_all_cdrs,
         "dll_threshold": body.dll_threshold,
         "max_mutants_per_site": body.max_mutants_per_site,
+        "run_maxwell": body.run_maxwell,
     }
     job = create_and_queue_developability_job(
-        db, user_id=user.id, name=name, fasta_text=fasta, params=params,
+        db,
+        user_id=user.id,
+        name=name,
+        fasta_text=fasta,
+        params=params,
+        fold_job_id=body.fold_job_id,
+    )
+    db.commit()
+    db.refresh(job)
+    return _out(job)
+
+
+@router.post("/upload", response_model=DevelopabilityJobOut, status_code=status.HTTP_201_CREATED)
+async def create_job_upload(
+    structure: UploadFile = File(...),
+    fasta: str = Form(...),
+    name: str | None = Form(default=None),
+    goal: str = Form(default="both"),
+    freeze_cysteine: bool = Form(default=True),
+    freeze_cdr3: bool = Form(default=True),
+    freeze_all_cdrs: bool = Form(default=False),
+    dll_threshold: float = Form(default=0.0),
+    max_mutants_per_site: int = Form(default=19),
+    run_maxwell: bool = Form(default=True),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    fasta_text = fasta.strip()
+    job_name = name.strip() if name and name.strip() else "developability"
+    tmp_dir = settings.developability_out_root / "_uploads" / user.id
+    structure_src = await save_uploaded_structure(structure, tmp_dir)
+    params = {
+        "goal": goal if goal in {"hydro", "tm", "both"} else "both",
+        "freeze_cysteine": freeze_cysteine,
+        "freeze_cdr3": freeze_cdr3,
+        "freeze_all_cdrs": freeze_all_cdrs,
+        "dll_threshold": dll_threshold,
+        "max_mutants_per_site": max_mutants_per_site,
+        "run_maxwell": run_maxwell,
+    }
+    job = create_and_queue_developability_job(
+        db,
+        user_id=user.id,
+        name=job_name,
+        fasta_text=fasta_text,
+        params=params,
+        structure_src=structure_src,
     )
     db.commit()
     db.refresh(job)
@@ -94,10 +142,21 @@ def resubmit_job(
         "freeze_all_cdrs": bool(src_params.get("freeze_all_cdrs", False)),
         "dll_threshold": float(src_params.get("dll_threshold", 0.0)),
         "max_mutants_per_site": int(src_params.get("max_mutants_per_site", 19)),
+        "run_maxwell": bool(src_params.get("run_maxwell", True)),
     }
     name = src.name or "developability"
+    structure_src = Path(src.structure_path) if src.structure_path and Path(src.structure_path).is_file() else None
+    fold_job_id = src_params.get("fold_job_id")
+    if not isinstance(fold_job_id, str) or not fold_job_id or structure_src:
+        fold_job_id = None
     job = create_and_queue_developability_job(
-        db, user_id=user.id, name=name, fasta_text=src.fasta_text, params=params,
+        db,
+        user_id=user.id,
+        name=name,
+        fasta_text=src.fasta_text,
+        params=params,
+        structure_src=structure_src,
+        fold_job_id=fold_job_id,
     )
     db.commit()
     db.refresh(job)

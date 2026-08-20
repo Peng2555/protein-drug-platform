@@ -241,9 +241,10 @@ def download_structure(job_id: str, db: Session = Depends(get_db), user: User = 
             cif = legacy
     if not cif.is_file():
         raise HTTPException(404, f"Structure file not found: {cif}")
+    # Do not put raw non-ASCII names in Content-Disposition; HTTP headers are latin-1.
+    # Starlette quotes filename*=utf-8''… when the name is not ASCII.
     return FileResponse(
         cif,
         filename=f"{job.name or job.id}.cif",
         media_type="chemical/x-mmcif",
-        headers={"Content-Disposition": f'attachment; filename="{job.name or job.id}.cif"'},
     )

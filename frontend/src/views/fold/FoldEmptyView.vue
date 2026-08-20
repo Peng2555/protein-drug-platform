@@ -6,7 +6,7 @@
     <ul class="empty-tips">
       <li>单条预测：粘贴 FASTA，支持 Boltz2 / ESMFold2</li>
       <li>VHH 批量：导入 CSV / Excel / FASTA 重链列表</li>
-      <li>完成后可查看 3D 结构、Kabat 序列与 PLIP 结合界面</li>
+      <li>完成后可查看 3D 结构、序列编号与 PLIP 结合界面</li>
     </ul>
   </div>
 </template>

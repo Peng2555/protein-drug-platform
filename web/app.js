@@ -801,14 +801,13 @@ function renderNumberedResidues(ch) {
   const cells = residues.map((r) => {
     const cls = cdrClassForResidue(ch, r.index);
     const kabatDiff = ch.is_antibody && r.kabat && String(r.kabat) !== String(r.index);
-    const numLabel = kabatDiff ? r.kabat : r.index;
     const title = kabatDiff
       ? `序列位 ${r.index} · Kabat ${r.kabat} · 点击多选`
       : `序列位 ${r.index} · 点击多选`;
     return `<span class="res-cell res-selectable ${cls}"` +
       ` data-chain-id="${escapeHtml(ch.chain_id)}" data-resi="${r.index}"` +
       ` title="${escapeHtml(title)}">` +
-      `<span class="res-num">${escapeHtml(String(numLabel))}</span>` +
+      `<span class="res-num">${escapeHtml(String(r.index))}</span>` +
       `<span class="res-aa">${escapeHtml(r.aa)}</span>` +
       `</span>`;
   }).join("");
@@ -951,7 +950,7 @@ function renderSequences(data) {
 
   chainsEl.innerHTML = data.chains.map((ch) => {
     const abLabel = ch.is_antibody
-      ? `${ch.domain} 链 · Kabat · ${ch.length} aa`
+      ? `${ch.domain} 链 · 序列位 1–${ch.length}`
       : `非抗体链 · 序列位 1–${ch.length}`;
 
     const cdrTags = (ch.cdr_spans || []).map((sp) =>

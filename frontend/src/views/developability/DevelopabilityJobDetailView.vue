@@ -23,6 +23,9 @@ let timer: ReturnType<typeof setInterval> | null = null
 
 const results = computed(() => job.value?.results_json as Record<string, unknown> | null)
 const dllCut = computed(() => Number(results.value?.dll_threshold ?? 0))
+const maxwell = computed(() => (results.value?.maxwell as Record<string, unknown> | undefined) ?? null)
+const maxwellSkipped = computed(() => (maxwell.value?.skipped as string | undefined) ?? '')
+const maxwellWarnings = computed(() => (maxwell.value?.warnings as string[] | undefined) ?? [])
 const chains = computed(() => (results.value?.chains as Array<Record<string, unknown>> | undefined) ?? [])
 const currentChain = computed(() => chains.value.find((c) => c.chain_id === chainId.value) ?? chains.value[0] ?? null)
 const residues = computed(() => (currentChain.value?.residues as DevelopabilityResidue[] | undefined) ?? [])
@@ -36,6 +39,7 @@ type SiteRow = {
   allowed: string[]
   allowedLabel: string
   bestDll: number | null
+  bestMaxwell: number | null
 }
 
 const siteRows = computed((): SiteRow[] => {
@@ -54,6 +58,7 @@ const siteRows = computed((): SiteRow[] => {
         allowed,
         allowedLabel: allowed.join(' / ') || '—',
         bestDll: r.best_dll,
+        bestMaxwell: r.best_maxwell_ddg ?? null,
       }
     })
     .filter((row) => onlyFr.value ? row.region.startsWith('FR') : true)
@@ -118,7 +123,7 @@ async function resubmit() {
         <h2>{{ job.name || job.id }}</h2>
         <p>
           #{{ job.id.slice(0, 8) }} · {{ new Date(job.created_at).toLocaleString('zh-CN') }}
-          · ESM-2 3B · {{ results?.goal || job.params_json?.goal }} · {{ job.stage }}
+          · ESM-2 3B + MAXWELL · {{ results?.goal || job.params_json?.goal }} · {{ job.stage }}
         </p>
       </div>
       <div class="head-actions">
@@ -141,9 +146,24 @@ async function resubmit() {
     <p>耗时：{{ job.runtime_seconds ? `${Math.round(job.runtime_seconds)} 秒` : '—' }}</p>
 
     <template v-if="job.status === 'done' && results">
-      <el-alert type="info" :closable="false" title="绿色位点可以突变；点开后矩阵里绿色氨基酸就是当前阈值下允许的替换。灰色位点不建议动，冻住位点被保护规则排除。" class="note" />
+      <el-alert type="info" :closable="false" title="绿色位点可以突变；矩阵上同时给出 ESM-2 ΔLL（越高越好）和 MAXWELL ΔΔG（越低越稳）。灰色位点不建议动，冻住位点被保护规则排除。" class="note" />
+      <el-alert
+        v-if="maxwellSkipped"
+        type="warning"
+        :closable="false"
+        :title="`MAXWELL 未运行：${maxwellSkipped}`"
+        class="note"
+      />
+      <el-alert
+        v-for="(w, i) in maxwellWarnings"
+        :key="i"
+        type="warning"
+        :closable="false"
+        :title="w"
+        class="note"
+      />
       <p class="stats">
-        本链可突变位点 {{ siteRows.length }} 个。ΔLL ≥ {{ dllCut }} 的非 Cys 替换均列出，不按亲水性筛选。
+        本链可突变位点 {{ siteRows.length }} 个。ΔLL ≥ {{ dllCut }} 的非 Cys 替换均列出；ΔΔG 为并列参考，不改变候选位点。
       </p>
       <div class="file-actions">
         <el-button size="small" type="primary" @click="download('candidates.csv')">导出候选 CSV</el-button>
@@ -177,17 +197,17 @@ async function resubmit() {
           type="button"
           class="aa-cell"
           :class="[tierClass(res.tier), { selected: selectedIndex === res.index }]"
-          :title="`${res.region} ${res.aa}${res.kabat}  ${res.tier}`"
+          :title="`${res.region} ${res.aa}${res.index}${res.kabat && String(res.kabat) !== String(res.index) ? ` (Kabat ${res.kabat})` : ''}  ${res.tier}`"
           @click="pickResidue(res)"
         >
           {{ res.aa }}
-          <small>{{ res.kabat }}</small>
+          <small>{{ res.index }}</small>
         </button>
       </div>
 
       <div v-if="selected" class="matrix-card">
         <h4>
-          {{ currentChain?.chain_id }}:{{ selected.aa }}{{ selected.kabat }}
+          {{ currentChain?.chain_id }}:{{ selected.aa }}{{ selected.index }}
           · {{ selected.region }}
           · {{ selected.tier === 'freeze' ? '冻住（不可突变）' : selected.tier === 'candidate' ? '可以突变' : '不建议突变' }}
         </h4>
@@ -204,7 +224,11 @@ async function resubmit() {
             :class="{ wt: row.is_wt, good: !row.is_wt && row.dll >= dllCut && row.aa !== 'C', bad: !row.is_wt && (row.dll < dllCut || row.aa === 'C') }"
           >
             <strong>{{ row.aa }}</strong>
-            <span>{{ row.dll >= 0 ? '+' : '' }}{{ row.dll.toFixed(2) }}</span>
+            <span>ΔLL {{ row.dll >= 0 ? '+' : '' }}{{ row.dll.toFixed(2) }}</span>
+            <span v-if="row.maxwell_ddg != null" :class="{ stab: row.maxwell_ddg < 0 }">
+              ΔΔG {{ row.maxwell_ddg.toFixed(2) }}
+            </span>
+            <span v-else class="muted">ΔΔG —</span>
           </div>
         </div>
       </div>
@@ -217,11 +241,14 @@ async function resubmit() {
       </div>
       <el-table :data="siteRows" size="small" border max-height="480" highlight-current-row @row-click="pickSite">
         <el-table-column label="位点" width="120">
-          <template #default="{ row }">{{ currentChain?.chain_id }}:{{ row.aa }}{{ row.kabat }}</template>
+          <template #default="{ row }">{{ currentChain?.chain_id }}:{{ row.aa }}{{ row.index }}</template>
         </el-table-column>
         <el-table-column prop="region" label="区域" width="90" />
         <el-table-column prop="allowedLabel" label="可突变成" min-width="240" />
         <el-table-column prop="bestDll" label="最佳 ΔLL" width="110" />
+        <el-table-column prop="bestMaxwell" label="最佳 ΔΔG" width="120">
+          <template #default="{ row }">{{ row.bestMaxwell == null ? '—' : Number(row.bestMaxwell).toFixed(2) }}</template>
+        </el-table-column>
       </el-table>
     </template>
   </div>
@@ -260,5 +287,8 @@ async function resubmit() {
 .aa-score.wt { background: #111827; color: #fff; }
 .aa-score.good { background: #ecfdf5; }
 .aa-score.bad { background: #f8fafc; color: #94a3b8; }
+.aa-score .stab { color: #047857; font-weight: 600; }
+.aa-score .muted { color: inherit; opacity: .7; }
+.aa-score.wt .stab { color: #6ee7b7; }
 .table-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 </style>

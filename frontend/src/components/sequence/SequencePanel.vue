@@ -47,7 +47,7 @@ function clearSelection() {
 <template>
   <section v-if="chains.length" class="sequence-panel page-card">
     <div class="sequence-panel__head">
-      <h3>序列 · Kabat 编号</h3>
+      <h3>序列 · 顺序编号</h3>
       <div class="sequence-panel__actions">
         <span v-if="selectionCount" class="seq-selection-count">已选 {{ selectionCount }} 个残基</span>
         <el-button v-if="selectionCount" size="small" plain @click="clearSelection">清除选中</el-button>
@@ -73,7 +73,7 @@ function clearSelection() {
         <span>
           {{
             ch.is_antibody
-              ? `${ch.domain} 链 · Kabat · ${ch.length} aa`
+              ? `${ch.domain} 链 · 序列位 1–${ch.length}`
               : `非抗体链 · 序列位 1–${ch.length}`
           }}
         </span>
@@ -100,9 +100,7 @@ function clearSelection() {
             "
             @click="onResidueClick(ch.chain_id, r.index, $event)"
           >
-            <span class="res-num">
-              {{ ch.is_antibody && r.kabat && String(r.kabat) !== String(r.index) ? r.kabat : r.index }}
-            </span>
+            <span class="res-num">{{ r.index }}</span>
             <span class="res-aa">{{ r.aa }}</span>
           </span>
         </div>

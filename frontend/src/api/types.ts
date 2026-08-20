@@ -243,6 +243,7 @@ export interface DevelopabilityAaScore {
   ll: number
   dll: number
   is_wt: boolean
+  maxwell_ddg?: number | null
 }
 
 export interface DevelopabilityResidue {
@@ -255,6 +256,8 @@ export interface DevelopabilityResidue {
   wt_ll: number | null
   best_aa: string | null
   best_dll: number | null
+  best_maxwell_aa?: string | null
+  best_maxwell_ddg?: number | null
   aa_scores: DevelopabilityAaScore[]
 }
 
@@ -272,6 +275,7 @@ export interface DevelopabilityCandidate {
   interface: boolean
   esm_dll: number
   hydro_delta: number
+  maxwell_ddg?: number | null
   pass_esm: boolean
   pass_hydro: boolean
   pass_tm: boolean | null

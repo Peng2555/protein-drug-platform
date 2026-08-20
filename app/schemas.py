@@ -166,6 +166,8 @@ class DevelopabilityJobCreate(BaseModel):
     freeze_all_cdrs: bool = False
     dll_threshold: float = Field(default=0.0, ge=-5.0, le=5.0)
     max_mutants_per_site: int = Field(default=19, ge=1, le=19)
+    run_maxwell: bool = True
+    fold_job_id: str | None = None
 
 
 class DevelopabilityJobOut(JobOut):
