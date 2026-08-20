@@ -1,5 +1,50 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+
+function moduleChildren(
+  base: string,
+  labels: { module: string; new: string; tasks: string; task: string },
+  views: {
+    workspace: () => Promise<unknown>
+    new: () => Promise<unknown>
+    tasks: () => Promise<unknown>
+    task: () => Promise<unknown>
+  },
+  extraChildren: RouteRecordRaw[] = [],
+): RouteRecordRaw {
+  return {
+    path: base,
+    component: views.workspace,
+    meta: { title: labels.module },
+    children: [
+      { path: '', name: base, redirect: { name: `${base}-new` } },
+      {
+        path: 'new',
+        name: `${base}-new`,
+        component: views.new,
+        meta: { title: labels.new },
+      },
+      {
+        path: 'tasks',
+        name: `${base}-tasks`,
+        component: views.tasks,
+        meta: { title: labels.tasks },
+      },
+      {
+        path: 'task/:id',
+        name: `${base}-task`,
+        component: views.task,
+        meta: { title: labels.task },
+      },
+      {
+        path: 'jobs/:id',
+        name: `${base}-job`,
+        redirect: (to) => ({ name: `${base}-task`, params: { id: to.params.id } }),
+      },
+      ...extraChildren,
+    ],
+  }
+}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -8,28 +53,47 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: () => import('@/views/LoginView.vue'),
-      meta: { public: true },
+      meta: { public: true, title: '登录' },
     },
     {
       path: '/',
       component: () => import('@/layouts/MainLayout.vue'),
       children: [
-        { path: '', redirect: '/fold' },
+        { path: '', redirect: '/home' },
+        {
+          path: 'home',
+          name: 'home',
+          component: () => import('@/views/HomeView.vue'),
+          meta: { title: '首页' },
+        },
         {
           path: 'fold',
           component: () => import('@/views/fold/FoldWorkspaceView.vue'),
           meta: { title: '结构预测' },
           children: [
+            { path: '', name: 'fold', redirect: { name: 'fold-new' } },
             {
-              path: '',
-              name: 'fold',
-              component: () => import('@/views/fold/FoldEmptyView.vue'),
+              path: 'new',
+              name: 'fold-new',
+              component: () => import('@/views/fold/FoldNewView.vue'),
+              meta: { title: '新建预测' },
+            },
+            {
+              path: 'tasks',
+              name: 'fold-tasks',
+              component: () => import('@/views/fold/FoldTasksView.vue'),
+              meta: { title: '全部任务' },
+            },
+            {
+              path: 'task/:id',
+              name: 'fold-task',
+              component: () => import('@/views/fold/JobDetailView.vue'),
+              meta: { title: '任务详情' },
             },
             {
               path: 'jobs/:id',
               name: 'fold-job',
-              component: () => import('@/views/fold/JobDetailView.vue'),
-              meta: { title: '任务详情' },
+              redirect: (to) => ({ name: 'fold-task', params: { id: to.params.id } }),
             },
             {
               path: 'batches/:id',
@@ -39,82 +103,101 @@ const router = createRouter({
             },
           ],
         },
-        {
-          path: 'md',
-          component: () => import('@/views/md/MdWorkspaceView.vue'),
-          meta: { title: 'MD 验证' },
-          children: [
-            {
-              path: '',
-              name: 'md',
-              component: () => import('@/views/md/MdEmptyView.vue'),
-            },
-            {
-              path: 'jobs/:id',
-              name: 'md-job',
-              component: () => import('@/views/md/MdJobDetailView.vue'),
-              meta: { title: 'MD 详情' },
-            },
-          ],
-        },
-        {
-          path: 'maturation',
-          component: () => import('@/views/maturation/MaturationWorkspaceView.vue'),
-          meta: { title: '亲和力成熟' },
-          children: [
-            {
-              path: '',
-              name: 'maturation',
-              component: () => import('@/views/maturation/MaturationEmptyView.vue'),
-            },
-            {
-              path: 'jobs/:id',
-              name: 'maturation-job',
-              component: () => import('@/views/maturation/MaturationJobDetailView.vue'),
-              meta: { title: '成熟详情' },
-            },
-          ],
-        },
-        {
-          path: 'synthesis',
-          component: () => import('@/views/synthesis/SynthesisWorkspaceView.vue'),
-          meta: { title: '合成候选筛选' },
-          children: [
-            {
-              path: '',
-              name: 'synthesis',
-              component: () => import('@/views/synthesis/SynthesisEmptyView.vue'),
-            },
-            {
-              path: 'jobs/:id',
-              name: 'synthesis-job',
-              component: () => import('@/views/synthesis/SynthesisJobDetailView.vue'),
-              meta: { title: '筛选结果' },
-            },
-          ],
-        },
-        {
-          path: 'developability',
-          component: () => import('@/views/developability/DevelopabilityWorkspaceView.vue'),
-          meta: { title: '序列改造' },
-          children: [
-            { path: '', name: 'developability', component: () => import('@/views/developability/DevelopabilityEmptyView.vue') },
-            { path: 'jobs/:id', name: 'developability-job', component: () => import('@/views/developability/DevelopabilityJobDetailView.vue') },
-          ],
-        },
+        moduleChildren(
+          'design',
+          {
+            module: '序列设计',
+            new: '新建设计',
+            tasks: '全部任务',
+            task: '设计详情',
+          },
+          {
+            workspace: () => import('@/views/design/DesignWorkspaceView.vue'),
+            new: () => import('@/views/design/DesignNewView.vue'),
+            tasks: () => import('@/views/design/DesignTasksView.vue'),
+            task: () => import('@/views/design/DesignJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
+          'developability',
+          {
+            module: '序列改造',
+            new: '新建改造',
+            tasks: '全部任务',
+            task: '改造详情',
+          },
+          {
+            workspace: () => import('@/views/developability/DevelopabilityWorkspaceView.vue'),
+            new: () => import('@/views/developability/DevelopabilityNewView.vue'),
+            tasks: () => import('@/views/developability/DevelopabilityTasksView.vue'),
+            task: () => import('@/views/developability/DevelopabilityJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
+          'maturation',
+          {
+            module: '亲和力成熟',
+            new: '新建成熟',
+            tasks: '全部任务',
+            task: '成熟详情',
+          },
+          {
+            workspace: () => import('@/views/maturation/MaturationWorkspaceView.vue'),
+            new: () => import('@/views/maturation/MaturationNewView.vue'),
+            tasks: () => import('@/views/maturation/MaturationTasksView.vue'),
+            task: () => import('@/views/maturation/MaturationJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
+          'synthesis',
+          {
+            module: '合成候选',
+            new: '新建筛选',
+            tasks: '全部任务',
+            task: '筛选结果',
+          },
+          {
+            workspace: () => import('@/views/synthesis/SynthesisWorkspaceView.vue'),
+            new: () => import('@/views/synthesis/SynthesisNewView.vue'),
+            tasks: () => import('@/views/synthesis/SynthesisTasksView.vue'),
+            task: () => import('@/views/synthesis/SynthesisJobDetailView.vue'),
+          },
+        ),
         {
           path: 'ras-docking/:pathMatch(.*)*',
-          redirect: (to) => (to.params.pathMatch ? `/docking/${to.params.pathMatch}` : '/docking'),
+          redirect: (to) =>
+            to.params.pathMatch ? `/docking/${to.params.pathMatch}` : '/docking',
         },
-        {
-          path: 'docking',
-          component: () => import('@/views/docking/DockingWorkspaceView.vue'),
-          meta: { title: '小分子对接' },
-          children: [
-            { path: '', name: 'docking', component: () => import('@/views/docking/DockingEmptyView.vue') },
-            { path: 'jobs/:id', name: 'docking-job', component: () => import('@/views/docking/DockingJobDetailView.vue') },
-          ],
-        },
+        moduleChildren(
+          'docking',
+          {
+            module: '分子对接',
+            new: '新建对接',
+            tasks: '全部任务',
+            task: '对接详情',
+          },
+          {
+            workspace: () => import('@/views/docking/DockingWorkspaceView.vue'),
+            new: () => import('@/views/docking/DockingNewView.vue'),
+            tasks: () => import('@/views/docking/DockingTasksView.vue'),
+            task: () => import('@/views/docking/DockingJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
+          'md',
+          {
+            module: 'MD 验证',
+            new: '新建 MD',
+            tasks: '全部任务',
+            task: 'MD 详情',
+          },
+          {
+            workspace: () => import('@/views/md/MdWorkspaceView.vue'),
+            new: () => import('@/views/md/MdNewView.vue'),
+            tasks: () => import('@/views/md/MdTasksView.vue'),
+            task: () => import('@/views/md/MdJobDetailView.vue'),
+          },
+        ),
         {
           path: 'legacy',
           name: 'legacy',
@@ -123,14 +206,14 @@ const router = createRouter({
         },
       ],
     },
-    { path: '/:pathMatch(.*)*', redirect: '/fold' },
+    { path: '/:pathMatch(.*)*', redirect: '/home' },
   ],
 })
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (to.meta.public) {
-    if (auth.isLoggedIn && to.name === 'login') return { name: 'fold' }
+    if (auth.isLoggedIn && to.name === 'login') return { name: 'home' }
     return true
   }
   if (!auth.isLoggedIn) {
@@ -138,6 +221,13 @@ router.beforeEach(async (to) => {
     if (!ok) return { name: 'login', query: { redirect: to.fullPath } }
   }
   return true
+})
+
+router.afterEach((to) => {
+  const page = typeof to.meta.title === 'string' ? to.meta.title : ''
+  document.title = page
+    ? `${page} · 蛋白质-药物计算平台`
+    : '蛋白质-药物计算平台 · 百奥赛图'
 })
 
 export default router

@@ -1,24 +1,15 @@
+<script setup lang="ts">
+import ModuleHome from '@/components/layout/ModuleHome.vue'
+</script>
+
 <template>
-  <div class="detail-empty page-card page-card--accent">
-    <div class="empty-icon" aria-hidden="true">◎</div>
-    <h2>MD 验证</h2>
-    <p>在左侧选择已完成折叠任务，或上传结构文件，提交 GROMACS 模拟。</p>
-  </div>
+  <ModuleHome
+    title="MD 验证"
+    subtitle="从已完成折叠任务或上传的 CIF/PDB 发起 GROMACS 显式溶剂模拟，用于评估结构稳定性。"
+    :tips="[
+      '可选用已完成的结构预测任务作为起点',
+      '也可直接上传 CIF / PDB',
+      '任务在 GPU 队列中运行，完成后查看轨迹与阶段摘要',
+    ]"
+  />
 </template>
-
-<style scoped lang="scss">
-@use '@/styles/fold-workspace.scss';
-
-.empty-icon {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 1rem;
-  display: grid;
-  place-items: center;
-  font-size: 1.6rem;
-  color: var(--bio-blue-dark);
-  background: linear-gradient(135deg, var(--bio-blue-light), var(--bio-green-light));
-  border-radius: 16px;
-  border: 1px solid rgba(46, 90, 165, 0.15);
-}
-</style>

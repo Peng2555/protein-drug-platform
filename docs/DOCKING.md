@@ -1,22 +1,21 @@
-# 通用小分子对接
+# 分子对接
 
-Web 入口是 `/docking`。用户提供：
+Web 入口是 `/docking`（导航：小分子药物筛选 → 分子对接）。交互参考 CB-Dock：
 
 - 受体：PDB、PDBQT 或 mmCIF
-- 小分子：**SMILES 结构式**（不是分子式，也不是配体三维文件）
-- 搜索盒中心和尺寸（Å），或上传参考配体自动计算搜索盒
+- 配体：SMILES，或上传 mol2 / sdf / mol / pdb（自动转 SMILES）
+- 对接方式：
+  - **自动盲对接**：检测蛋白表面候选口袋，对 top-N 口袋分别对接并按亲和力排序
+  - **参考配体定口袋**：上传共晶/参考配体自动算搜索盒
+  - **手动搜索盒**：用户指定中心与尺寸
 
 流程：
 
-1. 解析 SMILES，丢弃任何三维坐标
-2. RDKit ETKDGv3 采样构象（默认 128），MMFF94s 优化，TFD 聚类
-3. 选取若干独立簇代表作为对接起点（默认 10）
-4. Meeko 准备配体 PDBQT（大环默认可转动；失败时回退 Open Babel）
-5. 对每个起点做 **全局** AutoDock Vina（禁止 `--local_only`）
-6. 把所有起点的 poses 按 Vina 分数合并排序，用全局 Top1 生成复合物
+1. （盲对接）网格溶剂可及聚类估算口袋中心与盒尺寸
+2. 解析 SMILES，丢弃任何三维坐标
+3. RDKit ETKDGv3 采样构象，MMFF94s 优化，TFD 聚类
+4. 选取若干簇代表作为对接起点
+5. 对每个口袋 × 每个起点做 AutoDock Vina 全局搜索
+6. 合并排序，用全局 Top1 生成复合物；结果页展示口袋排序与 pose 表
 
-默认参数与 CPU 验证流程一致：exhaustiveness=8，num_modes=20，energy_range=5 kcal/mol。
-
-参考配体只用于定位口袋，不作为对接起点。
-
-输出保存在 `DOCKING_OUT_ROOT` 对应的任务目录中。表中 RMSD 下/上界是相对该次 Vina 起点的，不是相对晶体。
+输出保存在 `DOCKING_OUT_ROOT`。表中 RMSD 下/上界是相对该次 Vina 起点的，不是相对晶体。

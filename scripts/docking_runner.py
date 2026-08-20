@@ -333,13 +333,44 @@ def run_small_molecule_docking(
         env = os.environ.copy()
         if on_stage:
             on_stage("prepare")
+
+        dock_mode = str(params.get("dock_mode") or "manual").strip().lower()
+        cavities: list[dict] = []
         reference_path = params.get("reference_ligand_path")
-        if reference_path:
+
+        if dock_mode == "auto_blind":
+            if on_stage:
+                on_stage("cavity")
+            from cavity_detection import detect_cavities
+
+            cavities = detect_cavities(
+                receptor,
+                num_cavities=int(params.get("num_cavities") or 5),
+                box_padding=float(params.get("box_padding", 4.0)),
+            )
+            (work_dir / "cavities.json").write_text(
+                json.dumps(cavities, indent=2, ensure_ascii=False), encoding="utf-8",
+            )
+            boxes = [
+                {
+                    "cavity_id": c["cavity_id"],
+                    "center_x": c["center_x"],
+                    "center_y": c["center_y"],
+                    "center_z": c["center_z"],
+                    "size_x": c["size_x"],
+                    "size_y": c["size_y"],
+                    "size_z": c["size_z"],
+                    "box_source": "cavity_detection",
+                    "volume": c.get("volume"),
+                }
+                for c in cavities
+            ]
+        elif reference_path:
             center, box_size = _box_from_reference(
                 Path(reference_path), float(params.get("box_padding", 5.0)),
             )
-            params = {
-                **params,
+            boxes = [{
+                "cavity_id": 1,
                 "center_x": center[0],
                 "center_y": center[1],
                 "center_z": center[2],
@@ -347,12 +378,43 @@ def run_small_molecule_docking(
                 "size_y": box_size[1],
                 "size_z": box_size[2],
                 "box_source": "reference_ligand",
-            }
+                "volume": None,
+            }]
+            cavities = [{
+                "cavity_id": 1,
+                "volume": None,
+                "n_points": None,
+                **{k: boxes[0][k] for k in (
+                    "center_x", "center_y", "center_z", "size_x", "size_y", "size_z",
+                )},
+            }]
+        else:
+            boxes = [{
+                "cavity_id": 1,
+                "center_x": float(params["center_x"]),
+                "center_y": float(params["center_y"]),
+                "center_z": float(params["center_z"]),
+                "size_x": float(params["size_x"]),
+                "size_y": float(params["size_y"]),
+                "size_z": float(params["size_z"]),
+                "box_source": "manual",
+                "volume": None,
+            }]
+            cavities = [{
+                "cavity_id": 1,
+                "volume": None,
+                "n_points": None,
+                **{k: boxes[0][k] for k in (
+                    "center_x", "center_y", "center_z", "size_x", "size_y", "size_z",
+                )},
+            }]
 
         from ligand_sampling import sample_starts_from_smiles
 
         smiles = _ligand_smiles(params, ligand)
-        n_starts = int(params.get("n_starts", 10))
+        n_starts = int(params.get("n_starts", 3 if dock_mode == "auto_blind" else 10))
+        if dock_mode == "auto_blind":
+            n_starts = max(1, min(n_starts, 5))
         n_conformers = int(params.get("n_conformers", 128))
         generation_seed = int(params.get("generation_seed", 0xC0FFEE))
         if on_stage:
@@ -393,38 +455,84 @@ def run_small_molecule_docking(
         log = work_dir / "docking.log"
         log_chunks: list[str] = []
         ranked: list[dict] = []
+        cavity_best: list[dict] = []
         ligand_prep = None
-        for start in sampled.starts:
-            seed = int(start["seed"])
-            sdf = Path(start["sdf"])
-            ligand_pdbqt = work_dir / f"ligand_start_{seed}.pdbqt"
-            poses_path = work_dir / f"start_{seed}_poses.pdbqt"
-            ligand_prep = _prepare_ligand_pdbqt(sdf, ligand_pdbqt, env, obabel_bin)
-            chunk = _run_vina_one(
-                receptor_pdbqt=receptor_pdbqt,
-                ligand_pdbqt=ligand_pdbqt,
-                output=poses_path,
-                params=params,
-                vina_bin=vina_bin,
-                gnina_bin=gnina_bin,
-                work_dir=work_dir,
-                env=env,
-                seed=seed,
-            )
-            log_chunks.append(f"===== start {seed} =====\n{chunk}")
-            for vina_model, block in enumerate(_split_pdbqt_models(poses_path), start=1):
-                score = _score_from_block(block)
-                if not score:
-                    continue
-                ranked.append({
-                    **score,
-                    "start_seed": seed,
-                    "vina_model": vina_model,
-                    "block": block,
+
+        for box in boxes:
+            cav_id = int(box["cavity_id"])
+            box_params = {
+                **params,
+                "center_x": box["center_x"],
+                "center_y": box["center_y"],
+                "center_z": box["center_z"],
+                "size_x": box["size_x"],
+                "size_y": box["size_y"],
+                "size_z": box["size_z"],
+            }
+            cavity_ranked: list[dict] = []
+            for start in sampled.starts:
+                seed = int(start["seed"])
+                sdf = Path(start["sdf"])
+                ligand_pdbqt = work_dir / f"cavity_{cav_id}_ligand_start_{seed}.pdbqt"
+                poses_path = work_dir / f"cavity_{cav_id}_start_{seed}_poses.pdbqt"
+                ligand_prep = _prepare_ligand_pdbqt(sdf, ligand_pdbqt, env, obabel_bin)
+                chunk = _run_vina_one(
+                    receptor_pdbqt=receptor_pdbqt,
+                    ligand_pdbqt=ligand_pdbqt,
+                    output=poses_path,
+                    params=box_params,
+                    vina_bin=vina_bin,
+                    gnina_bin=gnina_bin,
+                    work_dir=work_dir,
+                    env=env,
+                    seed=seed,
+                )
+                log_chunks.append(f"===== cavity {cav_id} start {seed} =====\n{chunk}")
+                for vina_model, block in enumerate(_split_pdbqt_models(poses_path), start=1):
+                    score = _score_from_block(block)
+                    if not score:
+                        continue
+                    item = {
+                        **score,
+                        "cavity_id": cav_id,
+                        "start_seed": seed,
+                        "vina_model": vina_model,
+                        "block": block,
+                        "box": {
+                            "center_x": box["center_x"],
+                            "center_y": box["center_y"],
+                            "center_z": box["center_z"],
+                            "size_x": box["size_x"],
+                            "size_y": box["size_y"],
+                            "size_z": box["size_z"],
+                            "box_source": box.get("box_source"),
+                            "volume": box.get("volume"),
+                        },
+                    }
+                    cavity_ranked.append(item)
+                    ranked.append(item)
+            if cavity_ranked:
+                cavity_ranked.sort(
+                    key=lambda item: (item["affinity_kcal_mol"], item["start_seed"], item["vina_model"])
+                )
+                best = cavity_ranked[0]
+                cavity_best.append({
+                    "cavity_id": cav_id,
+                    "volume": box.get("volume"),
+                    "center_x": box["center_x"],
+                    "center_y": box["center_y"],
+                    "center_z": box["center_z"],
+                    "size_x": box["size_x"],
+                    "size_y": box["size_y"],
+                    "size_z": box["size_z"],
+                    "best_affinity_kcal_mol": best["affinity_kcal_mol"],
+                    "n_poses": len(cavity_ranked),
                 })
+
         if not ranked:
-            raise RuntimeError("所有起点均未产生有效对接 pose")
-        ranked.sort(key=lambda item: (item["affinity_kcal_mol"], item["start_seed"], item["vina_model"]))
+            raise RuntimeError("所有口袋 / 起点均未产生有效对接 pose")
+        ranked.sort(key=lambda item: (item["affinity_kcal_mol"], item.get("cavity_id", 0), item["start_seed"], item["vina_model"]))
+        cavity_best.sort(key=lambda item: (item["best_affinity_kcal_mol"], item["cavity_id"]))
         combined = work_dir / "docked_poses.pdbqt"
         combined_parts: list[str] = []
         poses: list[dict] = []
@@ -434,10 +542,10 @@ def run_small_molecule_docking(
             if not block.lstrip().startswith("MODEL"):
                 block = f"MODEL {rank}\n{block.rstrip()}\nENDMDL\n"
             remark = (
-                f"REMARK START_SEED: {item['start_seed']} VINA_MODEL: {item['vina_model']}\n"
+                f"REMARK CAVITY: {item.get('cavity_id', 1)} "
+                f"START_SEED: {item['start_seed']} VINA_MODEL: {item['vina_model']}\n"
             )
-            if "REMARK START_SEED:" not in block:
-                block = block.replace("MODEL", "MODEL", 1)
+            if "REMARK CAVITY:" not in block and "REMARK START_SEED:" not in block:
                 lines = block.splitlines(True)
                 inserted = False
                 rebuilt: list[str] = []
@@ -450,6 +558,7 @@ def run_small_molecule_docking(
             combined_parts.append(block if block.endswith("\n") else block + "\n")
             poses.append({
                 "pose": rank,
+                "cavity_id": item.get("cavity_id", 1),
                 "start_seed": item["start_seed"],
                 "vina_model": item["vina_model"],
                 "affinity_kcal_mol": item["affinity_kcal_mol"],
@@ -465,9 +574,13 @@ def run_small_molecule_docking(
         )
         if on_stage:
             on_stage("analysis")
+        best_box = ranked[0].get("box") or boxes[0]
         result = {
             "engine": engine,
-            "protocol": "smiles_etkdg_global_vina",
+            "protocol": (
+                "cavity_guided_blind_vina" if dock_mode == "auto_blind" else "smiles_etkdg_global_vina"
+            ),
+            "dock_mode": dock_mode,
             "ligand_prep": ligand_prep or "meeko",
             "local_only": False,
             "receptor": str(receptor),
@@ -478,9 +591,17 @@ def run_small_molecule_docking(
             "complex_pdbqt": str(complex_pdbqt),
             "complex_pdb": str(complex_pdb),
             "sampling": sampling_info,
-            "box": {key: params[key] for key in (
-                "center_x", "center_y", "center_z", "size_x", "size_y", "size_z",
-            )},
+            "cavities": cavities,
+            "cavity_ranking": cavity_best,
+            "box": {
+                "center_x": best_box["center_x"],
+                "center_y": best_box["center_y"],
+                "center_z": best_box["center_z"],
+                "size_x": best_box["size_x"],
+                "size_y": best_box["size_y"],
+                "size_z": best_box["size_z"],
+                "box_source": best_box.get("box_source"),
+            },
             "output_files": sorted(p.name for p in work_dir.iterdir() if p.is_file()),
             "poses": poses,
             "best_pose": poses[0] if poses else None,

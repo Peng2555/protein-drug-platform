@@ -299,15 +299,19 @@ onMounted(() => {
           </el-radio-group>
         </el-form-item>
         <template v-if="foldEngine === 'esmfold2'">
-          <el-form-item label="loops">
-            <el-input-number v-model="esmLoops" :min="1" :max="8" />
-          </el-form-item>
-          <el-form-item label="sampling steps">
-            <el-input-number v-model="esmSteps" :min="50" :max="500" :step="50" />
-          </el-form-item>
-          <el-form-item label="diffusion samples">
-            <el-input-number v-model="esmSamples" :min="1" :max="5" />
-          </el-form-item>
+          <el-collapse class="params-collapse">
+            <el-collapse-item title="ESMFold2 参数" name="esm">
+              <el-form-item label="loops">
+                <el-input-number v-model="esmLoops" :min="1" :max="8" />
+              </el-form-item>
+              <el-form-item label="sampling steps">
+                <el-input-number v-model="esmSteps" :min="50" :max="500" :step="50" />
+              </el-form-item>
+              <el-form-item label="diffusion samples">
+                <el-input-number v-model="esmSamples" :min="1" :max="5" />
+              </el-form-item>
+            </el-collapse-item>
+          </el-collapse>
         </template>
         <el-form-item label="FASTA 序列">
           <el-radio-group v-model="fastaTab" class="mini-tabs">
@@ -318,7 +322,7 @@ onMounted(() => {
             v-if="fastaTab === 'paste'"
             v-model="fastaInput"
             type="textarea"
-            :rows="6"
+            :rows="4"
             placeholder=">H&#10;DVQLV...&#10;>A&#10;KVFGR..."
             class="mt-sm"
           />
@@ -506,6 +510,14 @@ onMounted(() => {
               <template v-if="(item.data as Job).iptm != null">
                 · ipTM {{ (item.data as Job).iptm!.toFixed(2) }}
               </template>
+              <template v-if="(item.data as Job).complex_plddt != null">
+                · pLDDT {{
+                  ((item.data as Job).complex_plddt! <= 1.5
+                    ? (item.data as Job).complex_plddt! * 100
+                    : (item.data as Job).complex_plddt!
+                  ).toFixed(0)
+                }}
+              </template>
               · {{ formatTime(item.data.created_at) }}
             </template>
             <template v-else>
@@ -528,5 +540,23 @@ onMounted(() => {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   line-height: 1.4;
+}
+
+.params-collapse {
+  margin-bottom: 0.5rem;
+
+  :deep(.el-collapse-item__header) {
+    font-size: 0.78rem;
+    height: 36px;
+    color: var(--muted);
+  }
+
+  :deep(.el-collapse-item__content) {
+    padding-bottom: 0.25rem;
+  }
+}
+
+.fold-sidebar {
+  width: 100%;
 }
 </style>

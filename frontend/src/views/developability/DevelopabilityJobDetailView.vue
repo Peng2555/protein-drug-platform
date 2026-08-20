@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { downloadDevelopabilityFile, fetchDevelopabilityJob } from '@/api/developability'
+import {
+  downloadDevelopabilityFile,
+  fetchDevelopabilityJob,
+  resubmitDevelopabilityJob,
+} from '@/api/developability'
+import { useModuleJobsStore } from '@/stores/moduleJobs'
 import type {
   DevelopabilityJob,
   DevelopabilityResidue,
@@ -10,6 +15,8 @@ import type {
 import { statusLabel } from '@/utils/constants'
 
 const route = useRoute()
+const router = useRouter()
+const moduleJobs = useModuleJobsStore()
 const job = ref<DevelopabilityJob | null>(null)
 const chainId = ref('')
 const selectedIndex = ref<number | null>(null)
@@ -105,14 +112,32 @@ async function download(name: string) {
   catch (e) { ElMessage.error(e instanceof Error ? e.message : '下载失败') }
 }
 async function fillForm() {
-  if (!job.value || !formCtl) return
-  await formCtl.fillFromJob(job.value)
+  if (!job.value) return
+  if (formCtl) {
+    await formCtl.fillFromJob(job.value)
+    return
+  }
+  router.push({ name: 'developability-new', query: { fill: job.value.id } })
 }
 async function resubmit() {
-  if (!job.value || !formCtl) return
+  if (!job.value) return
+  if (formCtl) {
+    resubmitting.value = true
+    try { await formCtl.resubmitSame(job.value) }
+    finally { resubmitting.value = false }
+    return
+  }
   resubmitting.value = true
-  try { await formCtl.resubmitSame(job.value) }
-  finally { resubmitting.value = false }
+  try {
+    const created = await resubmitDevelopabilityJob(job.value.id)
+    await moduleJobs.refreshDevelopability()
+    router.push({ name: 'developability-task', params: { id: created.id } })
+    ElMessage.success('已作为新任务重新提交（不会覆盖原来那一条）')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '再次提交失败')
+  } finally {
+    resubmitting.value = false
+  }
 }
 </script>
 

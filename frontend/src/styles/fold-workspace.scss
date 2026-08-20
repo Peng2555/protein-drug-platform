@@ -1,9 +1,9 @@
 .fold-workspace {
   display: grid;
-  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   gap: 1.15rem;
   align-items: start;
-  min-height: calc(100vh - 140px);
+  min-height: calc(100vh - var(--app-topbar-height) - 52px);
 
   @media (max-width: 1024px) {
     grid-template-columns: 1fr;
@@ -16,12 +16,12 @@
 
 .fold-sidebar {
   padding: 0;
-  max-height: calc(100vh - 120px);
+  max-height: 100vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  position: sticky;
-  top: 76px;
+  position: relative;
+  top: auto;
 }
 
 .fold-sidebar__tabs {
@@ -63,7 +63,7 @@
   padding: 0 0.15rem 0.85rem;
   border-bottom: 1px solid var(--border);
   overflow-y: auto;
-  max-height: 42vh;
+  max-height: 38vh;
 }
 
 .mt-sm {
@@ -328,8 +328,8 @@
 .md-sidebar {
   padding: 1rem;
   position: sticky;
-  top: 72px;
-  max-height: calc(100vh - 120px);
+  top: calc(var(--app-topbar-height) + 12px);
+  max-height: calc(100vh - var(--app-topbar-height) - 36px);
   overflow-y: auto;
 }
 

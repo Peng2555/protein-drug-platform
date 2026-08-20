@@ -24,12 +24,18 @@ const props = withDefaults(
     status?: string | null
     chains?: InterfaceChainMeta[] | null
     cifText?: string | null
+    /** hero：嵌入详情主舞台，占满父容器高度 */
+    variant?: 'default' | 'hero'
+    /** 由外层 ComplexViewer 提供工具栏时隐藏内置标题区 */
+    hideChrome?: boolean
   }>(),
   {
     jobId: null,
     status: null,
     chains: null,
     cifText: null,
+    variant: 'default',
+    hideChrome: false,
   },
 )
 
@@ -182,6 +188,12 @@ function onViewerResize(): void {
   resizeMolstarViewer(viewer.value)
 }
 
+function retryLoad(): void {
+  loadedJobId.value = null
+  loadError.value = ''
+  void loadStructure()
+}
+
 watch(
   () => [props.jobId, props.status, props.cifText] as const,
   () => { void loadStructure() },
@@ -222,15 +234,20 @@ defineExpose({
   refreshViewerStyles,
   getCifText: () => internalCifText.value,
   getViewer: () => viewer.value,
+  retryLoad,
+  setColorMode: (mode: ViewerColorMode) => {
+    colorMode.value = mode
+    void refreshViewerStyles()
+  },
 })
 </script>
 
 <template>
-  <div class="structure-viewer">
-    <div class="structure-viewer__head">
+  <div class="structure-viewer" :class="{ 'structure-viewer--hero': variant === 'hero' }">
+    <div v-if="!hideChrome" class="structure-viewer__head">
       <div class="structure-viewer__titles">
         <h3 class="structure-viewer__title">3D 结构</h3>
-        <p class="structure-viewer__hint">Mol* 渲染 · 高质量 cartoon（螺旋/折叠清晰）</p>
+        <p v-if="variant !== 'hero'" class="structure-viewer__hint">Mol* 渲染 · 高质量 cartoon</p>
       </div>
       <div class="structure-viewer__actions">
         <span v-if="selectionCount > 0" class="structure-viewer__sel-count">
@@ -264,8 +281,23 @@ defineExpose({
         :class="{ 'is-ready': showOverlay }"
       />
 
-      <div v-if="!showOverlay" v-loading="loading" class="structure-viewer__placeholder">
-        <span>{{ placeholderMessage }}</span>
+      <div
+        v-if="!showOverlay"
+        v-loading="loading"
+        class="structure-viewer__placeholder"
+      >
+        <div class="structure-viewer__placeholder-inner">
+          <span>{{ placeholderMessage }}</span>
+          <el-button
+            v-if="loadError && jobId && status === 'done'"
+            type="primary"
+            size="small"
+            class="structure-viewer__retry"
+            @click="retryLoad"
+          >
+            重试加载
+          </el-button>
+        </div>
       </div>
 
       <div v-if="showOverlay && colorMode === 'plddt'" class="plddt-overlay">
@@ -310,6 +342,25 @@ defineExpose({
 
 <style scoped lang="scss">
 .structure-viewer {
+  &--hero {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+
+    .structure-viewer__head {
+      margin-bottom: 0.55rem;
+      flex-shrink: 0;
+    }
+
+    .structure-viewer__wrap {
+      flex: 1;
+      height: auto;
+      min-height: 0;
+      border-radius: 12px;
+    }
+  }
+
   &__head {
     display: flex;
     align-items: center;
@@ -357,8 +408,8 @@ defineExpose({
 
   &__wrap {
     position: relative;
-    height: min(560px, 58vh);
-    min-height: 400px;
+    height: min(720px, 72vh);
+    min-height: 520px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: #f1f5f9;
@@ -372,10 +423,11 @@ defineExpose({
   &__canvas {
     width: 100%;
     height: 100%;
-    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.15s ease;
 
     &.is-ready {
-      visibility: visible;
+      opacity: 1;
     }
   }
 
@@ -392,6 +444,18 @@ defineExpose({
     color: var(--muted);
     background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
     z-index: 2;
+  }
+
+  &__placeholder-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: 28rem;
+  }
+
+  &__retry {
+    margin-top: 0.15rem;
   }
 }
 

@@ -61,6 +61,7 @@ export function engineLabel(engine?: string) {
   if (engine === 'esmfold2') return 'ESMFold2'
   if (engine === 'boltz2') return 'Boltz2'
   if (engine === 'esm2_developability') return 'ESM-2 序列改造'
+  if (engine === 'protein_mpnn') return 'ProteinMPNN 序列设计'
   return engine || '—'
 }
 

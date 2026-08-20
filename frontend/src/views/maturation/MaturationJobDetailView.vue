@@ -11,11 +11,13 @@ import {
 } from '@/api/maturation'
 import type { MaturationJob, MaturationLogsOut, MaturationVariant } from '@/api/types'
 import { useFoldTasksStore } from '@/stores/foldTasks'
+import { useModuleJobsStore } from '@/stores/moduleJobs'
 import { MATURATION_STAGE_LABELS, statusLabel } from '@/utils/constants'
 
 const route = useRoute()
 const router = useRouter()
 const foldStore = useFoldTasksStore()
+const moduleJobs = useModuleJobsStore()
 
 const loading = ref(true)
 const job = ref<MaturationJob | null>(null)
@@ -102,8 +104,8 @@ async function onDelete() {
       type: 'warning',
     })
     await deleteMaturationJob(j.id)
-    await foldStore.refreshMaturationTasks()
-    router.push({ name: 'maturation' })
+    await Promise.all([moduleJobs.refreshMaturation(), foldStore.refreshMaturationTasks()])
+    router.push({ name: 'maturation-tasks' })
     ElMessage.success('已删除')
   } catch (e) {
     if (e !== 'cancel') ElMessage.error(e instanceof Error ? e.message : '删除失败')

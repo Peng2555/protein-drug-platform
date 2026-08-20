@@ -21,6 +21,10 @@
 | `logs/` | ❌ | API / Celery 日志与 pid |
 | `data/` | ❌ | 本地 SQLite 或运行时数据 |
 
+## 提交信息
+
+提交说明使用**简体中文**，专有名词可保留原文（Mol*、pLDDT、GROMACS 等）。
+
 ## 克隆与子模块
 
 RAS 对接依赖独立仓库，以 **git submodule** 管理：

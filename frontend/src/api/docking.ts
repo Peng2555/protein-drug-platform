@@ -1,6 +1,8 @@
 import { api, apiJson } from './client'
 import type { DockingJob, DockingJobListOut } from './types'
 
+export type DockMode = 'auto_blind' | 'reference' | 'manual'
+
 export async function fetchDockingJobs(limit = 50) {
   return apiJson<DockingJobListOut>(`/api/docking-jobs?limit=${limit}`)
 }
@@ -12,10 +14,13 @@ export async function fetchDockingJob(id: string) {
 export async function submitDockingJob(
   receptor: File,
   ligandSmiles: string,
+  ligandFile: File | null,
   referenceLigand: File | null,
   params: {
     name?: string
     engine: string
+    dock_mode: DockMode
+    num_cavities: number
     center_x: number
     center_y: number
     center_z: number
@@ -33,6 +38,7 @@ export async function submitDockingJob(
   const fd = new FormData()
   fd.append('receptor', receptor)
   fd.append('ligand_smiles', ligandSmiles.trim())
+  if (ligandFile) fd.append('ligand_file', ligandFile)
   if (referenceLigand) fd.append('reference_ligand', referenceLigand)
   Object.entries(params).forEach(([key, value]) => fd.append(key, String(value)))
   return apiJson<DockingJob>('/api/docking-jobs', { method: 'POST', data: fd })

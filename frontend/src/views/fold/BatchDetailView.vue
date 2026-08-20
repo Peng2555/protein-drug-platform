@@ -29,7 +29,7 @@ async function load() {
 
 function openJob(jobId: string) {
   router.push({
-    name: 'fold-job',
+    name: 'fold-task',
     params: { id: jobId },
     query: { batch: batchId.value },
   })
@@ -50,7 +50,7 @@ async function onDelete() {
     await deleteBatch(b.id)
     batchStore.reset()
     await foldStore.refreshFoldTasks()
-    router.push({ name: 'fold' })
+    router.push({ name: 'fold-tasks' })
     ElMessage.success('已删除')
   } catch (e) {
     if (e !== 'cancel') ElMessage.error(e instanceof Error ? e.message : '删除失败')

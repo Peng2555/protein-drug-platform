@@ -13,6 +13,7 @@ ras_docking_outputs/
 maturation_outputs/
 synthesis_outputs/
 developability_outputs/
+design_outputs/
 
 # ── 2. 日志与进程 pid ───────────────────────────────────────────────────────
 logs/

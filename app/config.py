@@ -57,6 +57,14 @@ class Settings(BaseSettings):
     obabel_bin: str = "/home/pengpai/data/envs/boltz2/bin/obabel"
     docking_out_root: Path = ROOT / "docking_outputs"
     developability_out_root: Path = ROOT / "developability_outputs"
+    design_out_root: Path = ROOT / "design_outputs"
+    # ProteinMPNN（默认指向本机 RFantibody 内置脚本与权重）
+    proteinmpnn_python: str = "/home/pengpai/projects/RFantibody/.venv/bin/python"
+    proteinmpnn_script: Path = Path(
+        "/home/pengpai/projects/RFantibody/src/rfantibody/proteinmpnn/model/protein_mpnn_run.py"
+    )
+    proteinmpnn_weights_dir: Path = Path("/home/pengpai/projects/RFantibody/weights")
+    proteinmpnn_model_name: str = "ProteinMPNN_v48_noise_0.2"
     esm2_3b_path: Path = Path(
         "/home/pengpai/data/cache/torch/hub/checkpoints/esm2_t36_3B_UR50D.pt"
     )
@@ -87,6 +95,7 @@ settings.synthesis_out_root.mkdir(parents=True, exist_ok=True)
 settings.ras_docking_out_root.mkdir(parents=True, exist_ok=True)
 settings.docking_out_root.mkdir(parents=True, exist_ok=True)
 settings.developability_out_root.mkdir(parents=True, exist_ok=True)
+settings.design_out_root.mkdir(parents=True, exist_ok=True)
 (ROOT / "data").mkdir(parents=True, exist_ok=True)
 
 # Propagate cache env vars for boltz subprocess

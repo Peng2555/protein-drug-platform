@@ -238,6 +238,26 @@ export interface DevelopabilityJobListOut {
   total: number
 }
 
+export interface DesignJob extends Job {}
+
+export interface DesignJobListOut {
+  items: DesignJob[]
+  total: number
+}
+
+export interface DesignCandidate {
+  index: number
+  header?: string
+  sequence: string
+  chain_sequences?: string[]
+  score?: number | null
+  global_score?: number | null
+  seq_recovery?: number | null
+  temperature?: number | null
+  sample?: number | null
+  is_native?: boolean
+}
+
 export interface DevelopabilityAaScore {
   aa: string
   ll: number

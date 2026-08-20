@@ -1,4 +1,4 @@
-# BoltzFold Vue 3 前端
+# 蛋白质-药物计算平台 · Vue 3 前端
 
 基于 **Vue 3 + Vite + TypeScript + Element Plus + Pinia + Vue Router**，从原 `web/`（Vanilla JS）逐步迁移。
 
@@ -43,7 +43,7 @@ src/
 
 1. ✅ 脚手架 + 登录 + 布局 + 任务列表
 2. ⏳ 单条提交 / VHH 批量表单
-3. ⏳ 3Dmol 结构 viewer 组件
+3. ⏳ Mol* 结构 viewer 组件
 4. ⏳ Kabat 序列 + PyMOL 多选
 5. ⏳ PLIP 结合界面面板
 6. ⏳ MD 模块

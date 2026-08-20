@@ -8,6 +8,7 @@ SYNTHESIS_ENGINE = "synthesis_select"
 RAS_DOCKING_ENGINE = "ras_tricomplex_docking"
 SMALL_MOLECULE_DOCKING_ENGINE = "small_molecule_docking"
 DEVELOPABILITY_ENGINE = "esm2_developability"
+DESIGN_ENGINE = "protein_mpnn"
 DEFAULT_FOLD_ENGINE = "boltz2"
 
 

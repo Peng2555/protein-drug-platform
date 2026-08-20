@@ -94,7 +94,7 @@ async function onDelete() {
     )
     await deleteMdJob(j.id)
     await foldStore.refreshMdTasks()
-    router.push({ name: 'md' })
+    router.push({ name: 'md-tasks' })
     ElMessage.success('已删除')
   } catch (e) {
     if (e !== 'cancel') ElMessage.error(e instanceof Error ? e.message : '删除失败')

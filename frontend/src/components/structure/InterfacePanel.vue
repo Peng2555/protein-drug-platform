@@ -20,6 +20,10 @@ const props = withDefaults(
     error?: string | null
     minChains?: number
     chainCount?: number
+    /** 隐藏内嵌 3D，仅保留指标与表格（用于详情页右侧栏） */
+    hideViewer?: boolean
+    /** 工作台右侧：仅保留相互作用表格（指标由外层卡片展示） */
+    tableOnly?: boolean
   }>(),
   {
     cifText: null,
@@ -28,12 +32,15 @@ const props = withDefaults(
     error: null,
     minChains: 2,
     chainCount: 2,
+    hideViewer: false,
+    tableOnly: false,
   },
 )
 
 const emit = defineEmits<{
   loaded: [data: JobInterfaceData]
   error: [message: string]
+  'focus-interaction': [ix: InterfaceInteraction]
 }>()
 
 const viewerRef = ref<InstanceType<typeof InterfaceViewer3d> | null>(null)
@@ -177,7 +184,10 @@ function setFilter(filter: InteractionFilter): void {
 
 function onRowClick(ix: InterfaceInteraction, index: number): void {
   activeRowIndex.value = index
-  viewerRef.value?.focusInteraction(ix)
+  if (!props.hideViewer) {
+    viewerRef.value?.focusInteraction(ix)
+  }
+  emit('focus-interaction', ix)
 }
 
 function interactionTypeLabel(type: string): string {
@@ -208,8 +218,12 @@ watch(
 </script>
 
 <template>
-  <section v-if="showSection" class="interface-section-card">
-    <header class="interface-section-head">
+  <section
+    v-if="showSection"
+    class="interface-section-card"
+    :class="{ 'interface-section-card--rail': hideViewer }"
+  >
+    <header v-if="!hideViewer" class="interface-section-head">
       <div>
         <h2>结合界面分析</h2>
         <p v-if="methodText" class="interface-method">{{ methodText }}</p>
@@ -225,6 +239,11 @@ watch(
           {{ chainBadgeB.label }}
         </span>
       </div>
+    </header>
+
+    <header v-else class="interface-rail-head">
+      <h3>{{ tableOnly ? '相互作用' : '结合界面' }}</h3>
+      <p v-if="methodText && !tableOnly">{{ methodText }}</p>
     </header>
 
     <div v-if="isLoading" v-loading="true" class="interface-loading">
@@ -253,7 +272,11 @@ watch(
     </template>
 
     <div v-else-if="hasContent" class="interface-panel__content">
-      <div class="interface-hero-metrics">
+      <div
+        v-if="!tableOnly"
+        class="interface-hero-metrics"
+        :class="{ 'interface-hero-metrics--rail': hideViewer }"
+      >
         <div class="interface-pdockq-card" :class="`interface-pdockq-card--${pdockqTier}`">
           <div class="interface-pdockq-card__label">pDockQ</div>
           <div class="interface-pdockq-card__value">
@@ -271,8 +294,8 @@ watch(
         </div>
       </div>
 
-      <div class="interface-layout">
-        <div class="interface-layout__viewer">
+      <div class="interface-layout" :class="{ 'interface-layout--rail': hideViewer }">
+        <div v-if="!hideViewer" class="interface-layout__viewer">
           <InterfaceViewer3d
             v-if="cifTextResolved"
             ref="viewerRef"
@@ -286,7 +309,7 @@ watch(
         <div class="interface-layout__side">
           <div class="interface-side-card">
             <div class="interface-side-card__head">
-              PLIP 相互作用
+              关键相互作用
               <span style="font-weight: 400; color: var(--muted); margin-left: 0.35rem">
                 {{ primary?.interaction_summary?.n_total ?? primary?.interactions?.length ?? 0 }} 条
               </span>
@@ -309,7 +332,7 @@ watch(
                 暂无该类相互作用
               </div>
 
-              <div v-else class="interaction-table-wrap">
+              <div v-else class="interaction-table-wrap" :class="{ 'interaction-table-wrap--tall': hideViewer }">
                 <el-table
                   :data="filteredInteractions"
                   size="small"
@@ -345,7 +368,7 @@ watch(
             </div>
           </div>
 
-          <div class="interface-side-card">
+          <div v-if="!tableOnly" class="interface-side-card">
             <div class="interface-side-card__head">界面残基</div>
             <div class="interface-side-card__body">
               <div class="interface-residue-panel">
@@ -368,19 +391,19 @@ watch(
               </div>
             </div>
           </div>
+        </div>
 
-          <div v-if="data?.reference_tools?.length" class="interface-ref-tools">
-            参考：
-            <el-link
-              v-for="tool in data.reference_tools"
-              :key="tool.url"
-              :href="tool.url"
-              target="_blank"
-              type="primary"
-            >
-              {{ tool.name }}
-            </el-link>
-          </div>
+        <div v-if="data?.reference_tools?.length" class="interface-ref-tools">
+          参考：
+          <el-link
+            v-for="tool in data.reference_tools"
+            :key="tool.url"
+            :href="tool.url"
+            target="_blank"
+            type="primary"
+          >
+            {{ tool.name }}
+          </el-link>
         </div>
       </div>
     </div>

@@ -42,6 +42,18 @@ def _with_live_results(job: Job) -> DockingJobOut:
                         payload["sampling"] = saved["sampling"]
                     if saved.get("canonical_smiles"):
                         payload["canonical_smiles"] = saved["canonical_smiles"]
+                    if saved.get("cavities"):
+                        payload["cavities"] = saved["cavities"]
+                    if saved.get("cavity_ranking"):
+                        payload["cavity_ranking"] = saved["cavity_ranking"]
+                    if saved.get("dock_mode"):
+                        payload["dock_mode"] = saved["dock_mode"]
+                    if saved.get("protocol"):
+                        payload["protocol"] = saved["protocol"]
+                    if saved.get("box"):
+                        payload["box"] = saved["box"]
+                    if saved.get("best_pose"):
+                        payload["best_pose"] = saved["best_pose"]
             except json.JSONDecodeError:
                 pass
         output = work_dir / "docked_poses.pdbqt"
@@ -62,29 +74,40 @@ def _float(value: str, label: str) -> float:
 @router.post("", response_model=DockingJobOut, status_code=status.HTTP_201_CREATED)
 async def create_job(
     receptor: UploadFile = File(...),
-    ligand_smiles: str = Form(...),
+    ligand_smiles: str = Form(default=""),
+    ligand_file: UploadFile | None = File(default=None),
     reference_ligand: UploadFile | None = File(default=None),
     name: str | None = Form(default=None),
     engine: str = Form(default="vina"),
-    center_x: str = Form(...),
-    center_y: str = Form(...),
-    center_z: str = Form(...),
-    size_x: str = Form(...),
-    size_y: str = Form(...),
-    size_z: str = Form(...),
+    dock_mode: str = Form(default="auto_blind"),
+    num_cavities: int = Form(default=5, ge=1, le=19),
+    center_x: str = Form(default="0"),
+    center_y: str = Form(default="0"),
+    center_z: str = Form(default="0"),
+    size_x: str = Form(default="22"),
+    size_y: str = Form(default="22"),
+    size_z: str = Form(default="22"),
     exhaustiveness: int = Form(default=8, ge=1, le=64),
     num_modes: int = Form(default=20, ge=1, le=50),
     energy_range: float = Form(default=5.0, ge=0, le=20),
     box_padding: float = Form(default=5.0, gt=0, le=20),
-    n_starts: int = Form(default=10, ge=1, le=10),
+    n_starts: int = Form(default=3, ge=1, le=10),
     n_conformers: int = Form(default=128, ge=8, le=256),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     if engine not in {"vina", "gnina"}:
         raise HTTPException(400, "engine 只能是 vina 或 gnina")
+    mode = (dock_mode or "auto_blind").strip().lower()
+    if mode not in {"auto_blind", "reference", "manual"}:
+        raise HTTPException(400, "dock_mode 只能是 auto_blind / reference / manual")
+    smiles = (ligand_smiles or "").strip()
+    if not smiles and ligand_file is None:
+        raise HTTPException(400, "请填写配体 SMILES，或上传配体文件")
     params = {
         "engine": engine,
+        "dock_mode": mode,
+        "num_cavities": num_cavities,
         "center_x": _float(center_x, "center_x"),
         "center_y": _float(center_y, "center_y"),
         "center_z": _float(center_z, "center_z"),
@@ -102,12 +125,22 @@ async def create_job(
     }
     if any(params[key] <= 0 for key in ("size_x", "size_y", "size_z")):
         raise HTTPException(400, "对接盒尺寸必须大于 0")
-    if reference_ligand is None and all(params[key] == 0 for key in ("center_x", "center_y", "center_z")):
-        raise HTTPException(400, "请填写真实搜索盒中心，或上传参考配体自动计算搜索盒")
+    if mode == "reference" and reference_ligand is None:
+        raise HTTPException(400, "参考配体模式请上传参考配体文件")
+    if mode == "manual" and all(
+        params[key] == 0 for key in ("center_x", "center_y", "center_z")
+    ):
+        raise HTTPException(400, "手动口袋模式请填写真实搜索盒中心")
     job_name = name.strip() if name and name.strip() else "docking"
     job = await create_and_queue_docking_job(
-        db, user_id=user.id, name=job_name, receptor=receptor,
-        ligand_smiles=ligand_smiles, reference_ligand=reference_ligand, params=params,
+        db,
+        user_id=user.id,
+        name=job_name,
+        receptor=receptor,
+        ligand_smiles=smiles,
+        ligand_file=ligand_file,
+        reference_ligand=reference_ligand,
+        params=params,
     )
     db.commit()
     db.refresh(job)

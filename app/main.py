@@ -16,7 +16,18 @@ from app.config import settings
 from app.database import SessionLocal, engine
 from app.db_migrate import run_migrations
 from app.models import Job, JobStatus
-from app.routers import auth, batches, jobs, md_jobs, maturation_jobs, synthesis_jobs, ras_docking_jobs, docking_jobs, developability_jobs
+from app.routers import (
+    auth,
+    batches,
+    jobs,
+    md_jobs,
+    maturation_jobs,
+    synthesis_jobs,
+    ras_docking_jobs,
+    docking_jobs,
+    developability_jobs,
+    design_jobs,
+)
 from app.schemas import HealthOut
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,7 +47,7 @@ class SPAStaticFiles(StaticFiles):
             raise
 
 
-app = FastAPI(title="BoltzFold Platform", version="1.0.0", description="Protein structure prediction platform")
+app = FastAPI(title="蛋白质-药物计算平台", version="1.0.0", description="Protein–drug computing platform")
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,6 +66,7 @@ app.include_router(synthesis_jobs.router)
 app.include_router(ras_docking_jobs.router)
 app.include_router(docking_jobs.router)
 app.include_router(developability_jobs.router)
+app.include_router(design_jobs.router)
 
 
 @app.on_event("startup")

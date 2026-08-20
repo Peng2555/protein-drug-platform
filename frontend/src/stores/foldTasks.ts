@@ -39,6 +39,11 @@ export const useFoldTasksStore = defineStore('foldTasks', () => {
     return items
   })
 
+  /** 导航栏最近任务（单条+批次，最多 5 条） */
+  const recentFoldItems = computed(() => mergedTaskItems.value.slice(0, 5))
+
+  const foldTaskCount = computed(() => jobs.value.length + batches.value.length)
+
   async function refreshFoldTasks() {
     loading.value = true
     try {
@@ -106,6 +111,8 @@ export const useFoldTasksStore = defineStore('foldTasks', () => {
     loading,
     hasActiveTasks,
     mergedTaskItems,
+    recentFoldItems,
+    foldTaskCount,
     refreshFoldTasks,
     refreshMdTasks,
     refreshMaturationTasks,
