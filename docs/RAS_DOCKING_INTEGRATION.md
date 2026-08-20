@@ -2,6 +2,14 @@
 
 ## 安装外部流程
 
+Boltz2 主仓库通过 **git submodule** 引用本流程（详见 [REPOSITORY.md](REPOSITORY.md)）：
+
+```bash
+git submodule update --init external/ras-tricomplex-docking
+```
+
+亦可手动 clone：
+
 ```bash
 mkdir -p external
 git clone https://github.com/Peng2555/ras-tricomplex-docking.git \
