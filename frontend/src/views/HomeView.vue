@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { fetchJobs } from '@/api/jobs'
 import type { Job } from '@/api/types'
 import CapabilityMap from '@/components/home/CapabilityMap.vue'
+import HomeProductPreview from '@/components/home/HomeProductPreview.vue'
 import HomeFeatureStrip from '@/components/home/HomeFeatureStrip.vue'
 import HomeHero from '@/components/home/HomeHero.vue'
 import HomeRecentTasks from '@/components/home/HomeRecentTasks.vue'
@@ -25,6 +26,7 @@ type RecentItem = {
 }
 
 const router = useRouter()
+const route = useRoute()
 const moduleJobs = useModuleJobsStore()
 const recentItems = ref<RecentItem[]>([])
 const loadingRecent = ref(false)
@@ -118,6 +120,11 @@ function openRecent(item: RecentItem) {
 
 onMounted(() => {
   void loadRecent()
+  if (route.hash) {
+    setTimeout(() => {
+      document.getElementById(route.hash.slice(1))?.scrollIntoView({ behavior: 'smooth' })
+    }, 100)
+  }
 })
 </script>
 
@@ -125,8 +132,9 @@ onMounted(() => {
   <div class="landing">
     <HomeHero />
     <HomeFeatureStrip />
+    <HomeProductPreview />
 
-    <section class="landing-section landing-section--soft landing-section--tight-top">
+    <section id="scenarios" class="landing-section landing-section--soft landing-section--tight-top">
       <div class="landing-container">
         <div class="landing-section__head">
           <h2>按研发场景选择</h2>
@@ -136,7 +144,7 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="landing-section">
+    <section id="workflows" class="landing-section">
       <div class="landing-container">
         <div class="landing-section__head landing-section__head--left">
           <h2>推荐工作流</h2>
@@ -146,7 +154,7 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="landing-section landing-section--soft">
+    <section id="capabilities" class="landing-section landing-section--soft">
       <div class="landing-container">
         <div class="landing-section__head">
           <h2>平台能力地图</h2>
@@ -156,7 +164,7 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="landing-section">
+    <section id="recent" class="landing-section">
       <div class="landing-container">
         <div class="landing-section__head landing-section__head--left">
           <div>

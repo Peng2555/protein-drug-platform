@@ -21,6 +21,7 @@ import {
   UserFilled,
 } from '@element-plus/icons-vue'
 import ModuleNavBranch from '@/components/layout/ModuleNavBranch.vue'
+import HomeLandingNav from '@/components/home/HomeLandingNav.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFoldTasksStore } from '@/stores/foldTasks'
 import { useModuleJobsStore, type ModuleJobKind, type ModuleNavItem } from '@/stores/moduleJobs'
@@ -56,7 +57,7 @@ const expanded = reactive<Record<string, boolean>>({
 })
 
 const activeModule = computed(() => moduleIdFromPath(route.path))
-const onHome = computed(() => route.name === 'home')
+const isLanding = computed(() => route.name === 'home' || route.name === 'use-case')
 const currentNav = computed(() => navItemById(activeModule.value))
 const onFold = computed(() => activeModule.value === 'fold')
 
@@ -205,8 +206,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="layout-root" :class="{ 'is-collapsed': collapsed }">
-    <aside class="app-sidebar" aria-label="功能模块">
+  <div class="layout-root" :class="{ 'is-collapsed': collapsed, 'layout-root--landing': isLanding }">
+    <aside v-if="!isLanding" class="app-sidebar" aria-label="功能模块">
       <RouterLink to="/home" class="sidebar-brand" :title="PLATFORM_NAME">
         <img src="/assets/biocytogen-logo.png" alt="百奥赛图" class="sidebar-logo" />
         <div v-show="!collapsed" class="sidebar-brand-text">
@@ -380,8 +381,10 @@ onMounted(() => {
       </div>
     </aside>
 
-    <div class="app-shell">
-      <header class="app-topbar">
+    <div class="app-shell" :class="{ 'app-shell--landing': isLanding }">
+      <HomeLandingNav v-if="isLanding" />
+
+      <header v-else class="app-topbar">
         <div class="topbar-left">
           <div class="topbar-crumb">
             <span class="crumb-module">{{ currentNav.label }}</span>
@@ -397,11 +400,11 @@ onMounted(() => {
         </div>
       </header>
 
-      <main class="app-content" :class="{ 'app-content--home': onHome }">
+      <main class="app-content" :class="{ 'app-content--home': isLanding }">
         <RouterView />
       </main>
 
-      <footer v-if="!onHome" class="app-footer">
+      <footer v-if="!isLanding" class="app-footer">
         <span>© {{ PLATFORM_ORG }}</span>
         <span class="footer-tagline">{{ PLATFORM_TAGLINE }}</span>
       </footer>
@@ -421,6 +424,11 @@ onMounted(() => {
     var(--bg);
 
   &.is-collapsed { --sidebar-width: 76px; }
+
+  &.layout-root--landing {
+    grid-template-columns: 1fr;
+    background: #fff;
+  }
 }
 
 .app-sidebar {
@@ -865,6 +873,12 @@ onMounted(() => {
 .app-content--home {
   padding: 0;
   background: #fff;
+}
+
+.app-shell--landing {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-footer {

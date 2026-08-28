@@ -64,7 +64,13 @@ const router = createRouter({
           path: 'home',
           name: 'home',
           component: () => import('@/views/HomeView.vue'),
-          meta: { title: '首页' },
+          meta: { title: '首页', landing: true },
+        },
+        {
+          path: 'use-cases/:id',
+          name: 'use-case',
+          component: () => import('@/views/UseCaseDetailView.vue'),
+          meta: { title: '研发场景', landing: true },
         },
         {
           path: 'fold',

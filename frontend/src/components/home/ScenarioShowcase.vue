@@ -43,6 +43,9 @@ function start(route: string) {
           {{ current.primaryCta.label }}
           <el-icon><ArrowRight /></el-icon>
         </button>
+        <button type="button" class="showcase__link" @click="router.push(`/use-cases/${modelValue}`)">
+          查看场景详情 →
+        </button>
       </div>
 
       <div class="showcase__visual" :class="`showcase__visual--${modelValue}`" aria-hidden="true">
@@ -145,6 +148,23 @@ h2 {
 
   &:hover {
     transform: translateY(-1px);
+  }
+}
+
+.showcase__link {
+  display: inline-block;
+  margin-top: 0.85rem;
+  margin-left: 0.25rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--bio-blue);
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 

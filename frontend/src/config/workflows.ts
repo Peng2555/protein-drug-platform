@@ -9,6 +9,13 @@ export interface ScenarioDef {
   summary: string
   highlights: string[]
   primaryCta: { label: string; route: string }
+  pipeline: { title: string; description: string }[]
+}
+
+export interface ScenarioDetailContent {
+  intro: string
+  pipeline: { title: string; description: string }[]
+  outputs: string[]
 }
 
 export interface WorkflowStep {
@@ -37,6 +44,12 @@ export const SCENARIOS: ScenarioDef[] = [
       'IgGM 亲和力成熟与合成候选交叉筛选',
     ],
     primaryCta: { label: '开始 VHH 结构预测', route: '/fold/new' },
+    pipeline: [
+      { title: '提交序列', description: '上传 VHH 与抗原 FASTA，或从已有折叠任务导入。' },
+      { title: '批量折叠', description: 'Boltz2 预测复合物，查看 ipTM 与界面置信度。' },
+      { title: 'Rosetta 评价', description: '相对 WT 的 ΔΔG / ΔE 多指标排序。' },
+      { title: '实验候选', description: '导出 Top 突变体 relaxed 结构。' },
+    ],
   },
   {
     id: 'antibody',
@@ -49,6 +62,12 @@ export const SCENARIOS: ScenarioDef[] = [
       'Rosetta 突变体界面能对比',
     ],
     primaryCta: { label: '预测抗体复合物', route: '/fold/new' },
+    pipeline: [
+      { title: '复合物折叠', description: '抗体 + 抗原多链复合物结构预测。' },
+      { title: '界面分析', description: '3D 查看、界面残基与相互作用表。' },
+      { title: '序列设计', description: 'ProteinMPNN 固定骨架设计界面序列。' },
+      { title: '再验证', description: '再折叠或 Rosetta 对比 WT。' },
+    ],
   },
   {
     id: 'small_molecule',
@@ -61,6 +80,11 @@ export const SCENARIOS: ScenarioDef[] = [
       'GROMACS 显式溶剂 MD 稳定性验证',
     ],
     primaryCta: { label: '开始分子对接', route: '/docking/new' },
+    pipeline: [
+      { title: '受体准备', description: '上传蛋白 PDB，自动检测口袋。' },
+      { title: '配体对接', description: 'Vina 盲对接，输出结合模式与打分。' },
+      { title: 'MD 验证', description: 'GROMACS 短模拟看 RMSD 与稳定性。' },
+    ],
   },
   {
     id: 'general',
@@ -73,8 +97,40 @@ export const SCENARIOS: ScenarioDef[] = [
       '骨架约束下的序列设计',
     ],
     primaryCta: { label: '提交序列预测', route: '/fold/new' },
+    pipeline: [
+      { title: '序列输入', description: '单链或多链 FASTA。' },
+      { title: '结构预测', description: 'Boltz2 / ESMFold2 生成三维结构。' },
+      { title: '序列设计', description: '可选 ProteinMPNN 设计变体。' },
+    ],
   },
 ]
+
+export const SCENARIO_DETAILS: Record<ScenarioId, ScenarioDetailContent> = {
+  vhh: {
+    intro: '面向纳米抗体研发：从抗原复合物预测到突变体界面排序，再到合成候选收敛。',
+    pipeline: SCENARIOS[0].pipeline,
+    outputs: ['复合物 PDB/CIF', 'ranking.csv / scores.csv', 'relaxed_structures/', 'report.html'],
+  },
+  antibody: {
+    intro: 'IgG / 双链抗体与抗原的复合物建模、界面分析与序列设计闭环。',
+    pipeline: SCENARIOS[1].pipeline,
+    outputs: ['复合物结构', '界面指标', '设计序列候选', 'Rosetta 排名'],
+  },
+  small_molecule: {
+    intro: '从 hit 对接到 MD 稳定性验证的小分子筛选流程。',
+    pipeline: SCENARIOS[2].pipeline,
+    outputs: ['对接 pose', 'Vina 打分', 'MD 轨迹', 'RMSD 曲线'],
+  },
+  general: {
+    intro: '通用蛋白结构预测与序列设计入口。',
+    pipeline: SCENARIOS[3].pipeline,
+    outputs: ['预测结构', 'pLDDT 图', 'MPNN 序列'],
+  },
+}
+
+export function scenarioById(id: string): ScenarioDef | undefined {
+  return SCENARIOS.find((s) => s.id === id)
+}
 
 /** 各场景下高亮模块（能力地图默认筛选） */
 export const SCENARIO_MODULES: Record<ScenarioId, ModuleId[]> = {
