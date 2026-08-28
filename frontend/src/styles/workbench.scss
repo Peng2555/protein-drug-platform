@@ -1,0 +1,45 @@
+/* Tamarind 风格工作台：白底、细边框、弱化阴影 */
+
+.layout-root:not(.layout-root--landing) {
+  background: #fafafa;
+
+  .app-content {
+    padding: 1.5rem 1.75rem 2rem;
+    background: #fafafa;
+  }
+
+  .page-card {
+    border-color: #e5e7eb;
+    border-radius: 14px;
+    box-shadow: none;
+
+    &:hover {
+      box-shadow: none;
+    }
+  }
+
+  .page-card--accent::before {
+    display: none;
+  }
+}
+
+.workbench-form-head {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+
+  h1 {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #111827;
+  }
+
+  p {
+    margin: 0.4rem 0 0;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: #6b7280;
+  }
+}

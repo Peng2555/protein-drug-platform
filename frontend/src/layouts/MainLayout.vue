@@ -10,6 +10,7 @@ import {
   DArrowLeft,
   DArrowRight,
   EditPen,
+  Grid,
   Histogram,
   HomeFilled,
   MagicStick,
@@ -58,7 +59,8 @@ const expanded = reactive<Record<string, boolean>>({
 
 const activeModule = computed(() => moduleIdFromPath(route.path))
 const isLanding = computed(() => route.name === 'home' || route.name === 'use-case')
-const currentNav = computed(() => navItemById(activeModule.value))
+const onApp = computed(() => route.name === 'app')
+const currentNav = computed(() => (onApp.value ? { label: '计算工具', hint: '浏览并启动各计算模块' } : navItemById(activeModule.value)))
 const onFold = computed(() => activeModule.value === 'fold')
 
 const iconMap = {
@@ -115,6 +117,10 @@ function toggleModule(id: ModuleId) {
 
 function goHome() {
   router.push({ name: 'home' })
+}
+
+function goApp() {
+  router.push({ name: 'app' })
 }
 
 function recentFor(id: ModuleId): Array<ModuleNavItem & { _kind?: 'single' | 'batch' }> {
@@ -185,6 +191,7 @@ function formatShortTime(ts: string) {
 }
 
 function crumbHint() {
+  if (onApp.value) return '工具目录'
   const name = String(route.name || '')
   if (name.endsWith('-new')) return '新建任务'
   if (name.endsWith('-tasks')) return '全部任务'
@@ -228,6 +235,16 @@ onMounted(() => {
           >
             <el-icon class="nav-icon" :size="18"><HomeFilled /></el-icon>
             <span v-show="!collapsed" class="nav-label">首页</span>
+          </button>
+          <button
+            type="button"
+            class="nav-item"
+            :class="{ active: onApp }"
+            title="计算工具"
+            @click="goApp"
+          >
+            <el-icon class="nav-icon" :size="18"><Grid /></el-icon>
+            <span v-show="!collapsed" class="nav-label">工具目录</span>
           </button>
         </section>
 
@@ -418,10 +435,7 @@ onMounted(() => {
   min-height: 100vh;
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-  background:
-    radial-gradient(ellipse 60% 40% at 12% 0%, rgba(0, 172, 161, 0.07), transparent 55%),
-    radial-gradient(ellipse 50% 35% at 100% 0%, rgba(46, 90, 165, 0.06), transparent 50%),
-    var(--bg);
+  background: #fafafa;
 
   &.is-collapsed { --sidebar-width: 76px; }
 
@@ -437,11 +451,9 @@ onMounted(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background:
-    linear-gradient(180deg, #ffffff 0%, #f7fbfb 42%, #f3f8fc 100%);
-  color: var(--title);
-  border-right: 1px solid var(--border);
-  box-shadow: 4px 0 24px rgba(35, 35, 47, 0.04);
+  background: #fff;
+  color: #111827;
+  border-right: 1px solid #e5e7eb;
   z-index: 40;
   overflow: hidden;
 }
@@ -518,20 +530,19 @@ onMounted(() => {
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
-  color: var(--body);
+  color: #4b5563;
   text-align: left;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 
   &:hover {
-    background: var(--bio-green-light);
-    color: var(--bio-green-dark);
+    background: #f3f4f6;
+    color: #111827;
   }
 
   &.active {
-    background: linear-gradient(90deg, rgba(0, 172, 161, 0.14), rgba(46, 90, 165, 0.06));
-    border-color: rgba(0, 172, 161, 0.35);
-    color: var(--bio-green-darkest);
-    box-shadow: inset 3px 0 0 var(--bio-green);
+    background: #111827;
+    color: #fff;
   }
 }
 
@@ -556,15 +567,15 @@ onMounted(() => {
   height: 1.2rem;
   padding: 0 0.35rem;
   border-radius: 999px;
-  background: var(--bio-blue-light);
-  color: var(--bio-blue-dark);
+  background: #f3f4f6;
+  color: #6b7280;
   font-size: 0.66rem;
   font-weight: 700;
   line-height: 1.2rem;
   text-align: center;
 
-  &.is-active {
-    background: var(--bio-green);
+  .nav-item.active & {
+    background: rgba(255, 255, 255, 0.2);
     color: #fff;
   }
 }
@@ -576,8 +587,8 @@ onMounted(() => {
 
   &.open,
   &.active {
-    background: rgba(0, 172, 161, 0.06);
-    border: 1px solid rgba(0, 172, 161, 0.2);
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
   }
 }
 
@@ -806,10 +817,9 @@ onMounted(() => {
   justify-content: space-between;
   gap: 1rem;
   height: var(--app-topbar-height);
-  padding: 0 1.25rem;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--border);
+  padding: 0 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .topbar-left,
@@ -850,17 +860,17 @@ onMounted(() => {
   gap: 0.4rem;
   padding: 0.28rem 0.65rem;
   border-radius: 999px;
-  background: var(--bio-blue-light);
-  border: 1px solid rgba(46, 90, 165, 0.12);
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
   font-size: 0.8rem;
-  color: var(--bio-blue-dark);
+  color: #374151;
 }
 
 .user-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--bio-green);
+  background: #10b981;
 }
 
 .username { font-weight: 500; }

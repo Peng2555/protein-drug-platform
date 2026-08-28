@@ -30,7 +30,7 @@ function scrollTo(id: string) {
 }
 
 function enterWorkbench() {
-  router.push('/fold/new')
+  router.push('/app')
 }
 
 function onLogout() {

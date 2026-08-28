@@ -77,7 +77,7 @@ function goSlide(index: number) {
           <button type="button" class="btn btn--secondary" @click="router.push('/fold/tasks')">
             查看我的任务
           </button>
-          <button type="button" class="btn btn--primary" @click="router.push('/fold/new')">
+          <button type="button" class="btn btn--primary" @click="router.push('/app')">
             立即开始
             <el-icon><ArrowRight /></el-icon>
           </button>

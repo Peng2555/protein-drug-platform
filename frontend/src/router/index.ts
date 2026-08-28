@@ -73,6 +73,12 @@ const router = createRouter({
           meta: { title: '研发场景', landing: true },
         },
         {
+          path: 'app',
+          name: 'app',
+          component: () => import('@/views/app/AppToolsView.vue'),
+          meta: { title: '计算工具' },
+        },
+        {
           path: 'fold',
           component: () => import('@/views/fold/FoldWorkspaceView.vue'),
           meta: { title: '结构预测' },
