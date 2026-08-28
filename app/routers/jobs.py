@@ -215,6 +215,8 @@ def get_job_interface(job_id: str, db: Session = Depends(get_db), user: User = D
         data = build_job_interface_analysis(job, db)
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, f"界面分析失败: {exc}") from exc
     return JobInterfaceOut.model_validate(data)
 
 

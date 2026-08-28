@@ -25,6 +25,7 @@ from ras_docking_runner import run_ras_docking
 from docking_runner import run_small_molecule_docking
 from esm2_developability_runner import run_developability_job as run_developability_pipeline
 from proteinmpnn_design_runner import run_design_job as run_design_pipeline
+from rosetta_eval_runner import run_rosetta_eval_job as run_rosetta_eval_pipeline
 
 
 def _needs_pdockq(job: Job) -> bool:
@@ -42,13 +43,9 @@ def _ensure_pdockq(work_dir: Path, job: Job) -> None:
         pq = compute_pdockq_from_boltz_dir(work_dir)
         if pq.pdockq is None and pq.pdockq2 is None:
             return
-        if pq.pdockq is not None and pq.pdockq > 0:
+        if pq.pdockq is not None:
             job.pdockq = pq.pdockq
-        elif pq.pdockq is not None and job.pdockq is None:
-            job.pdockq = pq.pdockq
-        if pq.pdockq2 is not None and pq.pdockq2 > 0:
-            job.pdockq2 = pq.pdockq2
-        elif pq.pdockq2 is not None and job.pdockq2 is None:
+        if pq.pdockq2 is not None:
             job.pdockq2 = pq.pdockq2
         metrics_path = work_dir / "metrics.json"
         if metrics_path.is_file() and job.pdockq is not None:
@@ -56,6 +53,15 @@ def _ensure_pdockq(work_dir: Path, job: Job) -> None:
             payload["pdockq"] = job.pdockq
             if job.pdockq2 is not None:
                 payload["pdockq2"] = job.pdockq2
+            if job.confidence_score is None:
+                iptm = payload.get("iptm", job.iptm)
+                ptm = payload.get("ptm", job.ptm)
+                if iptm is not None and ptm is not None:
+                    job.confidence_score = 0.8 * float(iptm) + 0.2 * float(ptm)
+                    payload["confidence_score"] = job.confidence_score
+                elif iptm is not None:
+                    job.confidence_score = float(iptm)
+                    payload["confidence_score"] = job.confidence_score
             metrics_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     except Exception:
         pass
@@ -643,6 +649,60 @@ def run_design_job(self, job_id: str) -> dict:
         else:
             job.status = JobStatus.failed.value
             job.error_message = (result.error or "ProteinMPNN design failed")[:8000]
+        db.commit()
+        return {"job_id": job_id, "status": job.status}
+    except Exception as exc:
+        job = db.get(Job, job_id)
+        if job:
+            job.status = JobStatus.failed.value
+            job.error_message = str(exc)[:8000]
+            job.finished_at = _utcnow()
+            db.commit()
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, name="worker.tasks.run_rosetta_eval_job")
+def run_rosetta_eval_job(self, job_id: str) -> dict:
+    db: Session = SessionLocal()
+    try:
+        job = db.get(Job, job_id)
+        if not job or job.engine != "rosetta_interface_eval":
+            return {"error": "not a rosetta eval job"}
+        if job.status == JobStatus.cancelled.value:
+            return {"status": "cancelled"}
+        params = dict(job.params_json or {})
+        job.status = JobStatus.running.value
+        job.stage = "queued"
+        job.started_at = _utcnow()
+        job.celery_task_id = self.request.id
+        db.commit()
+
+        def on_stage(stage: str) -> None:
+            current = db.get(Job, job_id)
+            if current and current.status != JobStatus.cancelled.value:
+                current.stage = stage
+                db.commit()
+
+        result = run_rosetta_eval_pipeline(
+            work_dir=Path(job.work_dir or settings.rosetta_eval_out_root / job.id),
+            params=params,
+            on_stage=on_stage,
+        )
+        job = db.get(Job, job_id)
+        if not job:
+            return {"job_id": job_id, "status": "deleted"}
+        job.finished_at = _utcnow()
+        job.runtime_seconds = result.seconds
+        job.stage = result.stage
+        job.results_json = result.results
+        if result.status == "ok":
+            job.status = JobStatus.done.value
+            job.error_message = None
+        else:
+            job.status = JobStatus.failed.value
+            job.error_message = (result.error or "Rosetta evaluation failed")[:8000]
         db.commit()
         return {"job_id": job_id, "status": job.status}
     except Exception as exc:

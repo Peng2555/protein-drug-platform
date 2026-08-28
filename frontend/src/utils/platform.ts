@@ -7,6 +7,7 @@ export type ModuleId =
   | 'home'
   | 'fold'
   | 'design'
+  | 'rosetta'
   | 'developability'
   | 'maturation'
   | 'synthesis'
@@ -52,6 +53,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '序列与抗体',
     items: [
       { id: 'design', path: '/design', label: '序列设计', hint: 'ProteinMPNN 骨架约束序列设计' },
+      { id: 'rosetta', path: '/rosetta', label: '结构评价', hint: 'Rosetta Relax 与界面 ΔΔG 排序' },
       { id: 'developability', path: '/developability', label: '序列改造', hint: 'ESM-2 与 MAXWELL 并列打分' },
       { id: 'maturation', path: '/maturation', label: '亲和力成熟', hint: 'IgGM CDR 变体采样' },
       { id: 'synthesis', path: '/synthesis', label: '合成候选', hint: '测序表与突变表交叉筛选' },
@@ -75,6 +77,7 @@ export function moduleIdFromPath(path: string): ModuleId {
   if (path.startsWith('/maturation')) return 'maturation'
   if (path.startsWith('/synthesis')) return 'synthesis'
   if (path.startsWith('/design')) return 'design'
+  if (path.startsWith('/rosetta')) return 'rosetta'
   if (path.startsWith('/developability')) return 'developability'
   if (path.startsWith('/docking') || path.startsWith('/ras-docking')) return 'docking'
   if (path.startsWith('/fold')) return 'fold'

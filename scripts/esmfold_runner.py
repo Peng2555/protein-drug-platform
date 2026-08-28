@@ -125,11 +125,38 @@ def _attach_pdockq(job_dir: Path, metrics: dict) -> None:
         from pdockq_runner import compute_pdockq_from_boltz_dir
 
         pq = compute_pdockq_from_boltz_dir(job_dir)
-        if pq.pdockq is not None and pq.pdockq > 0:
-            metrics["pdockq"] = pq.pdockq
-            metrics["pdockq2"] = pq.pdockq2
-    except Exception:
-        pass
+        if pq.pdockq is not None:
+            metrics["pdockq"] = float(pq.pdockq)
+        if pq.pdockq2 is not None:
+            metrics["pdockq2"] = float(pq.pdockq2)
+        if pq.error:
+            metrics["pdockq_note"] = pq.error
+    except Exception as exc:
+        metrics["pdockq_note"] = f"pDockQ skipped: {exc}"
+
+
+def _ascii_complex_id(name: str) -> str:
+    import re
+
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", name or "").strip("._-")
+    return cleaned or "pred"
+
+
+def _sanitize_mmcif_text(mmcif: str) -> str:
+    import re
+
+    return re.sub(r"^data_[^\s#]+", "data_pred", mmcif, count=1, flags=re.M)
+
+
+def _confidence_from_scores(iptm: float | None, ptm: float | None) -> float | None:
+    """AF-Multimer style composite used when ESMFold has no native confidence_score."""
+    if iptm is not None and ptm is not None:
+        return 0.8 * float(iptm) + 0.2 * float(ptm)
+    if iptm is not None:
+        return float(iptm)
+    if ptm is not None:
+        return float(ptm)
+    return None
 
 
 def _fold_inline(
@@ -159,6 +186,9 @@ def _fold_inline(
 
     if skip_if_done and metrics_path.is_file():
         m = json.loads(metrics_path.read_text(encoding="utf-8"))
+        conf = m.get("confidence_score")
+        if conf is None:
+            conf = _confidence_from_scores(m.get("iptm"), m.get("ptm"))
         return FoldResult(
             job_id=job_dir.name,
             status="ok",
@@ -170,7 +200,7 @@ def _fold_inline(
             pred_pdb=str(job_dir / "pred.pdb") if (job_dir / "pred.pdb").exists() else None,
             iptm=m.get("iptm"),
             ptm=m.get("ptm"),
-            confidence_score=None,
+            confidence_score=conf,
             complex_plddt=m.get("complex_plddt"),
             seconds=m.get("seconds") or 0.0,
             pdockq=m.get("pdockq"),
@@ -192,15 +222,18 @@ def _fold_inline(
                 num_sampling_steps=int(opts["num_sampling_steps"]),
                 num_diffusion_samples=int(opts["num_diffusion_samples"]),
                 seed=int(opts["seed"]),
-                complex_id=job_dir.name,
+                complex_id=_ascii_complex_id(job_dir.name),
             )
         best = _pick_best(results)
         elapsed = time.time() - t0
 
         pred_cif = job_dir / "pred.cif"
-        pred_cif.write_text(best.complex.to_mmcif(), encoding="utf-8")
+        pred_cif.write_text(_sanitize_mmcif_text(best.complex.to_mmcif()), encoding="utf-8")
         _write_plddt_npz(best.plddt, job_dir)
 
+        iptm = float(best.iptm) if best.iptm is not None else None
+        ptm = float(best.ptm) if best.ptm is not None else None
+        confidence = _confidence_from_scores(iptm, ptm)
         metrics = {
             "pred_cif": str(pred_cif),
             "engine": "esmfold2",
@@ -211,8 +244,9 @@ def _fold_inline(
             "seed": int(opts["seed"]),
             "complex_plddt": float(best.plddt.mean()),
             "plddt_mean": float(best.plddt.mean()),
-            "ptm": float(best.ptm) if best.ptm is not None else None,
-            "iptm": float(best.iptm) if best.iptm is not None else None,
+            "ptm": ptm,
+            "iptm": iptm,
+            "confidence_score": confidence,
             "seconds": elapsed,
         }
         _attach_pdockq(job_dir, metrics)
@@ -229,7 +263,7 @@ def _fold_inline(
             pred_pdb=None,
             iptm=metrics.get("iptm"),
             ptm=metrics.get("ptm"),
-            confidence_score=None,
+            confidence_score=metrics.get("confidence_score"),
             complex_plddt=metrics.get("complex_plddt"),
             seconds=elapsed,
             pdockq=metrics.get("pdockq"),

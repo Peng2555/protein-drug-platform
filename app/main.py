@@ -27,6 +27,7 @@ from app.routers import (
     docking_jobs,
     developability_jobs,
     design_jobs,
+    rosetta_eval_jobs,
 )
 from app.schemas import HealthOut
 
@@ -67,6 +68,7 @@ app.include_router(ras_docking_jobs.router)
 app.include_router(docking_jobs.router)
 app.include_router(developability_jobs.router)
 app.include_router(design_jobs.router)
+app.include_router(rosetta_eval_jobs.router)
 
 
 @app.on_event("startup")

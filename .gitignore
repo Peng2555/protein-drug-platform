@@ -14,6 +14,7 @@ maturation_outputs/
 synthesis_outputs/
 developability_outputs/
 design_outputs/
+rosetta_eval_outputs/
 
 # ── 2. 日志与进程 pid ───────────────────────────────────────────────────────
 logs/

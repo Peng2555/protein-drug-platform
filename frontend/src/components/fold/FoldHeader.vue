@@ -8,6 +8,7 @@ defineProps<{
   tags?: string[]
   showMd?: boolean
   showDesign?: boolean
+  showRosetta?: boolean
   showExport?: boolean
 }>()
 
@@ -15,6 +16,7 @@ const emit = defineEmits<{
   back: []
   startMd: []
   startDesign: []
+  startRosetta: []
   export: []
   delete: []
 }>()
@@ -46,6 +48,7 @@ const emit = defineEmits<{
           <span v-if="finishedText" class="status-time">{{ finishedText }}</span>
         </div>
         <el-button v-if="showDesign" @click="emit('startDesign')">启动序列设计</el-button>
+        <el-button v-if="showRosetta" @click="emit('startRosetta')">启动结构评价</el-button>
         <el-button v-if="showMd" type="primary" @click="emit('startMd')">启动 MD</el-button>
         <el-button v-if="showExport" @click="emit('export')">导出结构</el-button>
         <el-button type="danger" plain @click="emit('delete')">删除</el-button>

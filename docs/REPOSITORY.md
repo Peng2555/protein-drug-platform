@@ -17,7 +17,7 @@
 | `docs/` | ✅ | 模块集成与仓库说明 |
 | `inputs/` | ✅ | 示例 FASTA 等小输入 |
 | `external/ras-tricomplex-docking/` | 🔗 子模块 | RAS 三元复合物对接外部流程，见下文 |
-| `outputs/` 等 `*_outputs/` | ❌ | 所有任务运行结果 |
+| `outputs/` 等 `*_outputs/` | ❌ | 所有任务运行结果（含 `rosetta_eval_outputs/`） |
 | `logs/` | ❌ | API / Celery 日志与 pid |
 | `data/` | ❌ | 本地 SQLite 或运行时数据 |
 

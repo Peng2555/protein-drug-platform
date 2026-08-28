@@ -161,9 +161,28 @@ def _element_for_atom(atom_name: str, comp_id: str) -> gemmi.Element:
     return gemmi.Element(comp_id[0] if comp_id else "C")
 
 
+def _sanitize_mmcif_path(cif_path: Path) -> Path:
+    """Rewrite non-ASCII ``data_`` block names so gemmi can parse ESMFold exports.
+
+    ESMFold may embed the job directory name (often Chinese) into ``data_<name>``,
+    which gemmi rejects with ``expected block header (data_)``.
+    """
+    import re
+
+    text = cif_path.read_text(encoding="utf-8", errors="replace")
+    sanitized, n = re.subn(r"^data_[^\s#]+", "data_pred", text, count=1, flags=re.M)
+    if n == 0 or sanitized == text:
+        return cif_path
+    out = cif_path.with_name(f"{cif_path.stem}__gemmi_safe.cif")
+    if not out.is_file() or out.read_text(encoding="utf-8", errors="replace") != sanitized:
+        out.write_text(sanitized, encoding="utf-8")
+    return out
+
+
 def _structure_from_atom_site_cif(cif_path: Path) -> gemmi.Structure:
     """Build a gemmi Structure from mmCIF atom_site (ESMFold2 exports)."""
-    doc = gemmi.cif.read(str(cif_path))
+    path = _sanitize_mmcif_path(cif_path)
+    doc = gemmi.cif.read(str(path))
     if not doc:
         raise ValueError(f"empty mmCIF: {cif_path}")
     block = doc[0]
@@ -221,11 +240,15 @@ def _structure_from_atom_site_cif(cif_path: Path) -> gemmi.Structure:
 
 
 def _load_structure(cif_path: Path) -> gemmi.Structure:
-    st = gemmi.read_structure(str(cif_path))
-    if len(st) > 0 and len(st[0]) > 0:
-        st.remove_ligands_and_waters()
-        return st
-    return _structure_from_atom_site_cif(cif_path)
+    path = _sanitize_mmcif_path(cif_path)
+    try:
+        st = gemmi.read_structure(str(path))
+        if len(st) > 0 and len(st[0]) > 0:
+            st.remove_ligands_and_waters()
+            return st
+    except Exception:
+        pass
+    return _structure_from_atom_site_cif(path)
 
 
 def compute_pdockq_from_boltz_dir(out_dir: Path, *, contact_a: float = _CONTACT_A) -> PDockQResult:

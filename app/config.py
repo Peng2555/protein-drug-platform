@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     )
     proteinmpnn_weights_dir: Path = Path("/home/pengpai/projects/RFantibody/weights")
     proteinmpnn_model_name: str = "ProteinMPNN_v48_noise_0.2"
+    rosetta_eval_out_root: Path = ROOT / "rosetta_eval_outputs"
+    rosetta_bin_dir: str = ""
+    rosetta_nstruct: int = 3
+    rosetta_n_jobs: int = 16
+    pyrosetta_python: str = "/home/pengpai/data/envs/pyrosetta/bin/python"
     esm2_3b_path: Path = Path(
         "/home/pengpai/data/cache/torch/hub/checkpoints/esm2_t36_3B_UR50D.pt"
     )
@@ -96,6 +101,7 @@ settings.ras_docking_out_root.mkdir(parents=True, exist_ok=True)
 settings.docking_out_root.mkdir(parents=True, exist_ok=True)
 settings.developability_out_root.mkdir(parents=True, exist_ok=True)
 settings.design_out_root.mkdir(parents=True, exist_ok=True)
+settings.rosetta_eval_out_root.mkdir(parents=True, exist_ok=True)
 (ROOT / "data").mkdir(parents=True, exist_ok=True)
 
 # Propagate cache env vars for boltz subprocess
@@ -115,3 +121,10 @@ os.environ.setdefault("MD_OUT_ROOT", str(settings.md_out_root))
 os.environ.setdefault("MATURATION_OUT_ROOT", str(settings.maturation_out_root))
 os.environ.setdefault("SYNTHESIS_OUT_ROOT", str(settings.synthesis_out_root))
 os.environ.setdefault("ESM2_3B_PATH", str(settings.esm2_3b_path))
+_rosetta_bin = settings.rosetta_bin_dir or os.environ.get("ROSETTA_BIN") or os.environ.get("ROSETTA3") or ""
+if _rosetta_bin:
+    os.environ.setdefault("ROSETTA_BIN", _rosetta_bin)
+if settings.pyrosetta_python:
+    os.environ.setdefault("PYROSETTA_PYTHON", settings.pyrosetta_python)
+if settings.rosetta_n_jobs:
+    os.environ.setdefault("ROSETTA_N_JOBS", str(settings.rosetta_n_jobs))

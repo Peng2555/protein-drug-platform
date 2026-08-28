@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Brush,
   Cpu,
+  DataAnalysis,
   EditPen,
   Histogram,
   MagicStick,
@@ -43,6 +44,7 @@ const loadingRecent = ref(false)
 const iconMap: Partial<Record<ModuleId, unknown>> = {
   fold: Cpu,
   design: Brush,
+  rosetta: DataAnalysis,
   developability: EditPen,
   maturation: MagicStick,
   synthesis: Histogram,
@@ -64,7 +66,7 @@ const pillars = [
     id: 'sequence',
     label: '序列与抗体',
     title: '序列设计与工程改造',
-    desc: 'ProteinMPNN 设计、ESM-2 改造、亲和力成熟与合成候选筛选，覆盖抗体工程主流程。',
+    desc: 'ProteinMPNN 设计、Rosetta 结构评价、ESM-2 改造、亲和力成熟与合成候选筛选。',
     image: '/home/home-sequence.png',
     accent: 'blue',
     cta: { label: '进入序列设计', to: '/design/new' },
@@ -95,6 +97,7 @@ function routeForEngine(engine?: string | null): string {
   if (!engine) return 'fold-task'
   if (engine === 'boltz2' || engine === 'esmfold2') return 'fold-task'
   if (engine === 'protein_mpnn') return 'design-task'
+  if (engine === 'rosetta_interface_eval') return 'rosetta-task'
   if (engine === 'esm2_developability') return 'developability-task'
   if (engine === 'iggm_maturation') return 'maturation-task'
   if (engine === 'synthesis_select') return 'synthesis-task'
@@ -107,6 +110,7 @@ function kindForEngine(engine?: string | null): string {
   if (!engine) return '任务'
   if (engine === 'boltz2' || engine === 'esmfold2') return '结构预测'
   if (engine === 'protein_mpnn') return '序列设计'
+  if (engine === 'rosetta_interface_eval') return '结构评价'
   if (engine === 'esm2_developability') return '序列改造'
   if (engine === 'iggm_maturation') return '亲和力成熟'
   if (engine === 'synthesis_select') return '合成候选'
@@ -140,6 +144,7 @@ async function loadRecent() {
 
     const moduleBuckets: Array<{ jobs: Job[]; routeName: string; kind: string }> = [
       { jobs: moduleJobs.designJobs as Job[], routeName: 'design-task', kind: '序列设计' },
+      { jobs: moduleJobs.rosettaJobs as Job[], routeName: 'rosetta-task', kind: '结构评价' },
       { jobs: moduleJobs.developabilityJobs as Job[], routeName: 'developability-task', kind: '序列改造' },
       { jobs: moduleJobs.maturationJobs as Job[], routeName: 'maturation-task', kind: '亲和力成熟' },
       { jobs: moduleJobs.synthesisJobs as Job[], routeName: 'synthesis-task', kind: '合成候选' },

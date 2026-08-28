@@ -1,0 +1,7 @@
+# 示例：纳米抗体 VHH–抗原（链可自动识别）
+# 实际运行请用 CLI 或平台任务，不必手写本文件。
+
+antibody_chains: []   # 空=自动；平台常见 H
+antigen_chains: []    # 空=自动；平台常见 A
+nstruct: 3
+score_weights: ref2015

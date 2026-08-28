@@ -65,6 +65,11 @@ const scoreCards = computed((): FoldScoreCard[] => {
   if (!j) return []
   const ix = interfaceData.value?.primary_interface
   const ixTotal = ix?.interaction_summary?.n_total ?? ix?.interactions?.length ?? null
+  const conf =
+    j.confidence_score ??
+    (j.iptm != null && j.ptm != null
+      ? 0.8 * j.iptm + 0.2 * j.ptm
+      : j.iptm ?? j.ptm ?? null)
   return [
     {
       key: 'iptm',
@@ -78,7 +83,7 @@ const scoreCards = computed((): FoldScoreCard[] => {
       key: 'plddt',
       label: 'pLDDT',
       value: j.complex_plddt != null ? formatPlddt(j.complex_plddt) : '—',
-      hint: '整体结构置信度',
+      hint: j.ptm != null ? `pTM ${j.ptm.toFixed(3)}` : '整体结构置信度',
       tone: 'ok',
       level: metricLevel(j.complex_plddt, 'plddt'),
     },
@@ -93,10 +98,15 @@ const scoreCards = computed((): FoldScoreCard[] => {
     {
       key: 'conf',
       label: '置信度',
-      value: j.confidence_score != null ? j.confidence_score.toFixed(3) : '—',
-      hint: ixTotal != null ? `相互作用 ${ixTotal} 条` : '结构整体置信度',
+      value: conf != null ? conf.toFixed(3) : '—',
+      hint:
+        ixTotal != null
+          ? `相互作用 ${ixTotal} 条`
+          : j.confidence_score == null && conf != null
+            ? '0.8·ipTM + 0.2·pTM'
+            : '结构整体置信度',
       tone: 'info',
-      level: metricLevel(j.confidence_score ?? j.iptm, 'iptm'),
+      level: metricLevel(conf ?? j.iptm, 'iptm'),
     },
   ]
 })
@@ -214,6 +224,12 @@ function startDesign() {
   router.push({ name: 'design-new', query: { fold_job: j.id } })
 }
 
+function startRosetta() {
+  const j = job.value
+  if (!j) return
+  router.push({ name: 'rosetta-new', query: { wt: j.id } })
+}
+
 function statusTagType(status: string) {
   if (status === 'done') return 'success'
   if (status === 'running') return 'warning'
@@ -276,10 +292,12 @@ onUnmounted(() => {
         :tags="metaTags"
         :show-md="job.status === 'done' && (job.engine === 'boltz2' || job.engine === 'esmfold2')"
         :show-design="job.status === 'done' && (job.engine === 'boltz2' || job.engine === 'esmfold2')"
+        :show-rosetta="job.status === 'done' && (job.engine === 'boltz2' || job.engine === 'esmfold2')"
         :show-export="job.status === 'done'"
         @back="goBack"
         @start-md="startMd"
         @start-design="startDesign"
+        @start-rosetta="startRosetta"
         @export="onDownload"
         @delete="onDelete"
       />

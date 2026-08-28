@@ -16,6 +16,7 @@ import {
   Plus,
   Setting,
   Brush,
+  DataAnalysis,
   Timer,
   UserFilled,
 } from '@element-plus/icons-vue'
@@ -46,6 +47,7 @@ const collapsed = ref(false)
 const expanded = reactive<Record<string, boolean>>({
   fold: true,
   design: false,
+  rosetta: false,
   developability: false,
   maturation: false,
   synthesis: false,
@@ -61,6 +63,7 @@ const iconMap = {
   home: HomeFilled,
   fold: Cpu,
   design: Brush,
+  rosetta: DataAnalysis,
   developability: EditPen,
   maturation: MagicStick,
   synthesis: Histogram,
@@ -71,6 +74,7 @@ const iconMap = {
 const expandableIds: ModuleId[] = [
   'fold',
   'design',
+  'rosetta',
   'developability',
   'maturation',
   'synthesis',
@@ -82,6 +86,7 @@ const badgeMap = computed(() => ({
   home: 0,
   fold: foldStore.foldTaskCount,
   design: moduleJobs.counts.design,
+  rosetta: moduleJobs.counts.rosetta,
   developability: moduleJobs.counts.developability,
   maturation: moduleJobs.counts.maturation,
   synthesis: moduleJobs.counts.synthesis,

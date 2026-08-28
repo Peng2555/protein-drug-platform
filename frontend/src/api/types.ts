@@ -245,6 +245,28 @@ export interface DesignJobListOut {
   total: number
 }
 
+export interface RosettaEvalJob extends Job {}
+
+export interface RosettaEvalJobListOut {
+  items: RosettaEvalJob[]
+  total: number
+}
+
+export interface RosettaEvalRow {
+  rank?: number
+  name: string
+  is_wt?: boolean
+  dG_separated?: number | null
+  ddG?: number | null
+  delta_E?: number | null
+  dSASA_int?: number | null
+  hbonds_int?: number | null
+  sc_value?: number | null
+  packstat?: number | null
+  final_score?: number | null
+  flags?: string
+}
+
 export interface DesignCandidate {
   index: number
   header?: string

@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { fetchDesignJobs } from '@/api/design'
+import { fetchRosettaEvalJobs } from '@/api/rosetta'
 import { fetchDevelopabilityJobs } from '@/api/developability'
 import { fetchDockingJobs } from '@/api/docking'
 import { fetchSynthesisJobs } from '@/api/synthesis'
@@ -12,6 +13,7 @@ import type {
   DockingJob,
   MaturationJob,
   MdJob,
+  RosettaEvalJob,
   SynthesisJob,
 } from '@/api/types'
 
@@ -22,6 +24,7 @@ export type ModuleJobKind =
   | 'maturation'
   | 'synthesis'
   | 'design'
+  | 'rosetta'
 
 export type ModuleNavItem = {
   id: string
@@ -53,6 +56,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
   const maturationJobs = ref<MaturationJob[]>([])
   const synthesisJobs = ref<SynthesisJob[]>([])
   const designJobs = ref<DesignJob[]>([])
+  const rosettaJobs = ref<RosettaEvalJob[]>([])
   const loading = ref(false)
 
   const counts = computed(() => ({
@@ -62,6 +66,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     maturation: maturationJobs.value.length,
     synthesis: synthesisJobs.value.length,
     design: designJobs.value.length,
+    rosetta: rosettaJobs.value.length,
   }))
 
   function recent(kind: ModuleJobKind, limit = 5): ModuleNavItem[] {
@@ -72,6 +77,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
       maturation: toNavItems(maturationJobs.value, '成熟'),
       synthesis: toNavItems(synthesisJobs.value, '合成'),
       design: toNavItems(designJobs.value, '设计'),
+      rosetta: toNavItems(rosettaJobs.value, '评价'),
     }
     return map[kind].slice(0, limit)
   }
@@ -106,6 +112,11 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     designJobs.value = data.items ?? []
   }
 
+  async function refreshRosetta() {
+    const data = await fetchRosettaEvalJobs(50)
+    rosettaJobs.value = data.items ?? []
+  }
+
   async function refreshAll() {
     loading.value = true
     try {
@@ -116,6 +127,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
         refreshMaturation().catch(() => undefined),
         refreshSynthesis().catch(() => undefined),
         refreshDesign().catch(() => undefined),
+        refreshRosetta().catch(() => undefined),
       ])
     } finally {
       loading.value = false
@@ -128,6 +140,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     if (kind === 'developability') return refreshDevelopability()
     if (kind === 'maturation') return refreshMaturation()
     if (kind === 'design') return refreshDesign()
+    if (kind === 'rosetta') return refreshRosetta()
     return refreshSynthesis()
   }
 
@@ -138,6 +151,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     maturationJobs,
     synthesisJobs,
     designJobs,
+    rosettaJobs,
     loading,
     counts,
     recent,
@@ -149,5 +163,6 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     refreshMaturation,
     refreshSynthesis,
     refreshDesign,
+    refreshRosetta,
   }
 })

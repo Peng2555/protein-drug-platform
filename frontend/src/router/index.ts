@@ -119,6 +119,21 @@ const router = createRouter({
           },
         ),
         moduleChildren(
+          'rosetta',
+          {
+            module: '结构评价',
+            new: '新建评价',
+            tasks: '全部任务',
+            task: '评价详情',
+          },
+          {
+            workspace: () => import('@/views/rosetta/RosettaWorkspaceView.vue'),
+            new: () => import('@/views/rosetta/RosettaNewView.vue'),
+            tasks: () => import('@/views/rosetta/RosettaTasksView.vue'),
+            task: () => import('@/views/rosetta/RosettaJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
           'developability',
           {
             module: '序列改造',

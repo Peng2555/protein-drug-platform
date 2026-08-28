@@ -62,6 +62,7 @@ export function engineLabel(engine?: string) {
   if (engine === 'boltz2') return 'Boltz2'
   if (engine === 'esm2_developability') return 'ESM-2 序列改造'
   if (engine === 'protein_mpnn') return 'ProteinMPNN 序列设计'
+  if (engine === 'rosetta_interface_eval') return 'Rosetta 结构评价'
   return engine || '—'
 }
 
