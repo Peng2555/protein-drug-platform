@@ -6,7 +6,9 @@ import type { Job } from '@/api/types'
 import CapabilityMap from '@/components/home/CapabilityMap.vue'
 import HomeProductPreview from '@/components/home/HomeProductPreview.vue'
 import HomeFeatureStrip from '@/components/home/HomeFeatureStrip.vue'
+import HomeFeaturesShowcase from '@/components/home/HomeFeaturesShowcase.vue'
 import HomeHero from '@/components/home/HomeHero.vue'
+import PlatformStatusBar from '@/components/home/PlatformStatusBar.vue'
 import HomeRecentTasks from '@/components/home/HomeRecentTasks.vue'
 import HomeSiteFooter from '@/components/home/HomeSiteFooter.vue'
 import ScenarioShowcase from '@/components/home/ScenarioShowcase.vue'
@@ -131,7 +133,18 @@ onMounted(() => {
 <template>
   <div class="landing">
     <HomeHero />
-    <HomeFeatureStrip />
+
+    <section class="landing-below-fold">
+      <HomeFeatureStrip />
+      <div class="landing-status" aria-label="平台运行状态">
+        <div class="landing-container">
+          <PlatformStatusBar />
+        </div>
+      </div>
+    </section>
+
+    <HomeFeaturesShowcase />
+
     <HomeProductPreview />
 
     <section id="scenarios" class="landing-section landing-section--soft landing-section--tight-top">
@@ -191,6 +204,16 @@ onMounted(() => {
 .landing {
   min-height: 100%;
   background: #fff;
+}
+
+.landing-below-fold {
+  padding-top: clamp(2.5rem, 6vh, 4rem);
+  border-top: 1px solid #f1f5f9;
+  background: linear-gradient(180deg, #fafbfc 0%, #fff 120px);
+}
+
+.landing-status {
+  padding: 0 0 2rem;
 }
 
 .landing-section__head--left {

@@ -13,6 +13,7 @@ const menuOpen = ref(false)
 const onHome = computed(() => route.name === 'home')
 
 const navAnchors = [
+  { id: 'features', label: '功能特性' },
   { id: 'scenarios', label: '研发场景' },
   { id: 'workflows', label: '工作流' },
   { id: 'capabilities', label: '能力地图' },
@@ -75,7 +76,7 @@ function onLogout() {
         <span class="landing-nav__user">{{ auth.user?.username }}</span>
         <button type="button" class="landing-nav__btn landing-nav__btn--ghost" @click="onLogout">退出</button>
         <button type="button" class="landing-nav__btn landing-nav__btn--primary" @click="enterWorkbench">
-          进入工作台
+          立即开始
           <el-icon><ArrowRight /></el-icon>
         </button>
         <button type="button" class="landing-nav__menu" aria-label="菜单" @click="menuOpen = !menuOpen">
@@ -91,16 +92,16 @@ function onLogout() {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(255, 255, 255, 0.92);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(14px);
 }
 
 .landing-nav__inner {
   display: flex;
   align-items: center;
   gap: 1rem;
-  min-height: 62px;
+  min-height: 68px;
 }
 
 .landing-nav__brand {
@@ -108,9 +109,10 @@ function onLogout() {
   align-items: center;
   gap: 0.65rem;
   text-decoration: none;
-  color: var(--title);
-  font-weight: 700;
-  font-size: 0.92rem;
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
   flex-shrink: 0;
 }
 
@@ -149,15 +151,15 @@ function onLogout() {
   padding: 0.45rem 0.85rem;
   border: none;
   background: transparent;
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: var(--body);
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #64748b;
   cursor: pointer;
   border-radius: 8px;
 
   &:hover {
-    color: var(--bio-green-dark);
-    background: var(--bio-green-light);
+    color: #0f172a;
+    background: #f8fafc;
   }
 }
 
@@ -173,9 +175,9 @@ function onLogout() {
 
 .landing-nav__dropdown-label {
   padding: 0.45rem 0.85rem;
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: var(--body);
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #64748b;
   cursor: default;
 }
 
@@ -233,9 +235,9 @@ function onLogout() {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.45rem 0.9rem;
+  padding: 0.5rem 1rem;
   border-radius: 999px;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 600;
   border: none;
   cursor: pointer;
@@ -243,14 +245,18 @@ function onLogout() {
 
 .landing-nav__btn--ghost {
   background: transparent;
-  color: var(--body);
-  border: 1px solid var(--border);
+  color: #64748b;
+  border: 1px solid #e2e8f0;
 }
 
 .landing-nav__btn--primary {
   color: #fff;
-  background: linear-gradient(135deg, var(--bio-green), var(--bio-blue));
-  box-shadow: 0 4px 14px rgba(0, 122, 114, 0.22);
+  background: #0f172a;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+
+  &:hover {
+    background: #1e293b;
+  }
 }
 
 .landing-nav__menu {

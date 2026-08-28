@@ -36,10 +36,9 @@ const features = [
 
 <style scoped lang="scss">
 .feature-strip {
-  margin-top: -1.5rem;
   position: relative;
-  z-index: 2;
-  padding-bottom: 0.5rem;
+  z-index: 1;
+  padding-bottom: 0.75rem;
 }
 
 .feature-strip__grid {

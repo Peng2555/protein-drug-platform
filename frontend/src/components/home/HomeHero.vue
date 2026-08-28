@@ -1,65 +1,125 @@
 <script setup lang="ts">
 import { ArrowRight } from '@element-plus/icons-vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import PlatformStatusBar from '@/components/home/PlatformStatusBar.vue'
-import {
-  PLATFORM_NAME,
-  PLATFORM_NAME_EN,
-  PLATFORM_ORG,
-  PLATFORM_TAGLINE,
-} from '@/utils/platform'
+import { PLATFORM_TAGLINE } from '@/utils/platform'
 
 const router = useRouter()
+
+const rotateWords = ['抗体工程', '小分子药物发现', '多肽设计与发现']
+
+const showcaseSlides = [
+  {
+    id: 'antibody',
+    label: '抗体工程',
+    image: '/assets/hero/antibody-engineering.png',
+    alt: 'Herceptin（Trastuzumab）Fab 结合 HER2，PDB 1N8Z',
+    route: '/fold/new',
+  },
+  {
+    id: 'small-molecule',
+    label: '小分子药物发现',
+    image: '/assets/hero/small-molecule-discovery.png',
+    alt: 'Imatinib（STI571）结合 Bcr-Abl 激酶，PDB 1IEP',
+    route: '/docking/new',
+  },
+  {
+    id: 'peptide',
+    label: '多肽设计与发现',
+    image: '/assets/hero/peptide-design.png',
+    alt: '多肽表位结合 Rituximab Fab 片段',
+    route: '/fold/new',
+  },
+] as const
+
+const activeWordIndex = ref(0)
+const activeSlide = computed(() => showcaseSlides[activeWordIndex.value] ?? showcaseSlides[0])
+
+let rotateTimer: ReturnType<typeof setInterval> | undefined
+
+onMounted(() => {
+  rotateTimer = setInterval(() => {
+    activeWordIndex.value = (activeWordIndex.value + 1) % rotateWords.length
+  }, 3200)
+})
+
+onUnmounted(() => {
+  if (rotateTimer) clearInterval(rotateTimer)
+})
+
+function goSlide(index: number) {
+  activeWordIndex.value = index
+}
 </script>
 
 <template>
   <section class="home-hero">
-    <div class="home-hero__bg" aria-hidden="true">
-      <div class="home-hero__orb home-hero__orb--1" />
-      <div class="home-hero__orb home-hero__orb--2" />
-      <div class="home-hero__grid" />
-    </div>
+    <div class="home-hero__ambient" aria-hidden="true" />
 
     <div class="landing-container home-hero__inner">
       <div class="home-hero__copy">
-        <img src="/assets/biocytogen-logo.png" alt="" class="home-hero__logo" />
-        <p class="home-hero__org">{{ PLATFORM_ORG }}</p>
-        <h1>
-          计算工具，助力
-          <span class="home-hero__accent">蛋白与药物</span>
-          研发
+        <h1 class="home-hero__headline">
+          <span class="home-hero__line">计算工具助力于</span>
+          <span class="home-hero__line home-hero__line--accent">
+            <span class="home-hero__rotator" aria-live="polite">
+              <Transition name="hero-word" mode="out-in">
+                <span :key="rotateWords[activeWordIndex]" class="home-hero__accent">
+                  {{ rotateWords[activeWordIndex] }}
+                </span>
+              </Transition>
+            </span>
+          </span>
         </h1>
-        <p class="home-hero__sub">{{ PLATFORM_NAME }} · {{ PLATFORM_NAME_EN }}</p>
         <p class="home-hero__lead">
-          设计突变体、预测复合物结构、对接小分子并做 MD 验证。内网一站式部署，无需额外配置环境。
+          设计突变体、预测复合物结构、小分子设计、分子动力学模拟以及蛋白质能量计算。
         </p>
         <div class="home-hero__actions">
+          <button type="button" class="btn btn--secondary" @click="router.push('/fold/tasks')">
+            查看我的任务
+          </button>
           <button type="button" class="btn btn--primary" @click="router.push('/fold/new')">
             立即开始
             <el-icon><ArrowRight /></el-icon>
-          </button>
-          <button type="button" class="btn btn--ghost" @click="router.push('/fold/tasks')">
-            查看我的任务
           </button>
         </div>
         <p class="home-hero__tag">{{ PLATFORM_TAGLINE }}</p>
       </div>
 
       <div class="home-hero__aside">
-        <div class="home-hero__visual" aria-hidden="true">
-          <div class="molecule">
-            <span class="molecule__node molecule__node--a" />
-            <span class="molecule__node molecule__node--b" />
-            <span class="molecule__node molecule__node--c" />
-            <span class="molecule__bond molecule__bond--1" />
-            <span class="molecule__bond molecule__bond--2" />
-            <span class="molecule__bond molecule__bond--3" />
+        <div class="hero-visual">
+          <div class="hero-visual__stage">
+            <div class="hero-visual__halo hero-visual__halo--1" aria-hidden="true" />
+            <div class="hero-visual__halo hero-visual__halo--2" aria-hidden="true" />
+            <div class="hero-visual__ring" aria-hidden="true" />
+
+            <button
+              type="button"
+              class="hero-visual__frame"
+              :aria-label="`${activeSlide.label} 结构示意`"
+              @click="router.push(activeSlide.route)"
+            >
+              <Transition name="hero-image" mode="out-in">
+                <figure :key="activeSlide.id" class="hero-visual__figure">
+                  <img :src="activeSlide.image" :alt="activeSlide.alt" loading="lazy" />
+                </figure>
+              </Transition>
+            </button>
           </div>
-          <div class="visual-card visual-card--1">Boltz2</div>
-          <div class="visual-card visual-card--2">Rosetta</div>
-          <div class="visual-card visual-card--3">GROMACS</div>
+
+          <div class="hero-visual__dots" role="tablist" aria-label="切换展示主题">
+            <button
+              v-for="(slide, index) in showcaseSlides"
+              :key="slide.id"
+              type="button"
+              role="tab"
+              class="hero-visual__dot"
+              :class="{ 'hero-visual__dot--active': index === activeWordIndex }"
+              :aria-selected="index === activeWordIndex"
+              :aria-label="slide.label"
+              @click="goSlide(index)"
+            />
+          </div>
         </div>
-        <PlatformStatusBar class="home-hero__status" dark />
       </div>
     </div>
   </section>
@@ -69,129 +129,141 @@ const router = useRouter()
 .home-hero {
   position: relative;
   overflow: hidden;
-  color: #fff;
-  padding: 3.5rem 0 3rem;
-  background: linear-gradient(135deg, #004d47 0%, #0a6e68 35%, #1a4a8a 100%);
+  color: var(--title);
+  min-height: calc(100dvh - 68px);
+  display: flex;
+  align-items: center;
+  padding: clamp(2rem, 4vh, 3rem) 0;
+  background: #fff;
 }
 
-.home-hero__bg {
+.home-hero__ambient {
   position: absolute;
   inset: 0;
   pointer-events: none;
-}
-
-.home-hero__orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.45;
-}
-
-.home-hero__orb--1 {
-  width: 420px;
-  height: 420px;
-  top: -120px;
-  right: 8%;
-  background: #00d4c8;
-}
-
-.home-hero__orb--2 {
-  width: 320px;
-  height: 320px;
-  bottom: -80px;
-  left: 12%;
-  background: #5b8fd9;
-}
-
-.home-hero__grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(to bottom, black, transparent 95%);
+  background:
+    radial-gradient(ellipse 50% 42% at 82% 38%, rgba(0, 172, 161, 0.09), transparent 72%),
+    radial-gradient(ellipse 38% 32% at 16% 76%, rgba(91, 143, 217, 0.05), transparent 70%);
 }
 
 .home-hero__inner {
   position: relative;
+  width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
-  gap: 2.5rem;
+  grid-template-columns: minmax(0, 0.92fr) minmax(380px, 1.18fr);
+  gap: clamp(2rem, 4vw, 3.5rem);
   align-items: center;
 
   @media (max-width: 960px) {
     grid-template-columns: 1fr;
+    gap: 2rem;
   }
 }
 
-.home-hero__logo {
-  height: 36px;
-  width: auto;
-  margin-bottom: 1rem;
-  filter: brightness(0) invert(1);
-  opacity: 0.95;
+.home-hero__copy {
+  max-width: 36rem;
+  width: 100%;
+  margin-inline: auto;
+  text-align: center;
 }
 
-.home-hero__org {
-  margin: 0 0 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-h1 {
+.home-hero__headline {
   margin: 0;
-  font-size: clamp(2rem, 4vw, 2.85rem);
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -0.03em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.home-hero__line {
+  display: block;
+  font-size: clamp(2.1rem, 4.5vw, 3.2rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  color: #0f172a;
+
+  &--accent {
+    display: block;
+    font-size: clamp(2rem, 4.4vw, 3.1rem);
+    font-weight: 800;
+    min-height: 1.15em;
+  }
+}
+
+.home-hero__rotator {
+  position: relative;
+  display: inline-block;
+  min-width: 8.5em;
+  height: 1.15em;
+  overflow: hidden;
+
+  .home-hero__accent {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
 }
 
 .home-hero__accent {
   display: inline-block;
-  background: linear-gradient(90deg, #7ff7ee, #a8c8ff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--bio-green-dark);
 }
 
-.home-hero__sub {
-  margin: 0.65rem 0 0;
-  font-size: 0.88rem;
-  color: rgba(255, 255, 255, 0.75);
+.hero-word-enter-active,
+.hero-word-leave-active {
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.35s ease;
+}
+
+.hero-word-enter-from {
+  opacity: 0;
+  transform: translate(-50%, 100%);
+}
+
+.hero-word-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -100%);
+}
+
+.hero-word-enter-to,
+.hero-word-leave-from {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .home-hero__lead {
-  margin: 1.15rem 0 0;
-  max-width: 34rem;
-  font-size: 1.02rem;
+  margin: 1.25rem auto 0;
+  max-width: 28rem;
+  font-size: clamp(0.94rem, 1.5vw, 1.02rem);
   line-height: 1.75;
-  color: rgba(255, 255, 255, 0.88);
+  color: #64748b;
 }
 
 .home-hero__tag {
-  margin: 1.25rem 0 0;
-  font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.55);
+  margin: 1.35rem 0 0;
+  font-size: 0.76rem;
+  color: #94a3b8;
 }
 
 .home-hero__actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.75rem;
-  margin-top: 1.6rem;
+  margin-top: 1.65rem;
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.72rem 1.35rem;
+  padding: 0.82rem 1.45rem;
   border-radius: 999px;
-  font-size: 0.92rem;
+  font-size: 0.94rem;
   font-weight: 600;
   border: none;
   cursor: pointer;
@@ -205,141 +277,208 @@ h1 {
   }
 }
 
-.btn--primary {
-  color: #0a4a45;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+.btn--secondary {
+  color: #0f172a;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
 
   &:hover {
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+    background: #e8edf3;
   }
 }
 
-.btn--ghost {
+.btn--primary {
   color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  backdrop-filter: blur(4px);
+  background: #0f172a;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.15);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.16);
+    background: #1e293b;
   }
 }
 
 .home-hero__aside {
   display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hero-visual {
+  width: min(100%, 640px);
+  display: flex;
   flex-direction: column;
-  gap: 1rem;
+  align-items: center;
+  gap: 1.35rem;
 }
 
-.home-hero__visual {
+.hero-visual__stage {
   position: relative;
-  min-height: 260px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(8px);
+  width: 100%;
+  min-height: clamp(360px, 48vh, 540px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
 }
 
-.molecule {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-}
-
-.molecule__node {
+.hero-visual__halo {
   position: absolute;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  background: rgba(127, 247, 238, 0.25);
+  pointer-events: none;
+  filter: blur(48px);
+
+  &--1 {
+    width: min(88%, 520px);
+    height: min(72%, 420px);
+    background: radial-gradient(circle, rgba(0, 172, 161, 0.14) 0%, rgba(0, 172, 161, 0.04) 45%, transparent 72%);
+  }
+
+  &--2 {
+    width: min(70%, 400px);
+    height: min(55%, 320px);
+    top: 18%;
+    right: 6%;
+    background: radial-gradient(circle, rgba(91, 143, 217, 0.1) 0%, transparent 68%);
+  }
 }
 
-.molecule__node--a {
-  width: 56px;
-  height: 56px;
-  top: 38%;
-  left: 42%;
-}
-
-.molecule__node--b {
-  width: 40px;
-  height: 40px;
-  top: 52%;
-  left: 58%;
-}
-
-.molecule__node--c {
-  width: 32px;
-  height: 32px;
-  top: 30%;
-  left: 58%;
-}
-
-.molecule__bond {
+.hero-visual__ring {
   position: absolute;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.35);
-  transform-origin: left center;
+  inset: 8% 4%;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 172, 161, 0.08);
+  pointer-events: none;
+  mask-image: radial-gradient(circle, black 42%, transparent 70%);
 }
 
-.molecule__bond--1 {
-  width: 80px;
-  top: 46%;
-  left: 46%;
-  transform: rotate(25deg);
+.hero-visual__frame {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+
+  &:hover {
+    transform: translateY(-4px) scale(1.01);
+
+    .hero-visual__figure img {
+      opacity: 1;
+    }
+  }
 }
 
-.molecule__bond--2 {
-  width: 64px;
-  top: 40%;
-  left: 50%;
-  transform: rotate(-30deg);
+.hero-visual__figure {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: clamp(300px, 42vh, 480px);
+  background: transparent;
+
+  img {
+    display: block;
+    width: 100%;
+    max-width: 560px;
+    max-height: clamp(300px, 42vh, 480px);
+    object-fit: contain;
+    background: transparent;
+    /* 白底 PNG 与页面背景融合：白色区域变透明感 */
+    mix-blend-mode: multiply;
+    opacity: 0.96;
+    transition:
+      opacity 0.35s ease,
+      transform 0.35s ease;
+    animation: hero-float 7s ease-in-out infinite;
+  }
 }
 
-.molecule__bond--3 {
-  width: 52px;
-  top: 48%;
-  left: 52%;
-  transform: rotate(55deg);
-}
-
-.visual-card {
-  position: absolute;
-  padding: 0.35rem 0.7rem;
-  border-radius: 8px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  animation: float 4s ease-in-out infinite;
-}
-
-.visual-card--1 {
-  top: 14%;
-  left: 10%;
-}
-
-.visual-card--2 {
-  top: 18%;
-  right: 12%;
-  animation-delay: 0.8s;
-}
-
-.visual-card--3 {
-  bottom: 16%;
-  left: 16%;
-  animation-delay: 1.6s;
-}
-
-@keyframes float {
+@keyframes hero-float {
   0%,
   100% {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-6px);
+    transform: translateY(-10px);
+  }
+}
+
+.hero-visual__dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  backdrop-filter: blur(8px);
+}
+
+.hero-visual__dot {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #cbd5e1;
+  cursor: pointer;
+  transition:
+    width 0.25s ease,
+    background 0.25s ease,
+    opacity 0.25s ease;
+
+  &:hover:not(.hero-visual__dot--active) {
+    background: #94a3b8;
+  }
+
+  &--active {
+    width: 24px;
+    background: linear-gradient(90deg, var(--bio-green), #0ea5e9);
+  }
+}
+
+.hero-image-enter-active,
+.hero-image-leave-active {
+  transition:
+    opacity 0.55s ease,
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hero-image-enter-from {
+  opacity: 0;
+  transform: scale(0.94) translateY(12px);
+}
+
+.hero-image-leave-to {
+  opacity: 0;
+  transform: scale(1.03) translateY(-8px);
+}
+
+@media (max-width: 960px) {
+  .home-hero {
+    min-height: auto;
+    padding: 2.5rem 0 2rem;
+  }
+
+  .hero-visual {
+    max-width: 520px;
+  }
+
+  .hero-visual__stage {
+    min-height: clamp(280px, 38vh, 400px);
+  }
+
+  .hero-visual__figure {
+    min-height: clamp(240px, 34vh, 360px);
+
+    img {
+      max-height: clamp(240px, 34vh, 360px);
+    }
   }
 }
 </style>
