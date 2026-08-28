@@ -7,6 +7,8 @@ export interface ScenarioDef {
   label: string
   headline: string
   summary: string
+  highlights: string[]
+  primaryCta: { label: string; route: string }
 }
 
 export interface WorkflowStep {
@@ -29,24 +31,48 @@ export const SCENARIOS: ScenarioDef[] = [
     label: '纳米抗体 VHH',
     headline: '从 WT 结构到突变体排序',
     summary: '面向 VHH–抗原复合物：批量折叠、Rosetta 界面评价与合成候选筛选。',
+    highlights: [
+      'Boltz2 / ESMFold2 批量预测复合物结构',
+      'PyRosetta 约束 Relax + 界面 ΔΔG 排序',
+      'IgGM 亲和力成熟与合成候选交叉筛选',
+    ],
+    primaryCta: { label: '开始 VHH 结构预测', route: '/fold/new' },
   },
   {
     id: 'antibody',
     label: '抗体复合物',
     headline: '复合物结构与设计优化',
     summary: 'IgG / 双链复合物折叠、序列设计与界面分析。',
+    highlights: [
+      '抗体–抗原复合物高精度折叠',
+      'ProteinMPNN 界面序列设计',
+      'Rosetta 突变体界面能对比',
+    ],
+    primaryCta: { label: '预测抗体复合物', route: '/fold/new' },
   },
   {
     id: 'small_molecule',
     label: '小分子筛选',
     headline: '对接初筛到时序验证',
     summary: '口袋引导盲对接快速评估配体，GROMACS MD 复核结合稳定性。',
+    highlights: [
+      '口袋检测 + AutoDock Vina 盲对接',
+      '结合模式可视化与打分排序',
+      'GROMACS 显式溶剂 MD 稳定性验证',
+    ],
+    primaryCta: { label: '开始分子对接', route: '/docking/new' },
   },
   {
     id: 'general',
     label: '通用蛋白',
     headline: '单蛋白结构与序列设计',
     summary: '单链/多链结构预测与 ProteinMPNN 序列设计。',
+    highlights: [
+      '单链与多链复合物结构预测',
+      'pLDDT / ipTM 置信度评估',
+      '骨架约束下的序列设计',
+    ],
+    primaryCta: { label: '提交序列预测', route: '/fold/new' },
   },
 ]
 

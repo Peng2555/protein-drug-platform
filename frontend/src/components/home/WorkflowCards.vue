@@ -41,19 +41,19 @@ function start(route: string) {
 <style scoped lang="scss">
 .workflow-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.15rem;
 }
 
 .workflow-card {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 1.15rem 1.2rem 1.2rem;
-  border-radius: 16px;
+  gap: 0.75rem;
+  padding: 1.35rem 1.4rem 1.45rem;
+  border-radius: 18px;
   border: 1px solid var(--border);
   background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 
   &:hover {
@@ -92,32 +92,36 @@ function start(route: string) {
 
 .workflow-card__steps {
   list-style: none;
-  margin: 0.15rem 0 0;
+  margin: 0.25rem 0 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-wrap: wrap;
+  gap: 0.45rem;
 
   li {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.78rem;
+    gap: 0.35rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
     color: var(--body);
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
   }
 }
 
 .workflow-card__idx {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 700;
-  color: var(--bio-green-dark);
-  background: var(--bio-green-light);
+  color: #fff;
+  background: linear-gradient(135deg, var(--bio-green), var(--bio-blue));
 }
 
 .workflow-card__cta {

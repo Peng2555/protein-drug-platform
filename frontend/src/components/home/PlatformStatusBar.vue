@@ -2,6 +2,10 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { fetchPlatformHealth, type PlatformHealth } from '@/api/health'
 
+defineProps<{
+  dark?: boolean
+}>()
+
 const health = ref<PlatformHealth | null>(null)
 const loading = ref(true)
 let timer: ReturnType<typeof setInterval> | undefined
@@ -27,7 +31,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-loading="loading" class="status-bar">
+  <div v-loading="loading" class="status-bar" :class="{ 'status-bar--dark': dark }">
     <div class="status-bar__item">
       <span class="status-bar__label">GPU Worker</span>
       <strong>{{ health?.gpu_workers ?? '—' }}</strong>
@@ -95,6 +99,22 @@ onUnmounted(() => {
 
   @media (max-width: 640px) {
     display: none;
+  }
+}
+.status-bar--dark {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.22);
+
+  .status-bar__label {
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  .status-bar__item strong {
+    color: #fff;
+  }
+
+  .status-bar__sep {
+    background: rgba(255, 255, 255, 0.2);
   }
 }
 </style>

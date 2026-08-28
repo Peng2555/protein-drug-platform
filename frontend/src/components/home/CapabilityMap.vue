@@ -140,16 +140,16 @@ function openModule(path: string) {
 
 .capability-map__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
 }
 
 .cap-card {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.95rem 1rem;
-  border-radius: 14px;
+  gap: 0.45rem;
+  padding: 1.15rem 1.2rem;
+  border-radius: 16px;
   border: 1px solid var(--border);
   background: #fff;
   text-align: left;

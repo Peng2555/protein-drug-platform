@@ -4,22 +4,15 @@ import { useRouter } from 'vue-router'
 import { fetchJobs } from '@/api/jobs'
 import type { Job } from '@/api/types'
 import CapabilityMap from '@/components/home/CapabilityMap.vue'
-import PlatformStatusBar from '@/components/home/PlatformStatusBar.vue'
-import ScenarioTabs from '@/components/home/ScenarioTabs.vue'
+import HomeFeatureStrip from '@/components/home/HomeFeatureStrip.vue'
+import HomeHero from '@/components/home/HomeHero.vue'
+import HomeRecentTasks from '@/components/home/HomeRecentTasks.vue'
+import HomeSiteFooter from '@/components/home/HomeSiteFooter.vue'
+import ScenarioShowcase from '@/components/home/ScenarioShowcase.vue'
 import WorkflowCards from '@/components/home/WorkflowCards.vue'
-import {
-  SCENARIOS,
-  WORKFLOWS_BY_SCENARIO,
-  type ScenarioId,
-} from '@/config/workflows'
+import { WORKFLOWS_BY_SCENARIO, type ScenarioId } from '@/config/workflows'
 import { useModuleJobsStore } from '@/stores/moduleJobs'
-import {
-  PLATFORM_NAME,
-  PLATFORM_NAME_EN,
-  PLATFORM_ORG,
-  PLATFORM_TAGLINE,
-} from '@/utils/platform'
-import { engineLabel, statusLabel } from '@/utils/constants'
+import { engineLabel } from '@/utils/constants'
 
 type RecentItem = {
   id: string
@@ -37,9 +30,6 @@ const recentItems = ref<RecentItem[]>([])
 const loadingRecent = ref(false)
 const activeScenario = ref<ScenarioId>('vhh')
 
-const currentScenario = computed(
-  () => SCENARIOS.find((s) => s.id === activeScenario.value) ?? SCENARIOS[0],
-)
 const currentWorkflows = computed(() => WORKFLOWS_BY_SCENARIO[activeScenario.value] ?? [])
 
 function routeForEngine(engine?: string | null): string {
@@ -132,262 +122,74 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="home-page">
-    <section class="home-hero page-card">
-      <div class="home-hero__main">
-        <p class="home-hero__kicker">{{ PLATFORM_ORG }}</p>
-        <h1>从序列到候选分子，一条工作流跑通</h1>
-        <p class="home-hero__en">{{ PLATFORM_NAME }} · {{ PLATFORM_NAME_EN }}</p>
-        <p class="home-hero__lead">
-          结构预测、突变评价、序列设计、对接与 MD — 内网部署，按研发场景选择推荐流程即可开始。
-        </p>
-        <p class="home-hero__tag">{{ PLATFORM_TAGLINE }}</p>
-        <div class="home-hero__actions">
-          <el-button type="primary" size="large" @click="router.push('/fold/new')">
-            开始结构预测
-          </el-button>
-          <el-button size="large" plain @click="router.push('/rosetta/new')">
-            结构评价
-          </el-button>
-        </div>
-      </div>
-      <PlatformStatusBar class="home-hero__status" />
-    </section>
+  <div class="landing">
+    <HomeHero />
+    <HomeFeatureStrip />
 
-    <section class="home-section">
-      <div class="home-section__head">
-        <div>
+    <section class="landing-section landing-section--soft landing-section--tight-top">
+      <div class="landing-container">
+        <div class="landing-section__head">
           <h2>按研发场景选择</h2>
-          <p>切换场景查看推荐工作流与相关能力模块。</p>
+          <p>切换场景查看推荐流程与能力模块，一键进入对应工作区。</p>
         </div>
-      </div>
-      <ScenarioTabs v-model="activeScenario" :scenarios="SCENARIOS" />
-      <div class="scenario-brief">
-        <h3>{{ currentScenario.headline }}</h3>
-        <p>{{ currentScenario.summary }}</p>
+        <ScenarioShowcase v-model="activeScenario" />
       </div>
     </section>
 
-    <section class="home-section">
-      <div class="home-section__head">
-        <div>
+    <section class="landing-section">
+      <div class="landing-container">
+        <div class="landing-section__head landing-section__head--left">
           <h2>推荐工作流</h2>
-          <p>{{ currentScenario.label }}场景下的常用流程，点击即可进入对应模块。</p>
+          <p>每个场景下的常用流程，点按钮直接进入对应模块提交任务。</p>
         </div>
+        <WorkflowCards :workflows="currentWorkflows" />
       </div>
-      <WorkflowCards :workflows="currentWorkflows" />
     </section>
 
-    <section class="home-section">
-      <div class="home-section__head">
-        <div>
+    <section class="landing-section landing-section--soft">
+      <div class="landing-container">
+        <div class="landing-section__head">
           <h2>平台能力地图</h2>
-          <p>浏览或搜索各计算模块，主标题是目标，副标题是底层引擎。</p>
+          <p>搜索或浏览所有计算模块——主标题是你要做的事，小字是底层引擎。</p>
         </div>
+        <CapabilityMap :scenario="activeScenario" />
       </div>
-      <CapabilityMap :scenario="activeScenario" />
     </section>
 
-    <section class="home-section">
-      <div class="home-section__head">
-        <div>
-          <h2>最近提交任务</h2>
-          <p>汇总各模块近期任务，点击即可进入详情。</p>
+    <section class="landing-section">
+      <div class="landing-container">
+        <div class="landing-section__head landing-section__head--left">
+          <div>
+            <h2>最近任务</h2>
+            <p>各模块最新提交，点击卡片进入详情继续分析。</p>
+          </div>
+          <el-button text type="primary" @click="router.push('/fold/tasks')">查看全部 →</el-button>
         </div>
-        <el-button text type="primary" @click="router.push('/fold/tasks')">查看结构任务</el-button>
-      </div>
-      <div v-loading="loadingRecent" class="recent-panel page-card">
-        <el-empty
-          v-if="!loadingRecent && !recentItems.length"
-          description="暂无任务，从上方推荐工作流任选一个开始吧"
+        <HomeRecentTasks
+          :items="recentItems"
+          :loading="loadingRecent"
+          @open="openRecent"
         />
-        <div v-else class="recent-list">
-          <button
-            v-for="item in recentItems"
-            :key="`${item.routeName}-${item.id}`"
-            type="button"
-            class="recent-item"
-            @click="openRecent(item)"
-          >
-            <div class="recent-item__main">
-              <div class="recent-item__title">
-                <el-tag size="small" effect="plain" type="info">{{ item.kind }}</el-tag>
-                <strong>{{ item.name }}</strong>
-              </div>
-              <span>{{ item.meta }} · {{ new Date(item.created_at).toLocaleString('zh-CN') }}</span>
-            </div>
-            <el-tag
-              size="small"
-              :type="item.status === 'done' ? 'success' : item.status === 'failed' ? 'danger' : 'info'"
-            >
-              {{ statusLabel(item.status) }}
-            </el-tag>
-          </button>
-        </div>
       </div>
     </section>
+
+    <HomeSiteFooter />
   </div>
 </template>
 
 <style scoped lang="scss">
-.home-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1.6rem;
+@use '@/styles/home-landing.scss';
+
+.landing {
+  min-height: 100%;
+  background: #fff;
 }
 
-.home-hero {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.8rem 1.9rem;
-  overflow: hidden;
-  background:
-    radial-gradient(ellipse 60% 90% at 0% 0%, rgba(0, 172, 161, 0.14), transparent 55%),
-    radial-gradient(ellipse 50% 80% at 100% 20%, rgba(46, 90, 165, 0.12), transparent 50%),
-    linear-gradient(135deg, #f7fcfb 0%, #ffffff 45%, #f3f7fc 100%);
-}
-
-.home-hero__kicker {
-  margin: 0 0 0.35rem;
-  font-size: 0.78rem;
-  color: var(--bio-green-dark);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-h1 {
-  margin: 0;
-  font-size: clamp(1.65rem, 2.8vw, 2.05rem);
-  color: var(--title);
-  letter-spacing: -0.03em;
-  line-height: 1.25;
-}
-
-.home-hero__en {
-  margin: 0.35rem 0 0;
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.home-hero__lead {
-  margin: 0.95rem 0 0;
-  max-width: 42rem;
-  font-size: 0.95rem;
-  line-height: 1.7;
-  color: var(--body);
-}
-
-.home-hero__tag {
-  margin: 0.55rem 0 0;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.home-hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  margin-top: 1.25rem;
-}
-
-.home-section__head {
+.landing-section__head--left {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.95rem;
-
-  h2 {
-    margin: 0;
-    font-size: 1.12rem;
-    color: var(--title);
-  }
-
-  p {
-    margin: 0.3rem 0 0;
-    font-size: 0.82rem;
-    color: var(--muted);
-  }
-}
-
-.scenario-brief {
-  margin-top: 1rem;
-  padding: 0.85rem 1rem;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 172, 161, 0.15);
-  background: rgba(230, 247, 246, 0.45);
-
-  h3 {
-    margin: 0;
-    font-size: 0.95rem;
-    color: var(--title);
-  }
-
-  p {
-    margin: 0.35rem 0 0;
-    font-size: 0.82rem;
-    line-height: 1.55;
-    color: var(--body);
-  }
-}
-
-.recent-panel {
-  min-height: 140px;
-  padding: 0.35rem 0.45rem;
-}
-
-.recent-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.recent-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.85rem 0.9rem;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-
-  &:last-child {
-    border-bottom: none;
-  }
-
-  &:hover {
-    background: var(--bg-soft);
-  }
-}
-
-.recent-item__main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.28rem;
-  min-width: 0;
-
-  > span {
-    font-size: 0.74rem;
-    color: var(--muted);
-  }
-}
-
-.recent-item__title {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-width: 0;
-
-  strong {
-    font-size: 0.9rem;
-    color: var(--title);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 </style>

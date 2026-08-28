@@ -56,6 +56,7 @@ const expanded = reactive<Record<string, boolean>>({
 })
 
 const activeModule = computed(() => moduleIdFromPath(route.path))
+const onHome = computed(() => route.name === 'home')
 const currentNav = computed(() => navItemById(activeModule.value))
 const onFold = computed(() => activeModule.value === 'fold')
 
@@ -396,11 +397,11 @@ onMounted(() => {
         </div>
       </header>
 
-      <main class="app-content">
+      <main class="app-content" :class="{ 'app-content--home': onHome }">
         <RouterView />
       </main>
 
-      <footer class="app-footer">
+      <footer v-if="!onHome" class="app-footer">
         <span>© {{ PLATFORM_ORG }}</span>
         <span class="footer-tagline">{{ PLATFORM_TAGLINE }}</span>
       </footer>
@@ -859,6 +860,11 @@ onMounted(() => {
 .app-content {
   flex: 1;
   padding: 1.15rem 1.35rem 1.6rem;
+}
+
+.app-content--home {
+  padding: 0;
+  background: #fff;
 }
 
 .app-footer {
