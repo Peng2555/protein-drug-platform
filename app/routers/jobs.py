@@ -39,31 +39,88 @@ def _seqs_from_body(body: JobCreate) -> dict[str, str]:
 
 @router.post("", response_model=JobOut, status_code=status.HTTP_201_CREATED)
 def create_job(body: JobCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    seqs = _seqs_from_body(body)
-    total_len = sum(len(s) for s in seqs.values())
-    if total_len > settings.max_total_sequence_length:
-        raise HTTPException(400, f"Total length {total_len} exceeds limit {settings.max_total_sequence_length}")
-    if body.engine == "boltz2":
+    from boltz_runner import (
+        build_boltz_yaml_text,
+        chains_meta_from_components,
+        polymer_seqs_from_components,
+    )
+
+    input_yaml: str | None = None
+    complex_payload: dict | None = None
+
+    if body.components:
+        components = [c.model_dump() for c in body.components]
+        constraints = [c.model_dump() for c in (body.constraints or [])]
+        affinity_binder = body.affinity.binder if body.affinity else None
         try:
-            validate_boltz_chain_ids(seqs)
+            input_yaml = build_boltz_yaml_text(
+                components,
+                constraints=constraints or None,
+                affinity_binder=affinity_binder,
+            )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
-    fasta_text = fasta_from_seqs(seqs)
+        polymer_seqs = polymer_seqs_from_components(components)
+        chains_json = chains_meta_from_components(components)
+        if polymer_seqs:
+            try:
+                validate_boltz_chain_ids(polymer_seqs)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            seqs = polymer_seqs
+            fasta_text = fasta_from_seqs(seqs)
+        else:
+            # 仅配体极少见；仍写占位 FASTA 满足非空列
+            seqs = {components[0]["ids"][0]: "X"}
+            fasta_text = fasta_from_seqs(seqs)
+        total_len = sum(chains_json.values())
+        complex_payload = {
+            "components": components,
+            "constraints": constraints,
+            "affinity": {"binder": affinity_binder} if affinity_binder else None,
+        }
+    else:
+        seqs = _seqs_from_body(body)
+        chains_json = {k: len(v) for k, v in seqs.items()}
+        total_len = sum(chains_json.values())
+        fasta_text = fasta_from_seqs(seqs)
+        if body.engine == "boltz2":
+            try:
+                validate_boltz_chain_ids(seqs)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+
+    if total_len > settings.max_total_sequence_length:
+        raise HTTPException(400, f"Total length {total_len} exceeds limit {settings.max_total_sequence_length}")
+
     boltz_dump = body.boltz_params.model_dump() if body.engine == "boltz2" and body.boltz_params else None
     if body.engine == "boltz2":
         if boltz_dump is None:
             boltz_dump = {"use_msa_server": body.use_msa_server}
         use_msa = bool(boltz_dump.get("use_msa_server", body.use_msa_server))
+        if input_yaml:
+            boltz_dump["input_yaml"] = input_yaml
+        if complex_payload:
+            boltz_dump["complex"] = complex_payload
     else:
         use_msa = False
+        # ESMFold2：从 components 导出蛋白 FASTA
+        if body.components:
+            polymer = polymer_seqs_from_components([c.model_dump() for c in body.components])
+            if not polymer:
+                raise HTTPException(400, "ESMFold2 仅支持蛋白/核酸序列，请至少添加一条 polymer 链")
+            seqs = polymer
+            fasta_text = fasta_from_seqs(seqs)
+            chains_json = {k: len(v) for k, v in seqs.items()}
+            total_len = sum(chains_json.values())
 
     job = create_and_queue_job(
         db,
         user_id=user.id,
-        name=body.name.strip() if body.name and body.name.strip() else default_job_name({k: len(v) for k, v in seqs.items()}),
+        name=body.name.strip() if body.name and body.name.strip() else default_job_name(chains_json),
         fasta_text=fasta_text,
-        chains_json={k: len(v) for k, v in seqs.items()},
+        chains_json=chains_json,
         total_length=total_len,
         seq_hash=sequence_hash(seqs),
         use_msa_server=use_msa,

@@ -121,6 +121,127 @@ def write_boltz_yaml(seqs: dict[str, str], path: Path) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _yaml_quote(value: str) -> str:
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
+def _format_chain_ids(ids: list[str]) -> str:
+    if len(ids) == 1:
+        return ids[0]
+    return "[" + ", ".join(ids) + "]"
+
+
+def build_boltz_yaml_text(
+    components: list[dict],
+    *,
+    constraints: list[dict] | None = None,
+    affinity_binder: str | None = None,
+) -> str:
+    """Build Boltz input YAML from structured components (protein/dna/rna/ligand)."""
+    lines = ["version: 1", "sequences:"]
+    for comp in components:
+        entity = comp["entity"]
+        ids = list(comp["ids"])
+        lines.append(f"  - {entity}:")
+        lines.append(f"      id: {_format_chain_ids(ids)}")
+        if entity == "ligand":
+            if comp.get("smiles"):
+                lines.append(f"      smiles: {_yaml_quote(str(comp['smiles']).strip())}")
+            elif comp.get("ccd"):
+                lines.append(f"      ccd: {str(comp['ccd']).strip()}")
+            else:
+                raise ValueError("ligand requires smiles or ccd")
+        else:
+            seq = str(comp.get("sequence") or "").replace(" ", "").replace("\n", "").upper()
+            lines.append(f"      sequence: {seq}")
+            if comp.get("cyclic"):
+                lines.append("      cyclic: true")
+            mods = comp.get("modifications") or []
+            if mods:
+                lines.append("      modifications:")
+                for mod in mods:
+                    lines.append(f"        - position: {int(mod['position'])}")
+                    lines.append(f"          ccd: {str(mod['ccd']).strip()}")
+
+    if constraints:
+        lines.append("constraints:")
+        for c in constraints:
+            ctype = c.get("type")
+            if ctype == "pocket":
+                lines.append("  - pocket:")
+                lines.append(f"      binder: {c['binder']}")
+                contact_parts = []
+                for ch, res in c["contacts"]:
+                    contact_parts.append(f"[{ch}, {int(res)}]")
+                lines.append(f"      contacts: [ {', '.join(contact_parts)} ]")
+                if c.get("max_distance") is not None:
+                    lines.append(f"      max_distance: {float(c['max_distance'])}")
+                if c.get("force"):
+                    lines.append("      force: true")
+            elif ctype == "contact":
+                t1 = c["token1"]
+                t2 = c["token2"]
+                lines.append("  - contact:")
+                lines.append(f"      token1: [{t1[0]}, {int(t1[1])}]")
+                lines.append(f"      token2: [{t2[0]}, {int(t2[1])}]")
+                if c.get("max_distance") is not None:
+                    lines.append(f"      max_distance: {float(c['max_distance'])}")
+                if c.get("force"):
+                    lines.append("      force: true")
+            else:
+                raise ValueError(f"unsupported constraint type: {ctype}")
+
+    if affinity_binder:
+        lines.append("properties:")
+        lines.append("  - affinity:")
+        lines.append(f"      binder: {affinity_binder}")
+
+    return "\n".join(lines) + "\n"
+
+
+def write_boltz_complex_yaml(
+    path: Path,
+    components: list[dict],
+    *,
+    constraints: list[dict] | None = None,
+    affinity_binder: str | None = None,
+) -> str:
+    text = build_boltz_yaml_text(
+        components,
+        constraints=constraints,
+        affinity_binder=affinity_binder,
+    )
+    path.write_text(text, encoding="utf-8")
+    return text
+
+
+def polymer_seqs_from_components(components: list[dict]) -> dict[str, str]:
+    """Expand copies into chain_id -> sequence for polymers only (for hashing / display)."""
+    out: dict[str, str] = {}
+    for comp in components:
+        if comp.get("entity") == "ligand":
+            continue
+        seq = str(comp.get("sequence") or "").replace(" ", "").replace("\n", "").upper()
+        for cid in comp["ids"]:
+            out[str(cid)] = seq
+    return out
+
+
+def chains_meta_from_components(components: list[dict]) -> dict[str, int]:
+    meta: dict[str, int] = {}
+    for comp in components:
+        if comp.get("entity") == "ligand":
+            token = (comp.get("smiles") or comp.get("ccd") or "").strip()
+            for cid in comp["ids"]:
+                meta[str(cid)] = max(1, len(token))
+        else:
+            seq = str(comp.get("sequence") or "").replace(" ", "").replace("\n", "")
+            for cid in comp["ids"]:
+                meta[str(cid)] = len(seq)
+    return meta
+
+
 def write_fasta(seqs: dict[str, str], path: Path) -> None:
     lines: list[str] = []
     for chain_id, seq in seqs.items():
@@ -406,6 +527,7 @@ def fold_sequences(
     skip_if_done: bool = True,
     write_pdb: bool = True,
     fasta_path: Path | None = None,
+    yaml_text: str | None = None,
 ) -> FoldResult:
     """Run Boltz2 on a chain_id -> sequence mapping."""
     t0 = time.time()
@@ -439,12 +561,19 @@ def fold_sequences(
         )
 
     try:
-        validate_boltz_chain_ids(seqs)
+        if seqs:
+            validate_boltz_chain_ids(seqs)
 
         fasta_out = job_dir / "input.fasta"
         yaml_out = job_dir / "input.yaml"
-        write_fasta(seqs, fasta_out)
-        write_boltz_yaml(seqs, yaml_out)
+        if seqs:
+            write_fasta(seqs, fasta_out)
+        if yaml_text and yaml_text.strip():
+            yaml_out.write_text(yaml_text, encoding="utf-8")
+        else:
+            if not seqs:
+                raise ValueError("No sequences or YAML provided for Boltz2")
+            write_boltz_yaml(seqs, yaml_out)
 
         predict_kwargs = {
             "use_msa_server": use_msa_server,

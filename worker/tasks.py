@@ -110,6 +110,7 @@ def _run_structure_fold(job: Job, seqs: dict[str, str], work_dir: Path):
         write_full_pde=bool(params.get("write_full_pde", False)),
         write_embeddings=bool(params.get("write_embeddings", False)),
         write_pdb=False,
+        yaml_text=params.get("input_yaml"),
     )
 
 

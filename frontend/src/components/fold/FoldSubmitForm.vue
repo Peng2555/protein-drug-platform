@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Plus } from '@element-plus/icons-vue'
 import { createJob } from '@/api/jobs'
 import { createVhhPanel } from '@/api/batches'
+import BoltzChainBuilder, {
+  type ChainEntity,
+} from '@/components/fold/BoltzChainBuilder.vue'
 import { useFoldTasksStore } from '@/stores/foldTasks'
 import { EXAMPLE_FASTA } from '@/utils/constants'
 import { importHeavyChainFile, parseHeavyChainText, type HeavyChainRow } from '@/utils/heavyChain'
@@ -13,13 +16,65 @@ const router = useRouter()
 const store = useFoldTasksStore()
 
 const submitTab = ref<'single' | 'batch'>('single')
-const fastaTab = ref<'paste' | 'file'>('paste')
 const heavyTab = ref<'csv' | 'fasta'>('csv')
 const showOptional = ref(true)
+const showRestraints = ref(true)
 
 const jobName = ref('')
-const fastaInput = ref('')
-const fastaFile = ref<File | null>(null)
+
+type RestraintRow =
+  | {
+      key: string
+      type: 'pocket'
+      binder: string
+      contactsText: string
+      max_distance: number
+      force: boolean
+    }
+  | {
+      key: string
+      type: 'contact'
+      token1Text: string
+      token2Text: string
+      max_distance: number
+      force: boolean
+    }
+
+function newEntity(partial?: Partial<ChainEntity>): ChainEntity {
+  return {
+    key: `c_${Math.random().toString(36).slice(2, 9)}`,
+    entity: 'protein',
+    copies: 1,
+    ids: ['A'],
+    sequence: '',
+    ligandMode: 'smiles',
+    smiles: '',
+    ccd: '',
+    cyclic: false,
+    modifications: [],
+    plainView: false,
+    ...partial,
+  }
+}
+
+const chainEntities = ref<ChainEntity[]>([
+  newEntity({ ids: ['A'], key: 'c_init_a' }),
+  newEntity({ ids: ['B'], key: 'c_init_b', copies: 1 }),
+])
+
+// 重新编号 A,B
+;(() => {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  let i = 0
+  for (const e of chainEntities.value) {
+    e.ids = [letters[i]!]
+    i += 1
+  }
+})()
+
+const restraints = ref<RestraintRow[]>([])
+const affinityEnabled = ref(false)
+const affinityBinder = ref('')
 
 const batchName = ref('')
 const targetName = ref('')
@@ -64,28 +119,25 @@ const heavyPreview = computed(() => {
   return parseHeavyChainText(text).rows
 })
 
-const chainCount = computed(() => {
-  const matches = fastaInput.value.match(/^>/gm)
-  return matches?.length ?? 0
+const ligandChainIds = computed(() =>
+  chainEntities.value.filter((e) => e.entity === 'ligand').flatMap((e) => e.ids),
+)
+
+const allChainIds = computed(() => chainEntities.value.flatMap((e) => e.ids))
+
+watch(ligandChainIds, (ids) => {
+  if (affinityEnabled.value && ids.length && !ids.includes(affinityBinder.value)) {
+    affinityBinder.value = ids[0] || ''
+  }
+  if (!ids.length) {
+    affinityEnabled.value = false
+    affinityBinder.value = ''
+  }
 })
 
 function getHeavyChains(): HeavyChainRow[] {
   const text = heavyTab.value === 'fasta' ? heavyFastaInput.value : heavyCsvInput.value
   return parseHeavyChainText(text).rows
-}
-
-function getFastaForSubmit() {
-  if (fastaTab.value === 'file' && fastaFile.value) {
-    return fastaFile.value.text()
-  }
-  return Promise.resolve(fastaInput.value.trim())
-}
-
-async function onFastaFileChange(file: File | null) {
-  fastaFile.value = file
-  if (file) {
-    fastaInput.value = await file.text()
-  }
 }
 
 async function onHeavyFileChange(uploadFile: { raw?: File } | File) {
@@ -110,10 +162,45 @@ async function onHeavyFileChange(uploadFile: { raw?: File } | File) {
   }
 }
 
+function parseFastaToEntities(fasta: string): ChainEntity[] {
+  const blocks: Array<{ id: string; seq: string }> = []
+  let id: string | null = null
+  let parts: string[] = []
+  for (const raw of fasta.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line) continue
+    if (line.startsWith('>')) {
+      if (id != null) blocks.push({ id, seq: parts.join('') })
+      id = line.slice(1).split(/\s+/)[0] || 'A'
+      parts = []
+    } else {
+      parts.push(line)
+    }
+  }
+  if (id != null) blocks.push({ id, seq: parts.join('') })
+  if (!blocks.length) return [newEntity()]
+  return blocks.map((b, i) =>
+    newEntity({
+      key: `ex_${i}`,
+      entity: 'protein',
+      copies: 1,
+      ids: [b.id.slice(0, 4)],
+      sequence: b.seq,
+    }),
+  )
+}
+
 function loadExample() {
-  fastaTab.value = 'paste'
-  fastaInput.value = EXAMPLE_FASTA
+  chainEntities.value = parseFastaToEntities(EXAMPLE_FASTA)
+  // 规范化为 A/B
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  chainEntities.value.forEach((e, i) => {
+    e.ids = [letters[i] || `X${i}`]
+    e.copies = 1
+  })
   jobName.value = 'vhh_lysozyme_demo'
+  restraints.value = []
+  affinityEnabled.value = false
 }
 
 function randomizeSeed() {
@@ -147,22 +234,145 @@ function boltzParamsPayload() {
   }
 }
 
+function buildComponents() {
+  return chainEntities.value.map((e) => {
+    if (e.entity === 'ligand') {
+      return {
+        entity: 'ligand' as const,
+        ids: e.ids,
+        smiles: e.ligandMode === 'smiles' ? e.smiles.trim() : null,
+        ccd: e.ligandMode === 'ccd' ? e.ccd.trim() : null,
+        cyclic: false,
+        modifications: [],
+      }
+    }
+    return {
+      entity: e.entity,
+      ids: e.ids,
+      sequence: e.sequence.replace(/\s/g, ''),
+      cyclic: e.cyclic,
+      modifications: e.modifications
+        .filter((m) => m.ccd.trim())
+        .map((m) => ({ position: m.position, ccd: m.ccd.trim() })),
+    }
+  })
+}
+
+function parseToken(text: string): [string, number] {
+  const parts = text.split(/[,:\s]+/).filter(Boolean)
+  if (parts.length < 2) throw new Error(`残基格式应为「链ID,残基号」，当前：${text}`)
+  const res = Number(parts[1])
+  if (!Number.isFinite(res) || res < 1) throw new Error(`无效残基号：${text}`)
+  return [parts[0]!, res]
+}
+
+function buildConstraints() {
+  return restraints.value.map((r) => {
+    if (r.type === 'pocket') {
+      const contacts = r.contactsText
+        .split(/;|\n/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map(parseToken)
+      if (!contacts.length) throw new Error('口袋约束至少需要一个 contact 残基')
+      return {
+        type: 'pocket' as const,
+        binder: r.binder,
+        contacts,
+        max_distance: r.max_distance,
+        force: r.force,
+      }
+    }
+    return {
+      type: 'contact' as const,
+      token1: parseToken(r.token1Text),
+      token2: parseToken(r.token2Text),
+      max_distance: r.max_distance,
+      force: r.force,
+    }
+  })
+}
+
+function addPocketRestraint() {
+  restraints.value.push({
+    key: `r_${Math.random().toString(36).slice(2, 8)}`,
+    type: 'pocket',
+    binder: ligandChainIds.value[0] || allChainIds.value[0] || 'B',
+    contactsText: 'A,100',
+    max_distance: 6,
+    force: false,
+  })
+}
+
+function addContactRestraint() {
+  restraints.value.push({
+    key: `r_${Math.random().toString(36).slice(2, 8)}`,
+    type: 'contact',
+    token1Text: 'A,10',
+    token2Text: 'B,20',
+    max_distance: 6,
+    force: false,
+  })
+}
+
+function removeRestraint(i: number) {
+  restraints.value.splice(i, 1)
+}
+
+function validateEntities(): string | null {
+  if (!chainEntities.value.length) return '请至少添加一条链'
+  for (const e of chainEntities.value) {
+    if (e.entity === 'ligand') {
+      if (e.ligandMode === 'smiles' && !e.smiles.trim()) return `配体链 ${e.ids.join(',')} 缺少 SMILES`
+      if (e.ligandMode === 'ccd' && !e.ccd.trim()) return `配体链 ${e.ids.join(',')} 缺少 CCD`
+    } else if (!e.sequence.replace(/\s/g, '')) {
+      return `链 ${e.ids.join(',')} 序列为空`
+    }
+  }
+  if (affinityEnabled.value) {
+    if (!affinityBinder.value) return '请选择亲和力预测的小分子 binder 链'
+    if (!ligandChainIds.value.includes(affinityBinder.value)) {
+      return '亲和力 binder 必须是小分子配体链（Boltz-2 不支持蛋白–蛋白亲和力）'
+    }
+  }
+  return null
+}
+
 async function submitSingle() {
-  const fasta = await getFastaForSubmit()
-  if (!fasta) {
-    ElMessage.warning(fastaTab.value === 'file' ? '请上传 FASTA 文件' : '请粘贴 FASTA 序列')
+  const err = validateEntities()
+  if (err) {
+    ElMessage.warning(err)
     return
   }
   submitting.value = true
   lastStatus.value = '正在提交单条预测…'
   try {
     const engine = foldEngine.value
+    let constraintsPayload: ReturnType<typeof buildConstraints> = []
+    try {
+      constraintsPayload = engine === 'boltz2' ? buildConstraints() : []
+    } catch (e) {
+      ElMessage.warning(e instanceof Error ? e.message : '约束格式错误')
+      submitting.value = false
+      return
+    }
+
+    const components = buildComponents()
     const job = await createJob({
-      fasta,
       name: jobName.value.trim() || null,
       engine,
       use_msa_server: engine === 'boltz2' ? boltz.use_msa_server : false,
-      ...(engine === 'boltz2' ? { boltz_params: boltzParamsPayload() } : {}),
+      components,
+      ...(engine === 'boltz2'
+        ? {
+            boltz_params: boltzParamsPayload(),
+            constraints: constraintsPayload,
+            affinity:
+              affinityEnabled.value && affinityBinder.value
+                ? { binder: affinityBinder.value }
+                : null,
+          }
+        : {}),
       ...(engine === 'esmfold2'
         ? {
             esmfold_params: {
@@ -173,9 +383,6 @@ async function submitSingle() {
           }
         : {}),
     })
-    jobName.value = ''
-    fastaInput.value = ''
-    fastaFile.value = null
     await store.refreshFoldTasks()
     store.startPolling()
     lastStatus.value = `已提交「${job.name || job.id.slice(0, 8)}」，状态：${job.status}`
@@ -316,39 +523,97 @@ async function submitBatch() {
 
       <div class="field">
         <div class="field__row">
-          <label class="field__label">序列输入（FASTA）</label>
+          <label class="field__label">序列 / 分子</label>
           <button type="button" class="link-btn" @click="loadExample">加载示例</button>
         </div>
         <p class="field__hint">
-          每条链以 &gt;链ID 开头。Boltz-2 要求链 ID ≤ 4 字符（如 &gt;A、&gt;H）。已识别
-          {{ chainCount }} 条链。
+          用 Add chain 添加多条链；Copies 表示相同序列的拷贝数（写入 YAML 为 id: [A, B]）。Boltz 链 ID ≤ 4
+          字符。
         </p>
-        <el-radio-group v-model="fastaTab" size="small" class="mini-tabs">
-          <el-radio-button value="paste">粘贴</el-radio-button>
-          <el-radio-button value="file">上传</el-radio-button>
-        </el-radio-group>
-        <el-input
-          v-if="fastaTab === 'paste'"
-          v-model="fastaInput"
-          type="textarea"
-          :rows="12"
-          placeholder=">H&#10;DVQLV...&#10;>A&#10;KVFGR..."
-          class="mt"
+        <BoltzChainBuilder
+          v-model="chainEntities"
+          :allow-ligand="foldEngine === 'boltz2'"
         />
-        <el-upload
-          v-else
-          class="mt"
-          drag
-          :auto-upload="false"
-          :show-file-list="false"
-          accept=".fa,.fasta,.txt"
-          @change="(f: { raw?: File }) => onFastaFileChange(f.raw || null)"
-        >
-          <div class="el-upload__text">拖放 FASTA 或点击上传</div>
-        </el-upload>
       </div>
 
       <template v-if="foldEngine === 'boltz2'">
+        <div class="field">
+          <div class="field__row">
+            <label class="field__label">约束（Restraints）</label>
+            <button type="button" class="link-btn" @click="showRestraints = !showRestraints">
+              {{ showRestraints ? '收起' : '展开' }}
+            </button>
+          </div>
+          <p class="field__hint">
+            用先验接触信息约束链间排布：口袋（pocket）指定 binder 靠近哪些残基；接触（contact）指定两残基靠近。
+          </p>
+          <div v-show="showRestraints" class="restraint-box">
+            <div v-for="(r, ri) in restraints" :key="r.key" class="restraint-card">
+              <div class="restraint-card__head">
+                <strong>{{ r.type === 'pocket' ? 'Pocket' : 'Contact' }}</strong>
+                <button type="button" class="link-btn" @click="removeRestraint(ri)">删除</button>
+              </div>
+              <template v-if="r.type === 'pocket'">
+                <label class="mini-label">Binder 链</label>
+                <el-select v-model="r.binder" style="width: 120px">
+                  <el-option v-for="id in allChainIds" :key="id" :label="id" :value="id" />
+                </el-select>
+                <label class="mini-label">Contacts（每行或分号：链ID,残基号）</label>
+                <el-input
+                  v-model="r.contactsText"
+                  type="textarea"
+                  :rows="2"
+                  placeholder="A,829&#10;A,138"
+                />
+              </template>
+              <template v-else>
+                <label class="mini-label">Token1 / Token2（链ID,残基号）</label>
+                <div class="inline">
+                  <el-input v-model="r.token1Text" placeholder="A,10" style="width: 140px" />
+                  <el-input v-model="r.token2Text" placeholder="B,20" style="width: 140px" />
+                </div>
+              </template>
+              <div class="inline mt">
+                <span class="mini-label">max distance (Å)</span>
+                <el-input-number v-model="r.max_distance" :min="4" :max="20" :step="0.5" />
+                <el-checkbox v-model="r.force">Force（势函数强制）</el-checkbox>
+              </div>
+            </div>
+            <div class="inline">
+              <button type="button" class="add-chain-mini" @click="addPocketRestraint">
+                <el-icon><Plus /></el-icon>
+                Add pocket
+              </button>
+              <button type="button" class="add-chain-mini" @click="addContactRestraint">
+                <el-icon><Plus /></el-icon>
+                Add contact
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field__label">小分子亲和力（Affinity）</label>
+          <p class="field__hint">
+            Boltz-2
+            <strong>仅支持小分子配体相对蛋白靶点</strong>
+            的亲和力头，不支持蛋白–蛋白。配体建议 ≤56 重原子（硬上限 128）。输出仅供参考，需实验验证。
+          </p>
+          <el-switch
+            v-model="affinityEnabled"
+            :disabled="!ligandChainIds.length"
+            active-text="开启亲和力预测"
+            inactive-text="关闭"
+          />
+          <p v-if="!ligandChainIds.length" class="field__hint">请先 Add ligand 添加小分子链后再开启。</p>
+          <div v-if="affinityEnabled && ligandChainIds.length" class="mt">
+            <label class="mini-label">Binder（配体链）</label>
+            <el-select v-model="affinityBinder" placeholder="选择配体链" style="width: 160px">
+              <el-option v-for="id in ligandChainIds" :key="id" :label="id" :value="id" />
+            </el-select>
+          </div>
+        </div>
+
         <div class="field">
           <label class="field__label">采样数（Number of Samples）<span class="req">*</span></label>
           <p class="field__hint">
@@ -531,7 +796,9 @@ async function submitBatch() {
         <el-button type="primary" size="large" :loading="submitting" @click="submitSingle">
           提交预测
         </el-button>
-        <p v-if="!fastaInput.trim()" class="actions__warn">请先填写非空序列。</p>
+        <p v-if="!chainEntities.some((e) => (e.entity === 'ligand' ? e.smiles || e.ccd : e.sequence.trim()))" class="actions__warn">
+          请先填写非空序列。
+        </p>
       </div>
     </div>
 
@@ -838,6 +1105,57 @@ async function submitBatch() {
   margin: 0;
   font-size: 0.8rem;
   color: #9ca3af;
+}
+
+.restraint-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.restraint-card {
+  padding: 0.85rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+.restraint-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.55rem;
+
+  strong {
+    font-size: 0.88rem;
+    color: #111827;
+  }
+}
+
+.mini-label {
+  display: block;
+  margin: 0.45rem 0 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.add-chain-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px dashed #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #111827;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #111827;
+  }
 }
 
 .boltz-form__status {

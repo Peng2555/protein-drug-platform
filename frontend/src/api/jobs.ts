@@ -13,12 +13,15 @@ export async function fetchJob(id: string) {
 }
 
 export async function createJob(body: {
-  fasta: string
+  fasta?: string
   name?: string | null
   engine: string
   use_msa_server: boolean
   boltz_params?: Record<string, unknown>
   esmfold_params?: Record<string, number>
+  components?: Array<Record<string, unknown>>
+  constraints?: Array<Record<string, unknown>>
+  affinity?: { binder: string } | null
 }) {
   return apiJson<Job>('/api/jobs', { method: 'POST', data: body })
 }
