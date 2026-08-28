@@ -78,10 +78,10 @@ def _run_structure_fold(job: Job, seqs: dict[str, str], work_dir: Path):
         "job_id": work_dir.name,
         "skip_if_done": False,
     }
+    params = job.params_json or {}
     if job.engine == "esmfold2":
         from esmfold_runner import fold_sequences as esmfold_fold_sequences
 
-        params = job.params_json or {}
         return esmfold_fold_sequences(
             **common,
             num_loops=params.get("num_loops"),
@@ -89,7 +89,28 @@ def _run_structure_fold(job: Job, seqs: dict[str, str], work_dir: Path):
             num_diffusion_samples=params.get("num_diffusion_samples"),
             seed=params.get("seed"),
         )
-    return boltz_fold_sequences(**common, use_msa_server=job.use_msa_server, write_pdb=False)
+    return boltz_fold_sequences(
+        **common,
+        use_msa_server=bool(params.get("use_msa_server", job.use_msa_server)),
+        recycling_steps=int(params.get("recycling_steps", 3)),
+        sampling_steps=int(params.get("sampling_steps", 200)),
+        diffusion_samples=int(params.get("diffusion_samples", 1)),
+        max_parallel_samples=params.get("max_parallel_samples", 5),
+        step_scale=params.get("step_scale"),
+        seed=params.get("seed"),
+        output_format=str(params.get("output_format") or "mmcif"),
+        model=str(params.get("model") or "boltz2"),
+        method=params.get("method"),
+        use_potentials=bool(params.get("use_potentials", False)),
+        msa_pairing_strategy=str(params.get("msa_pairing_strategy") or "greedy"),
+        max_msa_seqs=int(params.get("max_msa_seqs", 8192)),
+        subsample_msa=bool(params.get("subsample_msa", False)),
+        num_subsampled_msa=int(params.get("num_subsampled_msa", 1024)),
+        write_full_pae=bool(params.get("write_full_pae", False)),
+        write_full_pde=bool(params.get("write_full_pde", False)),
+        write_embeddings=bool(params.get("write_embeddings", False)),
+        write_pdb=False,
+    )
 
 
 @celery_app.task(bind=True, name="worker.tasks.run_fold_job", max_retries=5)

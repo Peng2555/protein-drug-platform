@@ -54,12 +54,36 @@ class EsmFold2Params(BaseModel):
     seed: int = Field(default=0, ge=0, le=2_147_483_647)
 
 
+class Boltz2Params(BaseModel):
+    """Boltz2 predict CLI 参数（与本机 boltz predict 对齐）。"""
+
+    recycling_steps: int = Field(default=3, ge=1, le=20)
+    sampling_steps: int = Field(default=200, ge=20, le=1000)
+    diffusion_samples: int = Field(default=1, ge=1, le=25)
+    max_parallel_samples: int | None = Field(default=5, ge=1, le=25)
+    step_scale: float | None = Field(default=None, ge=0.5, le=5.0)
+    seed: int | None = Field(default=None, ge=0, le=2_147_483_647)
+    output_format: Literal["mmcif", "pdb"] = "mmcif"
+    model: Literal["boltz2", "boltz1"] = "boltz2"
+    method: str | None = Field(default=None, max_length=64)
+    use_potentials: bool = False
+    use_msa_server: bool = True
+    msa_pairing_strategy: Literal["greedy", "complete"] = "greedy"
+    max_msa_seqs: int = Field(default=8192, ge=64, le=16384)
+    subsample_msa: bool = False
+    num_subsampled_msa: int = Field(default=1024, ge=16, le=8192)
+    write_full_pae: bool = False
+    write_full_pde: bool = False
+    write_embeddings: bool = False
+
+
 class JobCreate(BaseModel):
     fasta: str | None = None
     chains: list[ChainInput] | None = None
     name: str | None = Field(default=None, max_length=128)
     engine: Literal["boltz2", "esmfold2"] = "boltz2"
     use_msa_server: bool = True
+    boltz_params: Boltz2Params | None = None
     esmfold_params: EsmFold2Params | None = None
 
 
@@ -507,6 +531,7 @@ class VhhPanelCreate(BaseModel):
     heavy_chains: list[HeavyChainInput] = Field(min_length=1)
     engine: Literal["boltz2", "esmfold2"] = "boltz2"
     use_msa_server: bool = True
+    boltz_params: Boltz2Params | None = None
     esmfold_params: EsmFold2Params | None = None
 
 

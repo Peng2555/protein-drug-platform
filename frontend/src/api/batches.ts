@@ -27,6 +27,7 @@ export async function createVhhPanel(body: {
   heavy_chains: Array<{ id: string; sequence: string }>
   engine: string
   use_msa_server: boolean
+  boltz_params?: Record<string, unknown>
   esmfold_params?: Record<string, number>
 }) {
   return apiJson<VhhPanelCreateOut>('/api/batches/vhh-panel', { method: 'POST', data: body })

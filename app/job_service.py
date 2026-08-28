@@ -59,6 +59,34 @@ def _esmfold_job_params(custom: dict | None = None) -> dict:
     return params
 
 
+def _boltz_job_params(custom: dict | None = None, *, use_msa_server: bool = True) -> dict:
+    params = {
+        "recycling_steps": 3,
+        "sampling_steps": 200,
+        "diffusion_samples": 1,
+        "max_parallel_samples": 5,
+        "step_scale": None,
+        "seed": None,
+        "output_format": "mmcif",
+        "model": "boltz2",
+        "method": None,
+        "use_potentials": False,
+        "use_msa_server": use_msa_server,
+        "msa_pairing_strategy": "greedy",
+        "max_msa_seqs": 8192,
+        "subsample_msa": False,
+        "num_subsampled_msa": 1024,
+        "write_full_pae": False,
+        "write_full_pde": False,
+        "write_embeddings": False,
+    }
+    if custom:
+        params.update({k: v for k, v in custom.items() if k in params})
+    # 表单顶层 use_msa_server 与 boltz_params 保持一致
+    params["use_msa_server"] = bool(params.get("use_msa_server", use_msa_server))
+    return params
+
+
 def dispatch_job(db: Session, job: Job) -> None:
     """Send an already-committed job to the GPU queue."""
     async_result = dispatch_to_gpu(run_fold_job, job.id)
@@ -80,6 +108,7 @@ def create_and_queue_job(
     skip_running_limit: bool = False,
     reference_pdb_path: str | None = None,
     engine: str = DEFAULT_FOLD_ENGINE,
+    boltz_params: dict | None = None,
     esmfold_params: dict | None = None,
     defer_dispatch: bool = False,
 ) -> Job:
@@ -87,9 +116,11 @@ def create_and_queue_job(
     if not skip_running_limit:
         _check_user_queue_cap(db, user_id, fold_engine)
 
-    params: dict = {"recycling_steps": 3, "sampling_steps": 200, "diffusion_samples": 1}
     if fold_engine == "esmfold2":
         params = _esmfold_job_params(esmfold_params)
+    else:
+        params = _boltz_job_params(boltz_params, use_msa_server=use_msa_server)
+        use_msa_server = bool(params.get("use_msa_server", use_msa_server))
 
     job = Job(
         user_id=user_id,

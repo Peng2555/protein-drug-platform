@@ -50,6 +50,14 @@ def create_job(body: JobCreate, db: Session = Depends(get_db), user: User = Depe
             raise HTTPException(400, str(exc)) from exc
 
     fasta_text = fasta_from_seqs(seqs)
+    boltz_dump = body.boltz_params.model_dump() if body.engine == "boltz2" and body.boltz_params else None
+    if body.engine == "boltz2":
+        if boltz_dump is None:
+            boltz_dump = {"use_msa_server": body.use_msa_server}
+        use_msa = bool(boltz_dump.get("use_msa_server", body.use_msa_server))
+    else:
+        use_msa = False
+
     job = create_and_queue_job(
         db,
         user_id=user.id,
@@ -58,8 +66,9 @@ def create_job(body: JobCreate, db: Session = Depends(get_db), user: User = Depe
         chains_json={k: len(v) for k, v in seqs.items()},
         total_length=total_len,
         seq_hash=sequence_hash(seqs),
-        use_msa_server=body.use_msa_server if body.engine == "boltz2" else False,
+        use_msa_server=use_msa,
         engine=body.engine,
+        boltz_params=boltz_dump if body.engine == "boltz2" else None,
         esmfold_params=body.esmfold_params.model_dump() if body.engine == "esmfold2" and body.esmfold_params else None,
         defer_dispatch=True,
     )

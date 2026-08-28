@@ -148,6 +148,14 @@ def create_vhh_panel(body: VhhPanelCreate, db: Session = Depends(get_db), user: 
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
+    boltz_dump = body.boltz_params.model_dump() if body.engine == "boltz2" and body.boltz_params else None
+    if body.engine == "boltz2":
+        if boltz_dump is None:
+            boltz_dump = {"use_msa_server": body.use_msa_server}
+        use_msa = bool(boltz_dump.get("use_msa_server", body.use_msa_server))
+    else:
+        use_msa = False
+
     batch = Batch(
         user_id=user.id,
         name=batch_name,
@@ -157,7 +165,7 @@ def create_vhh_panel(body: VhhPanelCreate, db: Session = Depends(get_db), user: 
         target_sequence=target.sequence,
         heavy_chain_id=body.heavy_chain_id,
         heavy_chain_count=len(job_specs),
-        use_msa_server=body.use_msa_server,
+        use_msa_server=use_msa,
     )
     db.add(batch)
     db.flush()
@@ -174,11 +182,12 @@ def create_vhh_panel(body: VhhPanelCreate, db: Session = Depends(get_db), user: 
             chains_json={k: len(v) for k, v in seqs.items()},
             total_length=sum(len(v) for v in seqs.values()),
             seq_hash=sequence_hash(seqs),
-            use_msa_server=body.use_msa_server if body.engine == "boltz2" else False,
+            use_msa_server=use_msa,
             batch_id=batch.id,
             heavy_chain_id=hid,
             skip_running_limit=True,
             engine=body.engine,
+            boltz_params=boltz_dump if body.engine == "boltz2" else None,
             esmfold_params=body.esmfold_params.model_dump() if body.engine == "esmfold2" and body.esmfold_params else None,
             defer_dispatch=True,
         )

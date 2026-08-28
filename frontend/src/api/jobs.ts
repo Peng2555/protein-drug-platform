@@ -17,6 +17,7 @@ export async function createJob(body: {
   name?: string | null
   engine: string
   use_msa_server: boolean
+  boltz_params?: Record<string, unknown>
   esmfold_params?: Record<string, number>
 }) {
   return apiJson<Job>('/api/jobs', { method: 'POST', data: body })

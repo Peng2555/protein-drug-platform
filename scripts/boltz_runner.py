@@ -305,11 +305,25 @@ def run_boltz_predict(
     recycling_steps: int = 3,
     sampling_steps: int = 200,
     diffusion_samples: int = 1,
+    max_parallel_samples: int | None = 5,
+    step_scale: float | None = None,
+    seed: int | None = None,
+    output_format: str = "mmcif",
     model: str = "boltz2",
+    method: str | None = None,
+    use_potentials: bool = False,
+    msa_pairing_strategy: str = "greedy",
+    max_msa_seqs: int = 8192,
+    subsample_msa: bool = False,
+    num_subsampled_msa: int = 1024,
+    write_full_pae: bool = False,
+    write_full_pde: bool = False,
+    write_embeddings: bool = False,
     devices: int = 1,
     override: bool = True,
 ) -> subprocess.CompletedProcess:
     out_dir.mkdir(parents=True, exist_ok=True)
+    fmt = output_format if output_format in {"mmcif", "pdb"} else "mmcif"
     cmd = [
         str(BOLTZ_BIN),
         "predict",
@@ -317,20 +331,43 @@ def run_boltz_predict(
         "--out_dir",
         str(out_dir),
         "--model",
-        model,
+        model if model in {"boltz1", "boltz2"} else "boltz2",
         "--recycling_steps",
-        str(recycling_steps),
+        str(int(recycling_steps)),
         "--sampling_steps",
-        str(sampling_steps),
+        str(int(sampling_steps)),
         "--diffusion_samples",
-        str(diffusion_samples),
+        str(int(diffusion_samples)),
         "--output_format",
-        "mmcif",
+        fmt,
         "--devices",
         str(devices),
+        "--max_msa_seqs",
+        str(int(max_msa_seqs)),
+        "--num_subsampled_msa",
+        str(int(num_subsampled_msa)),
     ]
+    if max_parallel_samples is not None:
+        cmd.extend(["--max_parallel_samples", str(int(max_parallel_samples))])
+    if step_scale is not None:
+        cmd.extend(["--step_scale", str(float(step_scale))])
+    if seed is not None:
+        cmd.extend(["--seed", str(int(seed))])
+    if method and str(method).strip():
+        cmd.extend(["--method", str(method).strip()])
     if use_msa_server:
         cmd.append("--use_msa_server")
+        cmd.extend(["--msa_pairing_strategy", msa_pairing_strategy or "greedy"])
+    if use_potentials:
+        cmd.append("--use_potentials")
+    if subsample_msa:
+        cmd.append("--subsample_msa")
+    if write_full_pae:
+        cmd.append("--write_full_pae")
+    if write_full_pde:
+        cmd.append("--write_full_pde")
+    if write_embeddings:
+        cmd.append("--write_embeddings")
     if override:
         cmd.append("--override")
 
@@ -352,6 +389,20 @@ def fold_sequences(
     recycling_steps: int = 3,
     sampling_steps: int = 200,
     diffusion_samples: int = 1,
+    max_parallel_samples: int | None = 5,
+    step_scale: float | None = None,
+    seed: int | None = None,
+    output_format: str = "mmcif",
+    model: str = "boltz2",
+    method: str | None = None,
+    use_potentials: bool = False,
+    msa_pairing_strategy: str = "greedy",
+    max_msa_seqs: int = 8192,
+    subsample_msa: bool = False,
+    num_subsampled_msa: int = 1024,
+    write_full_pae: bool = False,
+    write_full_pde: bool = False,
+    write_embeddings: bool = False,
     skip_if_done: bool = True,
     write_pdb: bool = True,
     fasta_path: Path | None = None,
@@ -395,14 +446,32 @@ def fold_sequences(
         write_fasta(seqs, fasta_out)
         write_boltz_yaml(seqs, yaml_out)
 
-        proc = run_boltz_predict(
-            yaml_out,
-            job_dir,
-            use_msa_server=use_msa_server,
-            recycling_steps=recycling_steps,
-            sampling_steps=sampling_steps,
-            diffusion_samples=diffusion_samples,
+        predict_kwargs = {
+            "use_msa_server": use_msa_server,
+            "recycling_steps": recycling_steps,
+            "sampling_steps": sampling_steps,
+            "diffusion_samples": diffusion_samples,
+            "max_parallel_samples": max_parallel_samples,
+            "step_scale": step_scale,
+            "seed": seed,
+            "output_format": output_format,
+            "model": model,
+            "method": method,
+            "use_potentials": use_potentials,
+            "msa_pairing_strategy": msa_pairing_strategy,
+            "max_msa_seqs": max_msa_seqs,
+            "subsample_msa": subsample_msa,
+            "num_subsampled_msa": num_subsampled_msa,
+            "write_full_pae": write_full_pae,
+            "write_full_pde": write_full_pde,
+            "write_embeddings": write_embeddings,
+        }
+        (job_dir / "boltz_params.json").write_text(
+            json.dumps(predict_kwargs, indent=2, ensure_ascii=False),
+            encoding="utf-8",
         )
+
+        proc = run_boltz_predict(yaml_out, job_dir, **predict_kwargs)
         elapsed = time.time() - t0
 
         if proc.returncode != 0:
@@ -427,7 +496,10 @@ def fold_sequences(
             result_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
             return result
 
-        if not sorted(job_dir.rglob("*_model_0.cif")):
+        # Prefer model_0 cif; also accept pdb if requested
+        cif_hits = sorted(job_dir.rglob("*_model_0.cif"))
+        pdb_hits = sorted(job_dir.rglob("*_model_0.pdb"))
+        if not cif_hits and not pdb_hits:
             err = _boltz_run_error(job_dir, proc)
             (job_dir / "error.log").write_text(err, encoding="utf-8")
             result = FoldResult(
@@ -445,6 +517,28 @@ def fold_sequences(
                 complex_plddt=None,
                 seconds=elapsed,
                 error=err[-4000:],
+            )
+            result_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
+            return result
+
+        if not cif_hits and pdb_hits:
+            # Normalize pdb output into pred.pdb; metrics may be limited
+            pred_pdb = job_dir / "pred.pdb"
+            shutil.copy2(pdb_hits[0], pred_pdb)
+            result = FoldResult(
+                job_id=job_id,
+                status="ok",
+                fasta=str(fasta_path or fasta_out),
+                num_chains=len(seqs),
+                total_length=total_len,
+                chains=chains_len,
+                pred_cif=None,
+                pred_pdb=str(pred_pdb),
+                iptm=None,
+                ptm=None,
+                confidence_score=None,
+                complex_plddt=None,
+                seconds=elapsed,
             )
             result_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
             return result
