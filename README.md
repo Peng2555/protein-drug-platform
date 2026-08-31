@@ -17,6 +17,8 @@
 
 **亲和力成熟**　IgGM 在指定 CDR 上采样变体，再汇总去重。
 
+**亲和力改造**　算法在仓库 `affinity_redesign/`：PLM + AntiFold 双轨，再 Boltz2 / Rosetta 重打分。Web 提交即可，无需再克隆外部 `antibody_redesign`。仍需本机 ESM / AntiFold / PyRosetta 环境。
+
 **合成筛选**　把 IgGM 结果和测序表对齐，筛可下单序列。
 
 **MD 验证**　从已完成折叠或上传的 CIF/PDB 发起 GROMACS 显式溶剂模拟。

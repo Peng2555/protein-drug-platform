@@ -1,0 +1,21 @@
+name: example_antibody
+slug: example_antibody
+notes: 从 _template 复制后修改
+
+antibody_format: vhh
+
+chains:
+  heavy: H
+  light: null
+  antigen: A
+
+structure:
+  source: pdb
+  path: input/complex.pdb
+
+round1_config: ../../configs/round1_default.yaml
+round2_config: ../../configs/round2_default.yaml
+
+wetlab:
+  round1_metric: ic50
+  beneficial_threshold: 1.1

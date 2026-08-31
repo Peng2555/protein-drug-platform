@@ -13,15 +13,15 @@ from typing import Any, Callable
 
 def _ensure_affinity_redesign_path() -> None:
     try:
-        from app.config import settings
+        from app.config import ensure_affinity_redesign_on_path
 
-        src = settings.antibody_redesign_root / "affinity_redesign" / "src"
+        ensure_affinity_redesign_on_path()
+    except Exception:
+        src = Path(__file__).resolve().parents[1] / "affinity_redesign" / "src"
         if src.is_dir():
             src_str = str(src)
             if src_str not in sys.path:
                 sys.path.insert(0, src_str)
-    except Exception:
-        pass
 
 
 @dataclass
@@ -93,8 +93,8 @@ def run_affinity_redesign_job(
             stage="init",
             seconds=time.monotonic() - t0,
             error=(
-                "未安装 affinity_redesign 包；请在 worker 环境执行："
-                "pip install -e /path/to/antibody_redesign"
+                "未找到 affinity_redesign 包；请确认仓库内有 affinity_redesign/src，"
+                "或 pip install -e affinity_redesign"
             ),
             results={"import_error": str(exc)},
         )

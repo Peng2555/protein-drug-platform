@@ -1,0 +1,25 @@
+name: lycov1404_7mmo
+slug: lycov1404_7mmo
+notes: |
+  Shanker et al. Science 2024 测试抗体 LY-CoV1404 (Bebtelovimab)。
+  结构：PDB 7MMO，截取第一套复合物 Fv(H/L) + RBD(A)。
+  扫描范围：全可变区（ANARCI 编号域）。
+
+antibody_format: igg
+
+chains:
+  heavy: H
+  light: L
+  antigen: A
+
+structure:
+  source: pdb
+  path: input/complex.pdb
+  multichain: true
+
+round1_config: null
+round2_config: null
+
+wetlab:
+  round1_metric: ic50
+  beneficial_threshold: 1.1

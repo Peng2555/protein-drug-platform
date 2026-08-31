@@ -28,7 +28,7 @@ if [[ ! -f "$ROOT/frontend/dist/index.html" ]]; then
   echo "         运行: bash scripts/build_frontend.sh"
 fi
 
-export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
+export PYTHONPATH="$ROOT:$ROOT/affinity_redesign/src:${PYTHONPATH:-}"
 export HMMER_PATH="${HMMER_PATH:-/home/pengpai/data/envs/IgGM/bin}"
 export GMX_BIN="${GMX_BIN:-/home/pengpai/data/envs/IgGM/bin/gmx}"
 export GEMMI_PY="${GEMMI_PY:-/home/pengpai/data/envs/IgGM/bin/python}"

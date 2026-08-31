@@ -1,0 +1,62 @@
+# 第一轮：计算机单点推荐（默认参数）
+#
+# 策略说明（与「不做 top-N」一致）：
+# - top_per_chain: 0 → 过门槛的全部保留，不做「每链只取 top10」
+# - 结构轨过门可能很多（dll>0），因此：
+#     · B 档（仅结构轨）默认软上限 100
+#     · A / C 默认全部进 Boltz2
+# - 若仍太多，可调 structure_track.dll_threshold 或 rescore.max_variants
+
+antibody_format: vhh   # vhh | igg
+
+chains:
+  heavy: H
+  light: null          # igg 时设为 L；VHH 必须为 null
+  antigen: A
+
+structure:
+  source: pdb          # pdb | boltz2 | esmfold2 | fold_job
+  path: input/complex.pdb
+  multichain: true
+
+plm:
+  models:
+    - esm1b
+    - esm1v_ensemble
+  esm2_explore: false
+  consensus_k: 3
+  top_per_chain: 0     # 0 = 保留全部共识通过（不截断）
+  maxrep: 0            # 0 = 同一位点可多条
+  scan_regions: [FR, CDR]
+
+structure_track:
+  engine: antifold
+  dll_threshold: 0.0   # dll > 此值才过门；想收紧可改为 0.5 / 1.0
+  top_per_chain: 0     # 0 = 保留全部过门（不截断）
+  maxrep: 0
+  scan_regions: [FR, CDR]
+
+merge:
+  tier_quotas:
+    A: all             # 两轨交集：全部
+    B: 100             # 仅结构轨：软上限（按 structure dll 排序）
+    C: all             # 仅 PLM 轨：全部
+
+filters:
+  freeze_cysteine: true
+  block_new_nglyc: true
+  freeze_nterm: 4          # 冻住 N 端 1–4（QVQL）
+  freeze_cterm: 4          # 序列以 TVSS 结尾时冻这 4 位；否则冻末尾 4 位
+  freeze_fr4: false        # 不整段冻 FR4（WGQG 仍可扫）
+
+rescore:
+  delta_iptm_min: -0.03   # Boltz2 ΔipTM 低于此视为变差
+  max_ddg: 3.0            # Rosetta ddG 高于此不进湿实验短名单
+  nstruct: 1
+  n_jobs: 0               # 0=尽量吃满 CPU；>0 为固定进程数
+  use_msa_server: true
+  recycling_steps: 3
+  sampling_steps: 200
+  diffusion_samples: 1
+  max_variants: 0         # 0=不限制总数；>0 时按 A→B→C 再截断 Boltz2 入口
+  n_gpus: 0               # 0=空闲几张卡用几张；>0 时最多占用这么多张 GPU

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -67,7 +68,8 @@ class Settings(BaseSettings):
     proteinmpnn_model_name: str = "ProteinMPNN_v48_noise_0.2"
     rosetta_eval_out_root: Path = ROOT / "rosetta_eval_outputs"
     affinity_redesign_out_root: Path = ROOT / "affinity_redesign_outputs"
-    antibody_redesign_root: Path = Path("/home/pengpai/data/Company_Project/antibody_redesign")
+    # 算法包默认用仓库内 affinity_redesign/；仍可通过环境变量改到外部目录
+    antibody_redesign_root: Path = ROOT
     masking_peptide_out_root: Path = ROOT / "masking_peptide_outputs"
     masking_peptide_project_root: Path = Path(
         "/home/pengpai/data/Company_Project/CD98-23110_masking_peptide"
@@ -99,6 +101,26 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def affinity_redesign_src_dir() -> Path:
+    bundled = ROOT / "affinity_redesign" / "src"
+    if bundled.is_dir():
+        return bundled
+    return Path(settings.antibody_redesign_root) / "affinity_redesign" / "src"
+
+
+def ensure_affinity_redesign_on_path() -> Path | None:
+    src = affinity_redesign_src_dir()
+    if not src.is_dir():
+        return None
+    src_str = str(src)
+    if src_str not in sys.path:
+        sys.path.insert(0, src_str)
+    return src
+
+
+ensure_affinity_redesign_on_path()
 
 # Ensure output dirs exist
 settings.boltz2_out_root.mkdir(parents=True, exist_ok=True)

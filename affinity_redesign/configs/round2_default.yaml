@@ -1,0 +1,12 @@
+# 第二轮：组合突变（基于 round1 湿实验确认的有益单点）
+
+beneficial_threshold: 1.1   # IC50 或 Kd fold-change 相对野生型
+
+combinatorics:
+  max_mutations_per_chain: 8
+  top_combinations_per_chain: 5
+  max_cross_chain_designs: 2
+
+scoring:
+  engines: [antifold, plm]
+  prefer: antifold

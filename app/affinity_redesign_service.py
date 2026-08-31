@@ -21,19 +21,17 @@ ALLOWED_STRUCT = {".pdb", ".cif", ".mmcif"}
 
 
 def _ensure_package() -> None:
-    root = settings.antibody_redesign_root
-    src = root / "affinity_redesign" / "src"
-    if src.is_dir():
-        src_str = str(src)
-        if src_str not in sys.path:
-            sys.path.insert(0, src_str)
+    from app.config import affinity_redesign_src_dir, ensure_affinity_redesign_on_path
+
+    ensure_affinity_redesign_on_path()
     try:
         import affinity_redesign  # noqa: F401
     except ImportError as exc:
+        src = affinity_redesign_src_dir()
         raise HTTPException(
             503,
-            "affinity_redesign 未安装；请在 API/worker 环境执行："
-            f"pip install -e {settings.antibody_redesign_root}，然后重启 API/worker",
+            "affinity_redesign 未安装；仓库应包含 affinity_redesign/src。"
+            f"若用独立目录，请设置 ANTIBODY_REDESIGN_ROOT，或执行 pip install -e {src.parent}，然后重启 API/worker",
         ) from exc
 
 
