@@ -27,7 +27,11 @@ const props = defineProps<{
   modelValue: ChainEntity[]
   /** ESMFold2 时隐藏配体类型 */
   allowLigand?: boolean
+  /** auto：A/B/C 自动编号；antibody：保留 H/L/A 等链 ID（亲和力改造） */
+  chainIdMode?: 'auto' | 'antibody'
 }>()
+
+const ANTIBODY_CHAIN_IDS = ['H', 'L', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'I', 'K', 'M']
 
 const emit = defineEmits<{
   'update:modelValue': [value: ChainEntity[]]
@@ -66,6 +70,14 @@ function nextIds(startIndex: number, count: number): string[] {
 }
 
 function reassignAll(list: ChainEntity[]) {
+  if (props.chainIdMode === 'antibody') {
+    for (const e of list) {
+      e.copies = 1
+      if (!e.ids?.length) e.ids = [pickAntibodyChainId(list, e)]
+      e.ids = [String(e.ids[0] || 'H').slice(0, 4)]
+    }
+    return
+  }
   let idx = 0
   for (const e of list) {
     const copies = Math.max(1, Math.min(12, e.copies || 1))
@@ -75,9 +87,32 @@ function reassignAll(list: ChainEntity[]) {
   }
 }
 
+function pickAntibodyChainId(list: ChainEntity[], self: ChainEntity): string {
+  const used = new Set(
+    list.filter((e) => e.key !== self.key).flatMap((e) => e.ids.map((id) => id.toUpperCase())),
+  )
+  const prefer = ['H', 'A', 'L']
+  for (const id of prefer) {
+    if (!used.has(id)) return id
+  }
+  for (const id of ANTIBODY_CHAIN_IDS) {
+    if (!used.has(id)) return id
+  }
+  return 'X'
+}
+
+function setChainId(i: number, id: string) {
+  const val = id.trim().slice(0, 4) || 'H'
+  patch(i, { ids: [val], copies: 1 })
+}
+
 function patch(i: number, partial: Partial<ChainEntity>) {
   const next = entities.value.map((e, j) => (j === i ? { ...e, ...partial } : { ...e }))
-  if (partial.copies != null || partial.entity != null) reassignAll(next)
+  if (props.chainIdMode === 'antibody') {
+    if (partial.copies != null) next[i]!.copies = 1
+  } else if (partial.copies != null || partial.entity != null) {
+    reassignAll(next)
+  }
   entities.value = next
 }
 
@@ -98,6 +133,10 @@ function addChain(entity: ChainEntityType = 'protein') {
       plainView: false,
     },
   ]
+  if (props.chainIdMode === 'antibody') {
+    const last = next[next.length - 1]!
+    last.ids = [pickAntibodyChainId(next, last)]
+  }
   reassignAll(next)
   entities.value = next
 }
@@ -186,7 +225,7 @@ defineExpose({ addChain, reassignAll })
             />
           </el-select>
 
-          <div class="copies">
+          <div v-if="chainIdMode !== 'antibody'" class="copies">
             <span>Copies</span>
             <button type="button" class="copies__btn" @click="bumpCopies(i, -1)">−</button>
             <input
@@ -202,6 +241,17 @@ defineExpose({ addChain, reassignAll })
               "
             />
             <button type="button" class="copies__btn" @click="bumpCopies(i, 1)">+</button>
+          </div>
+
+          <div v-else class="chain-id-select">
+            <span>链 ID</span>
+            <el-select
+              :model-value="ent.ids[0] || 'H'"
+              style="width: 88px"
+              @update:model-value="(v: string) => setChainId(i, v)"
+            >
+              <el-option v-for="id in ANTIBODY_CHAIN_IDS" :key="id" :label="id" :value="id" />
+            </el-select>
           </div>
 
           <div class="chain-card__spacer" />
@@ -256,7 +306,7 @@ defineExpose({ addChain, reassignAll })
           @update:model-value="(v: string) => patch(i, { sequence: v })"
         />
 
-        <div v-if="ent.entity !== 'ligand'" class="chain-card__foot">
+        <div v-if="ent.entity !== 'ligand' && chainIdMode !== 'antibody'" class="chain-card__foot">
           <el-checkbox
             :model-value="ent.cyclic"
             @update:model-value="(v) => patch(i, { cyclic: Boolean(v) })"
@@ -359,6 +409,15 @@ defineExpose({ addChain, reassignAll })
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.chain-id-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.8rem;
   font-weight: 600;
   color: #6b7280;

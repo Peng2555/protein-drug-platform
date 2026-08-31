@@ -10,6 +10,8 @@ export type ModuleId =
   | 'rosetta'
   | 'developability'
   | 'maturation'
+  | 'affinity_redesign'
+  | 'masking_peptide'
   | 'synthesis'
   | 'docking'
   | 'md'
@@ -56,6 +58,18 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: 'rosetta', path: '/rosetta', label: '结构评价', hint: 'Rosetta Relax 与界面 ΔΔG 排序' },
       { id: 'developability', path: '/developability', label: '序列改造', hint: 'ESM-2 与 MAXWELL 并列打分' },
       { id: 'maturation', path: '/maturation', label: '亲和力成熟', hint: 'IgGM CDR 变体采样' },
+      {
+        id: 'affinity_redesign',
+        path: '/affinity-redesign',
+        label: '亲和力改造',
+        hint: 'round1 → Boltz2 → Rosetta 端到端流水线',
+      },
+      {
+        id: 'masking_peptide',
+        path: '/masking-peptide',
+        label: '多肽遮蔽设计',
+        hint: 'RFdiffusion + MPNN 环肽设计（CD98）',
+      },
       { id: 'synthesis', path: '/synthesis', label: '合成候选', hint: '测序表与突变表交叉筛选' },
     ],
   },
@@ -73,6 +87,8 @@ export const ALL_NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items)
 
 export function moduleIdFromPath(path: string): ModuleId {
   if (path === '/' || path.startsWith('/home')) return 'home'
+  if (path.startsWith('/affinity-redesign')) return 'affinity_redesign'
+  if (path.startsWith('/masking-peptide')) return 'masking_peptide'
   if (path.startsWith('/md')) return 'md'
   if (path.startsWith('/maturation')) return 'maturation'
   if (path.startsWith('/synthesis')) return 'synthesis'
@@ -82,6 +98,17 @@ export function moduleIdFromPath(path: string): ModuleId {
   if (path.startsWith('/docking') || path.startsWith('/ras-docking')) return 'docking'
   if (path.startsWith('/fold')) return 'fold'
   return 'home'
+}
+
+/** Vue Router 路由名前缀（与 moduleChildren 的 path 一致） */
+export function moduleRoutePrefix(id: ModuleId): string {
+  if (id === 'affinity_redesign') return 'affinity-redesign'
+  if (id === 'masking_peptide') return 'masking-peptide'
+  return id
+}
+
+export function moduleNewRouteName(id: ModuleId): string {
+  return `${moduleRoutePrefix(id)}-new`
 }
 
 export function navItemById(id: ModuleId): NavItem {

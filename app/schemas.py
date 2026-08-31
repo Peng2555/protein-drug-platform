@@ -340,6 +340,53 @@ class RosettaEvalJobListOut(BaseModel):
     total: int
 
 
+class AffinityRedesignJobCreate(BaseModel):
+    name: str | None = Field(default=None, max_length=128)
+    fasta: str = Field(min_length=20, description="H/L/A 等多链 FASTA")
+    skip_round1: bool = False
+
+
+class AffinityRedesignJobOut(JobOut):
+    pass
+
+
+class AffinityRedesignJobListOut(BaseModel):
+    items: list[AffinityRedesignJobOut]
+    total: int
+
+
+class AffinityRedesignRankedOut(BaseModel):
+    ranked: list[dict] = Field(default_factory=list)
+    wetlab: list[dict] = Field(default_factory=list)
+    summary: dict | None = None
+
+
+class MaskingPeptideJobCreate(BaseModel):
+    name: str | None = Field(default=None, max_length=128)
+    fold_job_id: str | None = None
+    hotspot_res: list[str] = Field(default_factory=lambda: ["H35", "H47", "H50", "H104", "H110"])
+    target_chain: str = Field(default="H", max_length=8)
+    peptide_length: str = Field(default="12-18", max_length=16)
+    total_designs: int = Field(default=200, ge=10, le=20000)
+    mpnn_rounds: int = Field(default=4, ge=1, le=8)
+    skip_backbone: bool = False
+    relax_jobs: int = Field(default=8, ge=1, le=32)
+
+
+class MaskingPeptideJobOut(JobOut):
+    pass
+
+
+class MaskingPeptideJobListOut(BaseModel):
+    items: list[MaskingPeptideJobOut]
+    total: int
+
+
+class MaskingPeptideSequencesOut(BaseModel):
+    sequences: list[dict] = Field(default_factory=list)
+    summary: dict | None = None
+
+
 class IgGMParams(BaseModel):
     num_samples: int = Field(default=100, ge=1, le=500)
     steps: int = Field(default=10, ge=1, le=50)
@@ -408,6 +455,17 @@ class MaturationLogsOut(BaseModel):
     summary_lines: list[str] = Field(default_factory=list)
     progress: dict = Field(default_factory=dict)
     sections: list[MaturationLogSection] = Field(default_factory=list)
+
+
+class AffinityRedesignProgressOut(BaseModel):
+    stage: str | None = None
+    status: str
+    summary_lines: list[str] = Field(default_factory=list)
+    progress: dict = Field(default_factory=dict)
+    sections: list[MaturationLogSection] = Field(default_factory=list)
+    workflow_status: dict | None = None
+    plm_hits: list[dict] = Field(default_factory=list)
+    structure_hits: list[dict] = Field(default_factory=list)
 
 
 class SynthesisSelectParams(BaseModel):

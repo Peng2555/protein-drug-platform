@@ -156,8 +156,8 @@ export const WORKFLOWS_BY_SCENARIO: Record<ScenarioId, WorkflowDef[]> = {
       title: '亲和力成熟',
       description: 'IgGM 对 CDR 采样变体，再折叠或 Rosetta / MD 复核候选。',
       steps: [{ label: 'IgGM 采样' }, { label: '再折叠' }, { label: '复核排名' }],
-      ctaLabel: '进入亲和力成熟',
-      ctaRoute: '/maturation/new',
+      ctaLabel: '进入亲和力改造',
+      ctaRoute: '/affinity-redesign/new',
       accent: 'blue',
     },
     {
@@ -257,6 +257,7 @@ export const MODULE_ENGINES: Partial<Record<ModuleId, string>> = {
   rosetta: 'PyRosetta',
   developability: 'ESM-2 · MAXWELL',
   maturation: 'IgGM',
+  affinity_redesign: 'round1 · Boltz2 · Rosetta',
   synthesis: '表交叉筛选',
   docking: 'AutoDock Vina',
   md: 'GROMACS',

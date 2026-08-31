@@ -43,6 +43,8 @@ function routeForEngine(engine?: string | null): string {
   if (engine === 'rosetta_interface_eval') return 'rosetta-task'
   if (engine === 'esm2_developability') return 'developability-task'
   if (engine === 'iggm_maturation') return 'maturation-task'
+  if (engine === 'affinity_redesign') return 'affinity-redesign-task'
+  if (engine === 'masking_peptide') return 'masking-peptide-task'
   if (engine === 'synthesis_select') return 'synthesis-task'
   if (engine === 'small_molecule_docking' || engine === 'ras_tricomplex_docking') return 'docking-task'
   if (engine?.includes('md') || engine === 'gromacs_md') return 'md-task'
@@ -56,6 +58,8 @@ function kindForEngine(engine?: string | null): string {
   if (engine === 'rosetta_interface_eval') return '结构评价'
   if (engine === 'esm2_developability') return '序列改造'
   if (engine === 'iggm_maturation') return '亲和力成熟'
+  if (engine === 'affinity_redesign') return '亲和力改造'
+  if (engine === 'masking_peptide') return '多肽遮蔽设计'
   if (engine === 'synthesis_select') return '合成候选'
   if (engine === 'small_molecule_docking' || engine === 'ras_tricomplex_docking') return '分子对接'
   if (engine?.includes('md') || engine === 'gromacs_md') return 'MD 验证'
@@ -90,6 +94,8 @@ async function loadRecent() {
       { jobs: moduleJobs.rosettaJobs as Job[], routeName: 'rosetta-task', kind: '结构评价' },
       { jobs: moduleJobs.developabilityJobs as Job[], routeName: 'developability-task', kind: '序列改造' },
       { jobs: moduleJobs.maturationJobs as Job[], routeName: 'maturation-task', kind: '亲和力成熟' },
+      { jobs: moduleJobs.affinityRedesignJobs as Job[], routeName: 'affinity-redesign-task', kind: '亲和力改造' },
+      { jobs: moduleJobs.maskingPeptideJobs as Job[], routeName: 'masking-peptide-task', kind: '多肽遮蔽' },
       { jobs: moduleJobs.synthesisJobs as Job[], routeName: 'synthesis-task', kind: '合成候选' },
       { jobs: moduleJobs.dockingJobs as Job[], routeName: 'docking-task', kind: '分子对接' },
       { jobs: moduleJobs.mdJobs as Job[], routeName: 'md-task', kind: 'MD 验证' },
@@ -160,8 +166,11 @@ onMounted(() => {
     <section id="workflows" class="landing-section">
       <div class="landing-container">
         <div class="landing-section__head landing-section__head--left">
-          <h2>推荐工作流</h2>
-          <p>每个场景下的常用流程，点按钮直接进入对应模块提交任务。</p>
+          <div>
+            <h2>推荐工作流</h2>
+            <p>每个场景下的常用流程；亲和力成熟与多肽设计已接入流水线占位页。</p>
+          </div>
+          <el-button text type="primary" @click="router.push('/workflows')">进入工作流中心 →</el-button>
         </div>
         <WorkflowCards :workflows="currentWorkflows" />
       </div>

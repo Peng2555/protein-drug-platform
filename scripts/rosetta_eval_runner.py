@@ -230,12 +230,35 @@ def _pool_interface_task(payload: dict[str, Any]) -> dict[str, Any]:
     return {"name": payload["name"], "metrics": metrics}
 
 
-def default_n_jobs(requested: int | None = None) -> int:
-    """Cap parallel workers; leave headroom on shared machines."""
+def _auto_n_jobs() -> int:
+    """尽量吃满 CPU，只留少量核给系统 / GPU worker / API。"""
     cpu = os.cpu_count() or 8
-    env_default = int(os.environ.get("ROSETTA_N_JOBS") or max(8, min(32, cpu // 4)))
-    n = env_default if requested is None else int(requested)
-    return max(1, min(64, n, cpu))
+    reserve = min(8, max(2, cpu // 16))
+    return max(1, cpu - reserve)
+
+
+def default_n_jobs(requested: int | None = None, *, work_dir: Path | None = None) -> int:
+    """并行进程数：0/未指定 = 自动（核数减预留）；显式正数按请求（不超过 cpu）。"""
+    cpu = os.cpu_count() or 8
+    auto = _auto_n_jobs()
+    if requested in (None, ""):
+        env = os.environ.get("ROSETTA_N_JOBS")
+        if env not in (None, "", "0", "auto"):
+            try:
+                return max(1, min(int(env), cpu))
+            except ValueError:
+                pass
+        return auto
+    try:
+        n = int(requested)
+    except (TypeError, ValueError):
+        return auto
+    if n <= 0:
+        return auto
+    # 亲和力改造旧默认 8：大机器上视为未指定，避免 128 核只用 8 路
+    if n == 8 and auto > 32 and work_dir is not None and "affinity_redesign" in str(work_dir):
+        return auto
+    return max(1, min(n, cpu))
 
 
 def relax_structure_pyrosetta(
@@ -970,7 +993,12 @@ def run_rosetta_eval_job(
             raise RuntimeError((proc.stderr or proc.stdout or "PyRosetta 子进程失败")[-4000:])
 
         nstruct = max(1, min(10, int(params.get("nstruct") or 3)))
-        n_jobs = default_n_jobs(params.get("n_jobs"))
+        n_jobs = default_n_jobs(params.get("n_jobs"), work_dir=work_dir)
+        print(
+            f"Rosetta 并行: requested={params.get('n_jobs')!r} → n_jobs={n_jobs} "
+            f"(cpu={os.cpu_count()}, variants={len(params.get('variants') or [])}, nstruct={nstruct})",
+            flush=True,
+        )
         weights = str(params.get("score_weights") or "ref2015")
         variants = list(params.get("variants") or [])
         if not variants:
@@ -1210,7 +1238,7 @@ def _cli() -> int:
     parser.add_argument("--wt", default="", help="WT complex PDB/CIF")
     parser.add_argument("--mutant", nargs="*", default=[], help="Mutant complex files")
     parser.add_argument("--nstruct", type=int, default=3)
-    parser.add_argument("--n-jobs", type=int, default=None, help="并行进程数，默认 ROSETTA_N_JOBS 或 CPU/4")
+    parser.add_argument("--n-jobs", type=int, default=None, help="并行进程数，0/省略 = 自动（尽量吃满 CPU）")
     parser.add_argument("--antibody-chains", default="")
     parser.add_argument("--antigen-chains", default="")
     parser.add_argument("--rosetta-bin", default="")

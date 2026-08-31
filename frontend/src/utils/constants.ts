@@ -63,7 +63,30 @@ export function engineLabel(engine?: string) {
   if (engine === 'esm2_developability') return 'ESM-2 序列改造'
   if (engine === 'protein_mpnn') return 'ProteinMPNN 序列设计'
   if (engine === 'rosetta_interface_eval') return 'Rosetta 结构评价'
+  if (engine === 'affinity_redesign') return '亲和力改造'
+  if (engine === 'masking_peptide') return '多肽遮蔽设计'
+  if (engine === 'iggm_maturation') return 'IgGM 亲和力成熟'
   return engine || '—'
+}
+
+export const AFFINITY_REDESIGN_STAGE_LABELS: Record<string, string> = {
+  queued: '排队中',
+  ensure_structure: '准备结构',
+  fold_wt_complex: 'Boltz2 折 WT 复合物',
+  round1: 'Round1 双轨采样',
+  skip_round1: '跳过 Round1',
+  rescore: '重打分流水线',
+  boltz2_wt: 'Boltz2 WT 基准',
+  rosetta: 'Rosetta 界面能',
+  done: '完成',
+}
+
+export function affinityRedesignStageLabel(stage?: string | null): string {
+  if (!stage) return '—'
+  if (AFFINITY_REDESIGN_STAGE_LABELS[stage]) return AFFINITY_REDESIGN_STAGE_LABELS[stage]
+  const m = stage.match(/^boltz2_(\d+)\/(\d+)_(.+)$/)
+  if (m) return `Boltz2 折叠 ${m[1]}/${m[2]} · ${m[3]}`
+  return stage
 }
 
 export function formatEsmfoldParams(params?: Record<string, number>) {

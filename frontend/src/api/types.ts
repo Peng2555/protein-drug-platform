@@ -267,6 +267,79 @@ export interface RosettaEvalRow {
   flags?: string
 }
 
+export interface AffinityRedesignJob extends Job {}
+
+export interface AffinityRedesignJobListOut {
+  items: AffinityRedesignJob[]
+  total: number
+}
+
+export interface AffinityRedesignRankedRow {
+  rank?: string | number
+  decision?: string
+  wetlab?: string
+  reason?: string
+  tier?: string
+  chain?: string
+  label?: string
+  position?: string | number
+  wt?: string
+  mut?: string
+  region?: string
+  delta_iptm?: string | number | null
+  ddG?: string | number | null
+  iptm?: string | number | null
+  variant_id?: string
+  error?: string
+}
+
+export interface AffinityRedesignRankedOut {
+  ranked: AffinityRedesignRankedRow[]
+  wetlab: AffinityRedesignRankedRow[]
+  summary: Record<string, unknown> | null
+}
+
+export interface AffinityRedesignHit {
+  chain: string
+  position: number
+  wt: string
+  mut: string
+  region: string
+  label: string
+  score: number | null
+}
+
+export interface AffinityRedesignProgressOut {
+  stage?: string | null
+  status: string
+  summary_lines: string[]
+  progress: Record<string, unknown>
+  sections: MaturationLogSection[]
+  workflow_status?: Record<string, unknown> | null
+  plm_hits?: AffinityRedesignHit[]
+  structure_hits?: AffinityRedesignHit[]
+}
+
+export interface MaskingPeptideJob extends Job {}
+
+export interface MaskingPeptideJobListOut {
+  items: MaskingPeptideJob[]
+  total: number
+}
+
+export interface MaskingPeptideSequenceRow {
+  backbone?: string
+  peptide_seq?: string
+  mpnn_score?: string | number | null
+  length?: string | number | null
+  [key: string]: unknown
+}
+
+export interface MaskingPeptideSequencesOut {
+  sequences: MaskingPeptideSequenceRow[]
+  summary: Record<string, unknown> | null
+}
+
 export interface DesignCandidate {
   index: number
   header?: string

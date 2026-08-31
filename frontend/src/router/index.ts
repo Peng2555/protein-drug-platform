@@ -79,6 +79,18 @@ const router = createRouter({
           meta: { title: '计算工具' },
         },
         {
+          path: 'workflows',
+          name: 'workflows',
+          component: () => import('@/views/workflows/WorkflowHubView.vue'),
+          meta: { title: '工作流' },
+        },
+        {
+          path: 'workflows/:id',
+          name: 'workflow-detail',
+          component: () => import('@/views/workflows/WorkflowDetailView.vue'),
+          meta: { title: '流水线详情' },
+        },
+        {
           path: 'fold',
           component: () => import('@/views/fold/FoldWorkspaceView.vue'),
           meta: { title: '结构预测' },
@@ -173,6 +185,36 @@ const router = createRouter({
             new: () => import('@/views/maturation/MaturationNewView.vue'),
             tasks: () => import('@/views/maturation/MaturationTasksView.vue'),
             task: () => import('@/views/maturation/MaturationJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
+          'affinity-redesign',
+          {
+            module: '亲和力改造',
+            new: '新建改造',
+            tasks: '全部任务',
+            task: '改造详情',
+          },
+          {
+            workspace: () => import('@/views/affinity-redesign/AffinityRedesignWorkspaceView.vue'),
+            new: () => import('@/views/affinity-redesign/AffinityRedesignNewView.vue'),
+            tasks: () => import('@/views/affinity-redesign/AffinityRedesignTasksView.vue'),
+            task: () => import('@/views/affinity-redesign/AffinityRedesignJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
+          'masking-peptide',
+          {
+            module: '多肽遮蔽设计',
+            new: '新建设计',
+            tasks: '全部任务',
+            task: '设计详情',
+          },
+          {
+            workspace: () => import('@/views/masking-peptide/MaskingPeptideWorkspaceView.vue'),
+            new: () => import('@/views/masking-peptide/MaskingPeptideNewView.vue'),
+            tasks: () => import('@/views/masking-peptide/MaskingPeptideTasksView.vue'),
+            task: () => import('@/views/masking-peptide/MaskingPeptideJobDetailView.vue'),
           },
         ),
         moduleChildren(

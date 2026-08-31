@@ -66,6 +66,14 @@ class Settings(BaseSettings):
     proteinmpnn_weights_dir: Path = Path("/home/pengpai/projects/RFantibody/weights")
     proteinmpnn_model_name: str = "ProteinMPNN_v48_noise_0.2"
     rosetta_eval_out_root: Path = ROOT / "rosetta_eval_outputs"
+    affinity_redesign_out_root: Path = ROOT / "affinity_redesign_outputs"
+    antibody_redesign_root: Path = Path("/home/pengpai/data/Company_Project/antibody_redesign")
+    masking_peptide_out_root: Path = ROOT / "masking_peptide_outputs"
+    masking_peptide_project_root: Path = Path(
+        "/home/pengpai/data/Company_Project/CD98-23110_masking_peptide"
+    )
+    rfdiffusion_root: Path = Path("/home/pengpai/data/Company_Project/RFdiffusion")
+    se3nv_python: str = "/home/pengpai/data/envs/SE3nv/bin/python"
     rosetta_bin_dir: str = ""
     rosetta_nstruct: int = 3
     rosetta_n_jobs: int = 16
@@ -102,6 +110,8 @@ settings.docking_out_root.mkdir(parents=True, exist_ok=True)
 settings.developability_out_root.mkdir(parents=True, exist_ok=True)
 settings.design_out_root.mkdir(parents=True, exist_ok=True)
 settings.rosetta_eval_out_root.mkdir(parents=True, exist_ok=True)
+settings.affinity_redesign_out_root.mkdir(parents=True, exist_ok=True)
+settings.masking_peptide_out_root.mkdir(parents=True, exist_ok=True)
 (ROOT / "data").mkdir(parents=True, exist_ok=True)
 
 # Propagate cache env vars for boltz subprocess

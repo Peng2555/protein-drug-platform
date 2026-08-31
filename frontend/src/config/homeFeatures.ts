@@ -30,8 +30,8 @@ export const FEATURE_TABS: FeatureTab[] = [
     ],
     image: '/assets/hero/antibody-engineering.png',
     imageAlt: '抗体 Fab 结合靶蛋白结构示意',
-    ctaLabel: '了解更多',
-    ctaRoute: '/fold/new',
+    ctaLabel: '进入工作流',
+    ctaRoute: '/workflows?scene=antibody',
   },
   {
     id: 'peptide',
@@ -46,8 +46,8 @@ export const FEATURE_TABS: FeatureTab[] = [
     ],
     image: '/assets/hero/peptide-design.png',
     imageAlt: '多肽结合抗体 Fab 结构示意',
-    ctaLabel: '了解更多',
-    ctaRoute: '/design/new',
+    ctaLabel: '开始多肽遮蔽设计',
+    ctaRoute: '/masking-peptide/new',
   },
   {
     id: 'enzyme',

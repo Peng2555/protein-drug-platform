@@ -15,6 +15,8 @@ import {
   HomeFilled,
   MagicStick,
   Plus,
+  Promotion,
+  SetUp,
   Setting,
   Brush,
   DataAnalysis,
@@ -34,6 +36,8 @@ import {
   PLATFORM_ORG,
   PLATFORM_TAGLINE,
   moduleIdFromPath,
+  moduleNewRouteName,
+  moduleRoutePrefix,
   navItemById,
   type ModuleId,
 } from '@/utils/platform'
@@ -52,6 +56,8 @@ const expanded = reactive<Record<string, boolean>>({
   rosetta: false,
   developability: false,
   maturation: false,
+  affinity_redesign: false,
+  masking_peptide: false,
   synthesis: false,
   docking: false,
   md: false,
@@ -60,7 +66,16 @@ const expanded = reactive<Record<string, boolean>>({
 const activeModule = computed(() => moduleIdFromPath(route.path))
 const isLanding = computed(() => route.name === 'home' || route.name === 'use-case')
 const onApp = computed(() => route.name === 'app')
-const currentNav = computed(() => (onApp.value ? { label: '计算工具', hint: '浏览并启动各计算模块' } : navItemById(activeModule.value)))
+const onWorkflows = computed(() => route.name === 'workflows' || route.name === 'workflow-detail')
+const currentNav = computed(() => {
+  if (onApp.value) return { label: '计算工具', hint: '浏览并启动各计算模块' }
+  if (onWorkflows.value) {
+    return route.name === 'workflow-detail'
+      ? { label: '流水线详情', hint: '查看步骤与统一输入' }
+      : { label: '工作流', hint: '按场景选择可执行流水线' }
+  }
+  return navItemById(activeModule.value)
+})
 const onFold = computed(() => activeModule.value === 'fold')
 
 const iconMap = {
@@ -70,6 +85,8 @@ const iconMap = {
   rosetta: DataAnalysis,
   developability: EditPen,
   maturation: MagicStick,
+  affinity_redesign: Promotion,
+  masking_peptide: SetUp,
   synthesis: Histogram,
   docking: Aim,
   md: Timer,
@@ -81,6 +98,8 @@ const expandableIds: ModuleId[] = [
   'rosetta',
   'developability',
   'maturation',
+  'affinity_redesign',
+  'masking_peptide',
   'synthesis',
   'docking',
   'md',
@@ -93,6 +112,8 @@ const badgeMap = computed(() => ({
   rosetta: moduleJobs.counts.rosetta,
   developability: moduleJobs.counts.developability,
   maturation: moduleJobs.counts.maturation,
+  affinity_redesign: moduleJobs.counts.affinity_redesign,
+  masking_peptide: moduleJobs.counts.masking_peptide,
   synthesis: moduleJobs.counts.synthesis,
   docking: moduleJobs.counts.docking,
   md: moduleJobs.counts.md,
@@ -107,7 +128,7 @@ watch(
 )
 
 function moduleNewRoute(id: ModuleId) {
-  return `${id}-new`
+  return moduleNewRouteName(id)
 }
 
 function toggleModule(id: ModuleId) {
@@ -121,6 +142,10 @@ function goHome() {
 
 function goApp() {
   router.push({ name: 'app' })
+}
+
+function goWorkflows() {
+  router.push({ name: 'workflows' })
 }
 
 function recentFor(id: ModuleId): Array<ModuleNavItem & { _kind?: 'single' | 'batch' }> {
@@ -192,6 +217,7 @@ function formatShortTime(ts: string) {
 
 function crumbHint() {
   if (onApp.value) return '工具目录'
+  if (onWorkflows.value) return route.name === 'workflow-detail' ? '流水线编排' : '工作流中心'
   const name = String(route.name || '')
   if (name.endsWith('-new')) return '新建任务'
   if (name.endsWith('-tasks')) return '全部任务'
@@ -245,6 +271,16 @@ onMounted(() => {
           >
             <el-icon class="nav-icon" :size="18"><Grid /></el-icon>
             <span v-show="!collapsed" class="nav-label">工具目录</span>
+          </button>
+          <button
+            type="button"
+            class="nav-item"
+            :class="{ active: onWorkflows }"
+            title="工作流"
+            @click="goWorkflows"
+          >
+            <el-icon class="nav-icon" :size="18"><SetUp /></el-icon>
+            <span v-show="!collapsed" class="nav-label">工作流</span>
           </button>
         </section>
 
@@ -350,9 +386,9 @@ onMounted(() => {
               :badge="badgeMap[item.id]"
               :expanded="!!expanded[item.id]"
               :recent-items="recentFor(item.id)"
-              :new-route-name="`${item.id}-new`"
-              :tasks-route-name="`${item.id}-tasks`"
-              :task-route-name="`${item.id}-task`"
+              :new-route-name="`${moduleRoutePrefix(item.id)}-new`"
+              :tasks-route-name="`${moduleRoutePrefix(item.id)}-tasks`"
+              :task-route-name="`${moduleRoutePrefix(item.id)}-task`"
               :active="activeModule === item.id"
               @toggle="toggleModule(item.id)"
             />

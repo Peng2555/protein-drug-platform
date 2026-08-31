@@ -26,6 +26,8 @@ from docking_runner import run_small_molecule_docking
 from esm2_developability_runner import run_developability_job as run_developability_pipeline
 from proteinmpnn_design_runner import run_design_job as run_design_pipeline
 from rosetta_eval_runner import run_rosetta_eval_job as run_rosetta_eval_pipeline
+from affinity_redesign_runner import run_affinity_redesign_job as run_affinity_redesign_pipeline
+from masking_peptide_runner import run_masking_peptide_job as run_masking_peptide_pipeline
 
 
 def _needs_pdockq(job: Job) -> bool:
@@ -724,7 +726,105 @@ def run_rosetta_eval_job(self, job_id: str) -> dict:
             job.error_message = None
         else:
             job.status = JobStatus.failed.value
-            job.error_message = (result.error or "Rosetta evaluation failed")[:8000]
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, name="worker.tasks.run_affinity_redesign_job")
+def run_affinity_redesign_job(self, job_id: str) -> dict:
+    db: Session = SessionLocal()
+    try:
+        job = db.get(Job, job_id)
+        if not job or job.engine != "affinity_redesign":
+            return {"error": "not an affinity redesign job"}
+        if job.status == JobStatus.cancelled.value:
+            return {"status": "cancelled"}
+        params = dict(job.params_json or {})
+        job.status = JobStatus.running.value
+        job.stage = "queued"
+        job.started_at = _utcnow()
+        job.celery_task_id = self.request.id
+        db.commit()
+
+        def on_stage(stage: str) -> None:
+            current = db.get(Job, job_id)
+            if current and current.status != JobStatus.cancelled.value:
+                current.stage = stage
+                db.commit()
+
+        result = run_affinity_redesign_pipeline(
+            work_dir=Path(job.work_dir or settings.affinity_redesign_out_root / job.id),
+            params=params,
+            on_stage=on_stage,
+        )
+        job = db.get(Job, job_id)
+        if not job:
+            return {"job_id": job_id, "status": "deleted"}
+        job.finished_at = _utcnow()
+        job.runtime_seconds = result.seconds
+        job.stage = result.stage
+        job.results_json = result.results
+        if result.status == "ok":
+            job.status = JobStatus.done.value
+            job.error_message = None
+        else:
+            job.status = JobStatus.failed.value
+            job.error_message = (result.error or "Affinity redesign workflow failed")[:8000]
+        db.commit()
+        return {"job_id": job_id, "status": job.status}
+    except Exception as exc:
+        job = db.get(Job, job_id)
+        if job:
+            job.status = JobStatus.failed.value
+            job.error_message = str(exc)[:8000]
+            job.finished_at = _utcnow()
+            db.commit()
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, name="worker.tasks.run_masking_peptide_job")
+def run_masking_peptide_job(self, job_id: str) -> dict:
+    db: Session = SessionLocal()
+    try:
+        job = db.get(Job, job_id)
+        if not job or job.engine != "masking_peptide":
+            return {"error": "not a masking peptide job"}
+        if job.status == JobStatus.cancelled.value:
+            return {"status": "cancelled"}
+        params = dict(job.params_json or {})
+        job.status = JobStatus.running.value
+        job.stage = "queued"
+        job.started_at = _utcnow()
+        job.celery_task_id = self.request.id
+        db.commit()
+
+        def on_stage(stage: str) -> None:
+            current = db.get(Job, job_id)
+            if current and current.status != JobStatus.cancelled.value:
+                current.stage = stage
+                db.commit()
+
+        result = run_masking_peptide_pipeline(
+            work_dir=Path(job.work_dir or settings.masking_peptide_out_root / job.id),
+            params=params,
+            on_stage=on_stage,
+        )
+        job = db.get(Job, job_id)
+        if not job:
+            return {"job_id": job_id, "status": "deleted"}
+        job.finished_at = _utcnow()
+        job.runtime_seconds = result.seconds
+        job.stage = result.stage
+        job.results_json = result.results
+        if result.status == "ok":
+            job.status = JobStatus.done.value
+            job.error_message = None
+        else:
+            job.status = JobStatus.failed.value
+            job.error_message = (result.error or "Masking peptide workflow failed")[:8000]
         db.commit()
         return {"job_id": job_id, "status": job.status}
     except Exception as exc:
