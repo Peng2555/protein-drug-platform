@@ -79,6 +79,26 @@ def _load_mut_csv(path: Path, score_keys: tuple[str, ...] = ("mean_dll", "dll"))
     return rows
 
 
+def _count_rosetta_done(campaign_dir: Path) -> tuple[int, int]:
+    root = campaign_dir / "round1" / "rescore" / "rosetta" / "variants"
+    if not root.is_dir():
+        return 0, 0
+    dirs = [p for p in root.iterdir() if p.is_dir()]
+    done = 0
+    for var_dir in dirs:
+        if (var_dir / "relax" / "best.pdb").is_file() or list((var_dir / "relax").glob("relax_*.pdb")):
+            done += 1
+    return done, len(dirs)
+
+
+def _prefer_stage(job_stage: str | None, wf_stage: str | None) -> str | None:
+    """DB 里的 boltz2_*/rosetta 比 workflow_status 的粗粒度 rescore 更准。"""
+    fine = job_stage or ""
+    if fine.startswith("boltz2") or fine in ("rosetta", "boltz2_wt", "done"):
+        return job_stage
+    return wf_stage or job_stage
+
+
 def _parse_boltz2_stage(stage: str | None) -> dict:
     if not stage:
         return {}
@@ -124,7 +144,7 @@ def collect_affinity_redesign_progress(job: Job, *, tail_lines: int = 250) -> di
         if wf_path.is_file():
             try:
                 workflow_status = json.loads(wf_path.read_text(encoding="utf-8"))
-                stage = workflow_status.get("stage") or stage
+                stage = _prefer_stage(stage, workflow_status.get("stage"))
                 progress.update(_parse_boltz2_stage(str(stage) if stage else None))
             except json.JSONDecodeError:
                 pass
@@ -149,8 +169,19 @@ def collect_affinity_redesign_progress(job: Job, *, tail_lines: int = 250) -> di
             progress["boltz2_ok"] = boltz_ok
             progress["boltz2_done"] = boltz_total
             summary.append(f"Boltz2 已完成: {boltz_ok}/{boltz_total or merged_n or '?'}")
+            if boltz_total and boltz_ok >= boltz_total:
+                progress["boltz2_percent"] = 100
+                progress["boltz2_current"] = progress.get("boltz2_current") or boltz_total
+                progress["boltz2_total"] = progress.get("boltz2_total") or boltz_total
 
-        if progress.get("boltz2_total"):
+        ros_done, ros_total = _count_rosetta_done(campaign_dir)
+        if ros_total:
+            progress["rosetta_done"] = ros_done
+            progress["rosetta_total"] = ros_total
+            progress["rosetta_percent"] = min(100, round(100 * ros_done / ros_total)) if ros_total else 0
+            summary.append(f"Rosetta: {ros_done}/{ros_total}")
+
+        if progress.get("boltz2_total") and str(stage or "").startswith("boltz2"):
             cur = progress.get("boltz2_current", 0)
             tot = progress["boltz2_total"]
             progress["boltz2_percent"] = min(100, round(100 * cur / tot)) if tot else 0

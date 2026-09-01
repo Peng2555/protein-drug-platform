@@ -40,6 +40,55 @@ def apply_mutation(seqs: dict[str, str], chain: str, pos1: int, wt: str, mut: st
     return out
 
 
+SEQUENCES_FASTA_NAME = "sequences_wt_mutants.fasta"
+
+
+def _wrap_seq(seq: str, width: int = 60) -> str:
+    seq = seq.replace(" ", "").strip()
+    if not seq:
+        return ""
+    return "\n".join(seq[i : i + width] for i in range(0, len(seq), width))
+
+
+def build_wt_mutant_fasta(
+    seqs: dict[str, str],
+    ranked: list[dict],
+    *,
+    antigen_chain: str | None = None,
+) -> str:
+    """WT + 每个突变体的完整复合物序列；header 标明 WT / 突变。"""
+    lines: list[str] = []
+    for cid, seq in seqs.items():
+        lines.append(f">WT chain={cid} role=wild-type")
+        lines.append(_wrap_seq(seq))
+    for row in ranked:
+        chain = str(row.get("chain") or "").strip()
+        wt = str(row.get("wt") or "").strip()
+        mut = str(row.get("mut") or "").strip()
+        label = str(row.get("label") or "").strip()
+        try:
+            pos = int(row.get("position"))
+        except (TypeError, ValueError):
+            continue
+        if not chain or not wt or not mut:
+            continue
+        vid = str(row.get("variant_id") or "").strip() or variant_id(chain, label or f"{wt}{pos}{mut}")
+        mut_tag = f"{chain}:{wt}{pos}{mut}"
+        try:
+            mut_seqs = apply_mutation(seqs, chain, pos, wt, mut)
+        except (KeyError, ValueError):
+            continue
+        for cid, seq in mut_seqs.items():
+            extra = " role=mutated" if cid == chain else " role=unchanged"
+            if antigen_chain and cid == antigen_chain and cid != chain:
+                extra = " role=antigen_unchanged"
+            lines.append(
+                f">{vid} chain={cid} mutation={mut_tag} wt={wt} mut={mut} position={pos}{extra}"
+            )
+            lines.append(_wrap_seq(seq))
+    return "\n".join(lines) + "\n"
+
+
 def variant_id(chain: str, label: str) -> str:
     return f"{chain}_{label}"
 
@@ -146,6 +195,13 @@ def _run_rosetta(
         shutil.copy2(path, dest)
         mut_copies.append(dest)
 
+    n_jobs = int(cfg.n_jobs or 0)
+    override = work_dir.parent / "n_jobs_override"
+    if override.is_file():
+        try:
+            n_jobs = int(override.read_text(encoding="utf-8").strip())
+        except ValueError:
+            pass
     cmd = [
         settings.pyrosetta_python,
         str(settings.boltz2_root / "scripts" / "rosetta_eval_runner.py"),
@@ -156,7 +212,7 @@ def _run_rosetta(
         "--nstruct",
         str(cfg.nstruct),
         "--n-jobs",
-        str(int(cfg.n_jobs or 0)),
+        str(n_jobs),
         "--antibody-chains",
         " ".join([campaign.chains.heavy] + ([campaign.chains.light] if campaign.chains.light else [])),
         "--antigen-chains",
@@ -465,6 +521,12 @@ def run_rescore(
             if src and Path(src).is_file():
                 shutil.copy2(src, struct_dir / f"{r['variant_id']}.pdb")
 
+    fasta_path = exports / SEQUENCES_FASTA_NAME
+    fasta_path.write_text(
+        build_wt_mutant_fasta(seqs, ranked, antigen_chain=campaign.chains.antigen),
+        encoding="utf-8",
+    )
+
     summary = {
         "status": "ok",
         "n_merged": len(merged_rows),
@@ -480,6 +542,7 @@ def run_rescore(
         "max_ddg": cfg.max_ddg,
         "ranked_csv": str(ranked_path),
         "wetlab_csv": str(wetlab_path),
+        "sequences_fasta": str(fasta_path),
         "structures_dir": str(struct_dir),
     }
     (exports / "summary.json").write_text(

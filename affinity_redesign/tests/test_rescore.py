@@ -1,4 +1,4 @@
-from affinity_redesign.pipeline.rescore import apply_mutation, recommend_row
+from affinity_redesign.pipeline.rescore import apply_mutation, build_wt_mutant_fasta, recommend_row
 from affinity_redesign.schemas import RescoreConfig
 
 
@@ -26,3 +26,19 @@ def test_recommend_keep_and_drop():
         cfg,
     )
     assert review[0] == "review"
+
+
+def test_build_wt_mutant_fasta():
+    seqs = {"H": "QITLE", "A": "AAAAA"}
+    text = build_wt_mutant_fasta(
+        seqs,
+        [{"chain": "H", "position": 3, "wt": "T", "mut": "S", "label": "T3S", "variant_id": "H_T3S"}],
+        antigen_chain="A",
+    )
+    assert ">WT chain=H role=wild-type" in text
+    assert ">WT chain=A role=wild-type" in text
+    assert "mutation=H:T3S" in text
+    assert "QISLE" in text
+    assert "role=antigen_unchanged" in text
+    assert seqs["H"] == "QITLE"
+

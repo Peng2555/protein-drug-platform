@@ -51,7 +51,7 @@
 
 ## 主要目录
 
-`app/` 是 FastAPI 与各模块路由，`worker/` 是 Celery 任务，`scripts/` 里是预测、对接、ESM-2、平台启停脚本。前端在 `frontend/`（部署前需 `bash scripts/build_frontend.sh` 生成 `frontend/dist/`）。运行产物都在本地：`outputs/`、`md_outputs/`、`docking_outputs/` 等，**不会进 git**——详见 [docs/REPOSITORY.md](docs/REPOSITORY.md)。
+`app/` 是 FastAPI 与各模块路由，`worker/` 是 Celery 任务，`scripts/` 里是预测、对接、ESM-2、平台启停脚本。前端在 `frontend/`（部署前需 `bash scripts/build_frontend.sh` 生成 `frontend/dist/`）。运行产物集中在本地 `run/`（根目录的 `outputs/`、`md_outputs/` 等是兼容链接），**不会进 git**——详见 [docs/REPOSITORY.md](docs/REPOSITORY.md)。
 
 克隆后若使用 RAS 对接，需初始化子模块：
 

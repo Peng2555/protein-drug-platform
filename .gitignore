@@ -5,21 +5,22 @@
 # 详细说明见 docs/REPOSITORY.md
 # =============================================================================
 
-# ── 1. 任务运行输出（本地生成，体积大）────────────────────────────────────
-outputs/
-md_outputs/
-docking_outputs/
-ras_docking_outputs/
-maturation_outputs/
-synthesis_outputs/
-developability_outputs/
-design_outputs/
-rosetta_eval_outputs/
-affinity_redesign_outputs/
-masking_peptide_outputs/
+# ── 1. 任务运行输出（本地生成，体积大；含指向 run/ 的兼容链接）──────────────
+run/
+outputs
+md_outputs
+docking_outputs
+ras_docking_outputs
+maturation_outputs
+synthesis_outputs
+developability_outputs
+design_outputs
+rosetta_eval_outputs
+affinity_redesign_outputs
+masking_peptide_outputs
 
 # ── 2. 日志与进程 pid ───────────────────────────────────────────────────────
-logs/
+logs
 *.log
 *.pid
 

@@ -1,0 +1,16 @@
+# 运行产物与依赖：不进 AI 索引，源码目录更干净
+run/
+outputs/
+md_outputs/
+docking_outputs/
+maturation_outputs/
+synthesis_outputs/
+developability_outputs/
+design_outputs/
+rosetta_eval_outputs/
+affinity_redesign_outputs/
+masking_peptide_outputs/
+logs/
+data/
+frontend/node_modules/
+frontend/dist/

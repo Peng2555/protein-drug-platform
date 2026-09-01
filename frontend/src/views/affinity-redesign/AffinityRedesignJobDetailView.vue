@@ -41,7 +41,7 @@ type PipelineStep = { id: string; match: string[]; label: string; hint: string }
 const PIPELINE_STEPS: PipelineStep[] = [
   { id: 'structure', match: ['ensure_structure', 'fold_wt_complex'], label: 'WT 结构', hint: '复合物坐标或 Boltz2 折 WT' },
   { id: 'round1', match: ['round1', 'skip_round1'], label: 'Round1', hint: 'PLM + 结构轨采样' },
-  { id: 'boltz2', match: ['rescore', 'boltz2_wt'], label: 'Boltz2 全量', hint: 'WT + 候选复合物折叠' },
+  { id: 'boltz2', match: ['boltz2_wt'], label: 'Boltz2 全量', hint: 'WT + 候选复合物折叠' },
   { id: 'rosetta', match: ['rosetta'], label: 'Rosetta', hint: '界面 ΔΔG 排序' },
   { id: 'done', match: ['done'], label: '导出', hint: 'ranked / wetlab' },
 ]
@@ -49,20 +49,49 @@ const PIPELINE_STEPS: PipelineStep[] = [
 const currentStage = computed(() => progress.value?.stage || job.value?.stage || 'queued')
 const completedStages = computed(() => progress.value?.workflow_status?.stages as string[] | undefined)
 
+const boltzComplete = computed(() => {
+  const p = progress.value?.progress
+  const ok = Number(p?.boltz2_ok ?? 0)
+  const tot = Number(p?.boltz2_total ?? p?.boltz2_done ?? 0)
+  return tot > 0 && ok >= tot
+})
+
+const onRosetta = computed(() => {
+  const cur = currentStage.value
+  return cur === 'rosetta' || (cur === 'rescore' && boltzComplete.value)
+})
+
+const onBoltz = computed(() => {
+  const cur = currentStage.value
+  if (onRosetta.value || cur === 'done') return false
+  return cur.startsWith('boltz2') || cur === 'rescore' || cur === 'boltz2_wt'
+})
+
 function stepState(step: PipelineStep): 'done' | 'active' | 'pending' {
   const stages = completedStages.value || []
   const cur = currentStage.value
   if (step.match.includes('done') && job.value?.status === 'done') return 'done'
+  if (step.id === 'boltz2') {
+    if (onRosetta.value || cur === 'done' || boltzComplete.value) return 'done'
+    if (onBoltz.value) return 'active'
+  }
+  if (step.id === 'rosetta') {
+    if (cur === 'done' || job.value?.status === 'done') return 'done'
+    if (onRosetta.value) return 'active'
+  }
   if (step.match.some((k) => stages.includes(k))) {
     if (step.match.includes(cur)) return 'active'
     return 'done'
   }
-  if (step.id === 'boltz2' && (cur.startsWith('boltz2') || cur === 'rescore')) return 'active'
   if (step.match.includes(cur)) return 'active'
   const order = PIPELINE_STEPS.map((s) => s.id)
   const curIdx = order.findIndex((id) => {
     const s = PIPELINE_STEPS.find((x) => x.id === id)!
-    return s.match.includes(cur) || (id === 'boltz2' && cur.startsWith('boltz2'))
+    return (
+      s.match.includes(cur) ||
+      (id === 'boltz2' && onBoltz.value) ||
+      (id === 'rosetta' && onRosetta.value)
+    )
   })
   const stepIdx = order.indexOf(step.id)
   if (curIdx >= 0 && stepIdx < curIdx) return 'done'
@@ -79,6 +108,7 @@ const elapsedSeconds = computed(() => {
 
 const boltzPercent = computed(() => {
   const p = progress.value?.progress
+  if (boltzComplete.value) return 100
   if (p?.boltz2_percent != null) return Number(p.boltz2_percent)
   if (p?.boltz2_current != null && p?.boltz2_total) {
     return Math.min(100, Math.round((100 * Number(p.boltz2_current)) / Number(p.boltz2_total)))
@@ -86,10 +116,17 @@ const boltzPercent = computed(() => {
   return 0
 })
 
-const showBoltzProgress = computed(() => {
-  const cur = currentStage.value
-  return cur.startsWith('boltz2') || cur === 'rescore' || progress.value?.progress?.boltz2_total
+const rosettaPercent = computed(() => {
+  const p = progress.value?.progress
+  if (p?.rosetta_percent != null) return Number(p.rosetta_percent)
+  if (p?.rosetta_done != null && p?.rosetta_total) {
+    return Math.min(100, Math.round((100 * Number(p.rosetta_done)) / Number(p.rosetta_total)))
+  }
+  return 0
 })
+
+const showBoltzProgress = computed(() => onBoltz.value && job.value?.status === 'running')
+const showRosettaProgress = computed(() => onRosetta.value && job.value?.status === 'running')
 
 const campaignShort = computed(() => {
   const line = progress.value?.summary_lines?.find((s) => s.startsWith('Campaign:'))
@@ -388,6 +425,12 @@ function statusTagType(status: string) {
             </strong>
           </div>
         </div>
+        <div v-if="progress?.progress?.rosetta_total" class="ar-detail__stat">
+          <div>
+            <span>Rosetta</span>
+            <strong>{{ progress.progress.rosetta_done }}/{{ progress.progress.rosetta_total }}</strong>
+          </div>
+        </div>
         <div class="ar-detail__stat ar-detail__stat--wide">
           <div>
             <span>当前阶段</span>
@@ -396,7 +439,7 @@ function statusTagType(status: string) {
         </div>
       </div>
 
-      <section v-if="showBoltzProgress && job.status === 'running'" class="ar-detail__progress-block">
+      <section v-if="showBoltzProgress" class="ar-detail__progress-block">
         <div class="ar-detail__progress-head">
           <span>Boltz2 折叠进度</span>
           <span v-if="progress?.progress?.boltz2_current">
@@ -404,7 +447,18 @@ function statusTagType(status: string) {
           </span>
         </div>
         <el-progress :percentage="boltzPercent" :stroke-width="10" striped striped-flow />
-        <p class="ar-detail__progress-note">Boltz2 与结构预测 fold 共用 GPU 队列，Rosetta 阶段为 CPU。</p>
+        <p class="ar-detail__progress-note">Boltz2 与结构预测 fold 共用 GPU 队列。</p>
+      </section>
+
+      <section v-if="showRosettaProgress" class="ar-detail__progress-block">
+        <div class="ar-detail__progress-head">
+          <span>Rosetta FastRelax</span>
+          <span v-if="progress?.progress?.rosetta_total">
+            {{ progress.progress.rosetta_done || 0 }}/{{ progress.progress.rosetta_total }}
+          </span>
+        </div>
+        <el-progress :percentage="rosettaPercent" :stroke-width="10" striped striped-flow />
+        <p class="ar-detail__progress-note">Boltz2 已全部完成，正在用 CPU 做界面 ΔΔG（PyRosetta）。</p>
       </section>
 
       <section class="ar-detail__runtime">
@@ -592,6 +646,9 @@ function statusTagType(status: string) {
         <div class="ar-detail__file-actions">
           <el-button size="small" type="primary" @click="download('ranked_mutations.csv')">
             下载 ranked_mutations.csv
+          </el-button>
+          <el-button size="small" @click="download('sequences_wt_mutants.fasta')">
+            突变前后 FASTA
           </el-button>
           <el-button size="small" @click="download('wetlab_candidates.csv')">湿实验短名单</el-button>
           <el-button size="small" @click="download('structures.zip')">structures.zip</el-button>

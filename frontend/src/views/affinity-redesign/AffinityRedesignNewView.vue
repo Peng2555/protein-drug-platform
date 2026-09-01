@@ -314,6 +314,7 @@ function fillExample() {
           <h3>产物</h3>
           <ul>
             <li><code>ranked_mutations.csv</code> 全表</li>
+            <li><code>sequences_wt_mutants.fasta</code> WT + 各突变序列</li>
             <li><code>wetlab_candidates.csv</code> 湿实验短名单</li>
             <li><code>structures/</code> WT + 短名单 PDB</li>
             <li><code>summary.json</code> 汇总指标</li>

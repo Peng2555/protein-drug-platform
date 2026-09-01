@@ -241,6 +241,15 @@ def default_n_jobs(requested: int | None = None, *, work_dir: Path | None = None
     """并行进程数：0/未指定 = 自动（核数减预留）；显式正数按请求（不超过 cpu）。"""
     cpu = os.cpu_count() or 8
     auto = _auto_n_jobs()
+    if work_dir is not None:
+        override = Path(work_dir).parent / "n_jobs_override"
+        if override.is_file():
+            try:
+                n = int(override.read_text(encoding="utf-8").strip())
+                if n > 0:
+                    return max(1, min(n, cpu))
+            except ValueError:
+                pass
     if requested in (None, ""):
         env = os.environ.get("ROSETTA_N_JOBS")
         if env not in (None, "", "0", "auto"):

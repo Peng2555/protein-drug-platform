@@ -169,6 +169,41 @@ def get_ranked(job_id: str, db: Session = Depends(get_db), user: User = Depends(
     return AffinityRedesignRankedOut(ranked=ranked, wetlab=wetlab, summary=summary)
 
 
+def _ensure_sequences_fasta(job: Job) -> Path:
+    from affinity_redesign.common.fasta import parse_fasta_file
+    from affinity_redesign.pipeline.rescore import SEQUENCES_FASTA_NAME, build_wt_mutant_fasta
+
+    exports = _exports_dir(job)
+    path = exports / SEQUENCES_FASTA_NAME
+    if path.is_file() and path.stat().st_size > 0:
+        return path
+    fasta_in = Path(job.work_dir) / "input" / "sequences.fasta"
+    if not fasta_in.is_file():
+        raise HTTPException(404, "缺少 input/sequences.fasta，无法导出突变序列")
+    seqs = parse_fasta_file(fasta_in)
+    ranked: list[dict] = []
+    ranked_path = exports / "ranked_mutations.csv"
+    if ranked_path.is_file():
+        import csv
+
+        with ranked_path.open(newline="", encoding="utf-8") as f:
+            ranked = list(csv.DictReader(f))
+    if not ranked and job.results_json:
+        ranked = list(job.results_json.get("ranked") or [])
+    antigen = None
+    yaml_path = Path(job.work_dir) / "campaign.yaml"
+    if yaml_path.is_file():
+        try:
+            from affinity_redesign.schemas import CampaignConfig
+
+            antigen = CampaignConfig.from_yaml(yaml_path).chains.antigen
+        except Exception:
+            antigen = None
+    exports.mkdir(parents=True, exist_ok=True)
+    path.write_text(build_wt_mutant_fasta(seqs, ranked, antigen_chain=antigen), encoding="utf-8")
+    return path
+
+
 @router.get("/{job_id}/files/{filename}")
 def download_file(
     job_id: str,
@@ -195,6 +230,9 @@ def download_file(
             media_type="application/zip",
             headers={"Content-Disposition": 'attachment; filename="structures.zip"'},
         )
+    if filename == "sequences_wt_mutants.fasta":
+        path = _ensure_sequences_fasta(job)
+        return FileResponse(path, filename=filename, media_type="text/plain; charset=utf-8")
     path = _safe_export_path(job, filename)
     return FileResponse(path, filename=filename, media_type="application/octet-stream")
 

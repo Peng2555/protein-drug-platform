@@ -17,8 +17,8 @@
 | `docs/` | ✅ | 模块集成与仓库说明 |
 | `inputs/` | ✅ | 示例 FASTA 等小输入 |
 | `external/ras-tricomplex-docking/` | 🔗 子模块 | RAS 三元复合物对接外部流程，见下文 |
-| `outputs/` 等 `*_outputs/` | ❌ | 所有任务运行结果（含 `rosetta_eval_outputs/`） |
-| `logs/` | ❌ | API / Celery 日志与 pid |
+| `run/` | ❌ | 所有任务运行结果与日志的实际目录 |
+| `outputs/` 等 `*_outputs/`、`logs/` | ❌ | 指向 `run/` 的兼容链接（`.env` 与历史 `work_dir` 仍走这些路径） |
 | `data/` | ❌ | 本地 SQLite 或运行时数据 |
 
 ## 提交信息
@@ -50,7 +50,7 @@ git clone --recurse-submodules https://github.com/Peng2555/Boltz2.git
 ### 绝不上传
 
 - **密钥**：`.env`、任何含密码/Token 的文件（只提交 `.env.example`）
-- **任务产物**：`outputs/`、`md_outputs/`、`docking_outputs/`、`maturation_outputs/`、`synthesis_outputs/`、`developability_outputs/`
+- **任务产物**：`run/`，以及根目录兼容链接 `outputs/`、`md_outputs/`、`docking_outputs/`、`maturation_outputs/`、`synthesis_outputs/`、`developability_outputs/`
 - **结构/轨迹**：`*.cif`、`*.pdb`、`*.npz`、`*.gro`、`*.xtc` 等
 - **模型权重**：`*.ckpt`、`*.pt`、`weights/`
 - **前端构建**：`frontend/dist/`、`frontend/node_modules/`
