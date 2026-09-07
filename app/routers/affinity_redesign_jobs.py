@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import csv
 import io
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -12,7 +14,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.affinity_redesign_service import create_and_queue_affinity_redesign_job, save_structure_upload
-from app.affinity_redesign_progress import collect_affinity_redesign_progress
+from app.affinity_redesign_progress import (
+    collect_affinity_redesign_progress,
+    collect_mutation_records,
+    build_mutation_region_table,
+    mutation_region_table_csv,
+)
 from app.celery_app import celery_app
 from app.config import settings
 from app.database import get_db
@@ -72,6 +79,7 @@ def create_job(
         fasta_text=body.fasta,
         complex_path=None,
         skip_round1=body.skip_round1,
+        consensus_k=body.consensus_k,
     )
     db.commit()
     db.refresh(job)
@@ -83,6 +91,7 @@ async def create_job_upload(
     fasta: str = Form(...),
     name: str | None = Form(default=None),
     skip_round1: bool = Form(default=False),
+    consensus_k: int = Form(default=3),
     complex_pdb: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -94,6 +103,7 @@ async def create_job_upload(
         complex_path = await save_structure_upload(complex_pdb, tmp / f"complex{suffix}")
 
     job_name = name.strip() if name and name.strip() else "affinity_redesign"
+    k = max(1, min(6, int(consensus_k or 3)))
     job = create_and_queue_affinity_redesign_job(
         db,
         user_id=user.id,
@@ -101,6 +111,7 @@ async def create_job_upload(
         fasta_text=fasta,
         complex_path=complex_path,
         skip_round1=skip_round1,
+        consensus_k=k,
     )
     db.commit()
     db.refresh(job)
@@ -166,7 +177,12 @@ def get_ranked(job_id: str, db: Session = Depends(get_db), user: User = Depends(
             import json
 
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    return AffinityRedesignRankedOut(ranked=ranked, wetlab=wetlab, summary=summary)
+    mutation_table: list[dict] = []
+    if job.work_dir:
+        mutation_table = build_mutation_region_table(collect_mutation_records(Path(job.work_dir)))
+    return AffinityRedesignRankedOut(
+        ranked=ranked, wetlab=wetlab, summary=summary, mutation_table=mutation_table
+    )
 
 
 def _ensure_sequences_fasta(job: Job) -> Path:
@@ -175,8 +191,6 @@ def _ensure_sequences_fasta(job: Job) -> Path:
 
     exports = _exports_dir(job)
     path = exports / SEQUENCES_FASTA_NAME
-    if path.is_file() and path.stat().st_size > 0:
-        return path
     fasta_in = Path(job.work_dir) / "input" / "sequences.fasta"
     if not fasta_in.is_file():
         raise HTTPException(404, "缺少 input/sequences.fasta，无法导出突变序列")
@@ -191,17 +205,62 @@ def _ensure_sequences_fasta(job: Job) -> Path:
     if not ranked and job.results_json:
         ranked = list(job.results_json.get("ranked") or [])
     antigen = None
+    antibody_chains: list[str] | None = None
     yaml_path = Path(job.work_dir) / "campaign.yaml"
     if yaml_path.is_file():
         try:
             from affinity_redesign.schemas import CampaignConfig
 
-            antigen = CampaignConfig.from_yaml(yaml_path).chains.antigen
+            chains = CampaignConfig.from_yaml(yaml_path).chains
+            antigen = chains.antigen
+            antibody_chains = [chains.heavy]
+            if chains.light:
+                antibody_chains.append(chains.light)
         except Exception:
             antigen = None
+            antibody_chains = None
     exports.mkdir(parents=True, exist_ok=True)
-    path.write_text(build_wt_mutant_fasta(seqs, ranked, antigen_chain=antigen), encoding="utf-8")
+    # 每次下载按当前规则重写，避免旧版（含抗原）FASTA 残留
+    path.write_text(
+        build_wt_mutant_fasta(
+            seqs,
+            ranked,
+            antigen_chain=antigen,
+            antibody_chains=antibody_chains,
+        ),
+        encoding="utf-8",
+    )
     return path
+
+
+def _ensure_structures_dir(job: Job) -> Path:
+    """确保 exports/structures 含全部 Boltz2 pred.pdb（兼容旧任务只导出了 WT/湿实验）。"""
+    exports = _exports_dir(job)
+    struct_dir = exports / "structures"
+    struct_dir.mkdir(parents=True, exist_ok=True)
+    campaign = Path(job.work_dir) if job.work_dir else None
+    if campaign and campaign.is_dir():
+        fold_root = campaign / "round1" / "rescore" / "boltz2"
+        if fold_root.is_dir():
+            for pred in fold_root.glob("*/pred.pdb"):
+                name = pred.parent.name
+                dest = struct_dir / ("WT.pdb" if name == "WT" else f"{name}.pdb")
+                if not dest.is_file() or dest.stat().st_mtime < pred.stat().st_mtime:
+                    shutil.copy2(pred, dest)
+        # ranked CSV 里的 pred_pdb 路径（若仍存在）
+        ranked_path = exports / "ranked_mutations.csv"
+        if ranked_path.is_file():
+            with ranked_path.open(newline="", encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    vid = str(row.get("variant_id") or "").strip()
+                    src = str(row.get("pred_pdb") or "").strip()
+                    if not vid or not src:
+                        continue
+                    src_path = Path(src)
+                    dest = struct_dir / f"{vid}.pdb"
+                    if src_path.is_file() and (not dest.is_file() or dest.stat().st_mtime < src_path.stat().st_mtime):
+                        shutil.copy2(src_path, dest)
+    return struct_dir
 
 
 @router.get("/{job_id}/files/{filename}")
@@ -213,23 +272,34 @@ def download_file(
 ):
     job = _job_or_404(db, user.id, job_id)
     if filename == "structures.zip":
-        struct_dir = _exports_dir(job) / "structures"
-        if not struct_dir.is_dir():
-            raise HTTPException(404, "structures/ 不存在")
+        struct_dir = _ensure_structures_dir(job)
+        pdbs = sorted(struct_dir.glob("*.pdb"))
+        cifs = sorted(struct_dir.glob("*.cif"))
+        if not pdbs and not cifs:
+            raise HTTPException(404, "structures/ 为空（尚无 Boltz2 预测结构）")
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            for pdb in sorted(struct_dir.glob("*.pdb")):
+            for pdb in pdbs:
                 zf.write(pdb, pdb.name)
-            for cif in sorted(struct_dir.glob("*.cif")):
+            for cif in cifs:
                 zf.write(cif, cif.name)
-        if not buf.tell():
-            raise HTTPException(404, "structures/ 为空")
         buf.seek(0)
         return StreamingResponse(
             buf,
             media_type="application/zip",
             headers={"Content-Disposition": 'attachment; filename="structures.zip"'},
         )
+    if filename == "mutation_sites.csv":
+        if not job.work_dir:
+            raise HTTPException(404, "缺少 campaign 目录")
+        rows = build_mutation_region_table(collect_mutation_records(Path(job.work_dir)))
+        if not rows:
+            raise HTTPException(404, "尚无突变位点（Round1 完成后生成）")
+        exports = _exports_dir(job)
+        exports.mkdir(parents=True, exist_ok=True)
+        path = exports / "mutation_sites.csv"
+        path.write_text(mutation_region_table_csv(rows), encoding="utf-8-sig")
+        return FileResponse(path, filename="mutation_sites.csv", media_type="text/csv; charset=utf-8")
     if filename == "sequences_wt_mutants.fasta":
         path = _ensure_sequences_fasta(job)
         return FileResponse(path, filename=filename, media_type="text/plain; charset=utf-8")

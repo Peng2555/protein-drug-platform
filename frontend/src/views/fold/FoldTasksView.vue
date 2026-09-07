@@ -6,7 +6,7 @@ import { deleteJob } from '@/api/jobs'
 import { deleteBatch } from '@/api/batches'
 import { useFoldTasksStore } from '@/stores/foldTasks'
 import type { Batch, Job } from '@/api/types'
-import { batchStatusLabel, engineLabel, statusLabel } from '@/utils/constants'
+import { batchStatusLabel, engineLabel, foldScoreTag, statusLabel } from '@/utils/constants'
 
 const route = useRoute()
 const router = useRouter()
@@ -160,8 +160,8 @@ onMounted(() => {
             {{ Object.keys((item.data as Job).chains_json || {}).join(', ') || '—' }}
             · {{ (item.data as Job).total_length ?? '—' }} aa
             · {{ engineLabel((item.data as Job).engine) }}
-            <template v-if="(item.data as Job).iptm != null">
-              · ipTM {{ (item.data as Job).iptm!.toFixed(2) }}
+            <template v-if="foldScoreTag(item.data as Job)">
+              · {{ foldScoreTag(item.data as Job) }}
             </template>
           </template>
           <template v-else>

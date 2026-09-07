@@ -10,6 +10,7 @@ export type AffinityRedesignCreateBody = {
   name?: string | null
   fasta: string
   skip_round1?: boolean
+  consensus_k?: number
 }
 
 export async function fetchAffinityRedesignJobs(limit = 50) {
@@ -35,12 +36,13 @@ export async function createAffinityRedesignJob(body: AffinityRedesignCreateBody
 export async function uploadAffinityRedesignJob(
   fasta: string,
   complexPdb: File | null,
-  body: Pick<AffinityRedesignCreateBody, 'name' | 'skip_round1'>,
+  body: Pick<AffinityRedesignCreateBody, 'name' | 'skip_round1' | 'consensus_k'>,
 ) {
   const fd = new FormData()
   fd.append('fasta', fasta)
   if (body.name) fd.append('name', body.name)
   fd.append('skip_round1', String(Boolean(body.skip_round1)))
+  fd.append('consensus_k', String(body.consensus_k ?? 3))
   if (complexPdb) fd.append('complex_pdb', complexPdb)
   return apiJson<AffinityRedesignJob>('/api/affinity-redesign-jobs/upload', { method: 'POST', data: fd })
 }

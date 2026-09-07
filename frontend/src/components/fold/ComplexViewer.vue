@@ -19,18 +19,23 @@ const props = withDefaults(
     status?: string | null
     chains?: InterfaceChainMeta[] | null
     sequences?: ChainSequence[] | null
+    modelIndex?: number | null
+    samples?: Array<{ index: number; iptm?: number | null; ptm?: number | null; is_selected?: boolean }> | null
   }>(),
   {
     jobId: null,
     status: null,
     chains: null,
     sequences: null,
+    modelIndex: null,
+    samples: null,
   },
 )
 
 const emit = defineEmits<{
   loaded: [payload: { jobId: string; cifText: string }]
   error: [message: string]
+  'update:modelIndex': [value: number]
 }>()
 
 const viewerRef = ref<InstanceType<typeof StructureViewer> | null>(null)
@@ -40,6 +45,16 @@ const showSequence = ref(true)
 const shellEl = ref<HTMLElement | null>(null)
 
 const hasSequences = computed(() => (props.sequences?.length || 0) > 0)
+const sampleCount = computed(() => props.samples?.length || 0)
+
+function sampleLabel(s: { index: number; iptm?: number | null; ptm?: number | null; is_selected?: boolean }) {
+  const iptmOk = s.iptm != null && !Number.isNaN(Number(s.iptm)) && Number(s.iptm) > 1e-6
+  if (iptmOk) {
+    return `构象 ${s.index + 1}${s.is_selected ? ' · 代表' : ''} · ipTM ${Number(s.iptm).toFixed(3)}`
+  }
+  const ptm = s.ptm != null && !Number.isNaN(Number(s.ptm)) ? Number(s.ptm).toFixed(3) : '—'
+  return `构象 ${s.index + 1}${s.is_selected ? ' · 代表' : ''} · pTM ${ptm}`
+}
 
 const webglOk = computed(() => {
   try {
@@ -184,9 +199,24 @@ defineExpose({
     <div class="complex-viewer__toolbar">
       <div class="toolbar-left">
         <strong>复合物 3D</strong>
-        <span>Mol* · 真实结构</span>
+        <span v-if="sampleCount > 1">共 {{ sampleCount }} 个扩散构象，可切换查看 / 下载</span>
+        <span v-else>Mol* · 真实结构</span>
       </div>
       <div class="toolbar-actions">
+        <el-select
+          v-if="sampleCount > 1"
+          :model-value="modelIndex ?? 0"
+          size="small"
+          style="width: 210px"
+          @update:model-value="(v) => emit('update:modelIndex', Number(v))"
+        >
+          <el-option
+            v-for="s in samples"
+            :key="s.index"
+            :label="sampleLabel(s)"
+            :value="s.index"
+          />
+        </el-select>
         <el-button-group size="small">
           <el-button @click="resetCamera">重置视角</el-button>
           <el-button @click="zoom(0.85)">放大</el-button>
@@ -240,6 +270,7 @@ defineExpose({
           :job-id="jobId"
           :status="status"
           :chains="chains"
+          :model-index="modelIndex"
           @loaded="onLoaded"
           @error="onError"
         />

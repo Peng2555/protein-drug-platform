@@ -10,6 +10,7 @@ import {
   EXAMPLE_FASTA,
   batchStatusLabel,
   engineLabel,
+  foldScoreTag,
   statusLabel,
 } from '@/utils/constants'
 import { importHeavyChainFile, parseHeavyChainText, type HeavyChainRow } from '@/utils/heavyChain'
@@ -507,8 +508,8 @@ onMounted(() => {
               }}
               · {{ (item.data as Job).total_length }} aa
               · {{ engineLabel((item.data as Job).engine) }}
-              <template v-if="(item.data as Job).iptm != null">
-                · ipTM {{ (item.data as Job).iptm!.toFixed(2) }}
+              <template v-if="foldScoreTag(item.data as Job)">
+                · {{ foldScoreTag(item.data as Job) }}
               </template>
               <template v-if="(item.data as Job).complex_plddt != null">
                 · pLDDT {{

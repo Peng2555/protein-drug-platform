@@ -284,54 +284,202 @@ def _boltz_run_error(out_dir: Path, proc: subprocess.CompletedProcess) -> str:
     return "boltz predict finished without structure output"
 
 
-def extract_metrics(out_dir: Path, seconds: float | None = None) -> dict:
-    cif_files = sorted(out_dir.rglob("*_model_0.cif"))
-    if not cif_files:
-        raise FileNotFoundError(f"No *_model_0.cif under {out_dir}")
-    pred_src = cif_files[0]
+def _model_index(path: Path) -> int | None:
+    m = re.search(r"_model_(\d+)\.(?:cif|pdb|json)$", path.name)
+    return int(m.group(1)) if m else None
+
+
+def _median(values: list[float]) -> float | None:
+    if not values:
+        return None
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    if n % 2:
+        return float(s[mid])
+    return float(s[mid - 1] + s[mid]) / 2.0
+
+
+def _n_pair_chains(pair: dict | None) -> int:
+    if not isinstance(pair, dict) or not pair:
+        return 0
+    ids = {str(k) for k in pair}
+    for inner in pair.values():
+        if isinstance(inner, dict):
+            ids.update(str(k) for k in inner)
+    return len(ids)
+
+
+def _is_monomer_fold(num_chains: int | None, samples: list[dict]) -> bool:
+    """单体没有跨链界面，Boltz 仍可能写出 iptm=0。"""
+    if num_chains is not None and num_chains <= 1:
+        return True
+    pair_ns = [_n_pair_chains(s.get("pair_chains_iptm")) for s in samples]
+    pair_ns = [n for n in pair_ns if n > 0]
+    if pair_ns and max(pair_ns) <= 1:
+        return True
+    return False
+
+
+def _select_best_sample(samples: list[dict], *, monomer: bool = False) -> dict:
+    """复合物：ipTM 最高；单体：pTM / confidence_score 最高。"""
+
+    def key(s: dict):
+        if monomer:
+            ptm = s.get("ptm")
+            conf = s.get("confidence_score")
+            return (
+                1 if ptm is None else 0,
+                -(float(ptm) if ptm is not None else 0.0),
+                1 if conf is None else 0,
+                -(float(conf) if conf is not None else 0.0),
+                int(s.get("index") or 0),
+            )
+        iptm = s.get("iptm")
+        conf = s.get("confidence_score")
+        return (
+            1 if iptm is None else 0,
+            -(float(iptm) if iptm is not None else 0.0),
+            1 if conf is None else 0,
+            -(float(conf) if conf is not None else 0.0),
+            int(s.get("index") or 0),
+        )
+
+    return min(samples, key=key)
+
+
+def discover_boltz_samples(out_dir: Path) -> list[dict]:
+    """收集 Boltz 各 diffusion sample 的结构与 confidence。"""
+    by_idx: dict[int, dict] = {}
+    for path in out_dir.rglob("*_model_*.cif"):
+        idx = _model_index(path)
+        if idx is None or path.name.startswith("pred"):
+            continue
+        by_idx.setdefault(idx, {})["cif"] = path
+    for path in out_dir.rglob("*_model_*.pdb"):
+        idx = _model_index(path)
+        if idx is None:
+            continue
+        by_idx.setdefault(idx, {})["pdb"] = path
+    for path in out_dir.rglob("confidence_*_model_*.json"):
+        idx = _model_index(path)
+        if idx is None:
+            continue
+        by_idx.setdefault(idx, {})["conf_path"] = path
+
+    samples: list[dict] = []
+    for idx in sorted(by_idx):
+        item = by_idx[idx]
+        conf: dict = {}
+        conf_path = item.get("conf_path")
+        if conf_path and Path(conf_path).is_file():
+            try:
+                conf = json.loads(Path(conf_path).read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                conf = {}
+        samples.append(
+            {
+                "index": idx,
+                "cif": str(item["cif"]) if item.get("cif") else None,
+                "pdb": str(item["pdb"]) if item.get("pdb") else None,
+                "iptm": conf.get("iptm"),
+                "ptm": conf.get("ptm"),
+                "confidence_score": conf.get("confidence_score"),
+                "complex_plddt": conf.get("complex_plddt"),
+                "complex_iplddt": conf.get("complex_iplddt"),
+                "pair_chains_iptm": conf.get("pair_chains_iptm"),
+                "chains_ptm": conf.get("chains_ptm"),
+            }
+        )
+    return samples
+
+
+def extract_metrics(out_dir: Path, seconds: float | None = None, num_chains: int | None = None) -> dict:
+    """汇总多 sample：官方 ipTM 为中位数；pred.cif 复制 ipTM 最高的那一个。
+
+    单体无界面：不把 Boltz 的 iptm=0 当成有效 ipTM，代表结构改按 pTM 选取。
+    """
+    samples = discover_boltz_samples(out_dir)
+    cif_samples = [s for s in samples if s.get("cif")]
+    if not cif_samples:
+        cif_files = sorted(out_dir.rglob("*_model_0.cif"))
+        if not cif_files:
+            raise FileNotFoundError(f"No *_model_*.cif under {out_dir}")
+        cif_samples = [{"index": 0, "cif": str(cif_files[0]), "iptm": None}]
+        samples = cif_samples
+
+    monomer = _is_monomer_fold(num_chains, samples)
+    best = _select_best_sample(cif_samples, monomer=monomer)
+    pred_src = Path(best["cif"])
     pred_dst = out_dir / "pred.cif"
     shutil.copy2(pred_src, pred_dst)
 
-    conf: dict = {}
-    conf_files = sorted(out_dir.rglob("confidence_*_model_0.json"))
-    if conf_files:
-        conf = json.loads(conf_files[0].read_text())
+    if monomer:
+        iptm_median = None
+        iptm_max = None
+        iptm_mean = None
+        ptms = [float(s["ptm"]) for s in samples if s.get("ptm") is not None]
+        ptm_value = best.get("ptm")
+        if ptm_value is None and ptms:
+            ptm_value = _median(ptms)
+    else:
+        iptms = [float(s["iptm"]) for s in samples if s.get("iptm") is not None]
+        iptm_median = _median(iptms)
+        iptm_max = max(iptms) if iptms else None
+        iptm_mean = sum(iptms) / len(iptms) if iptms else None
+        ptm_value = best.get("ptm")
 
     metrics = {
         "pred_cif": str(pred_dst),
         "source_cif": str(pred_src),
         "seconds": seconds,
-        "confidence_score": conf.get("confidence_score"),
-        "ptm": conf.get("ptm"),
-        "iptm": conf.get("iptm"),
-        "complex_plddt": conf.get("complex_plddt"),
-        "complex_iplddt": conf.get("complex_iplddt"),
-        "pair_chains_iptm": conf.get("pair_chains_iptm"),
-        "chains_ptm": conf.get("chains_ptm"),
+        "n_samples": len(samples),
+        "selected_model": best.get("index"),
+        "has_interface": not monomer,
+        "iptm": iptm_median,
+        "iptm_median": iptm_median,
+        "iptm_max": iptm_max,
+        "iptm_mean": round(iptm_mean, 6) if iptm_mean is not None else None,
+        "confidence_score": best.get("confidence_score") if not monomer else (best.get("confidence_score") or best.get("ptm")),
+        "ptm": ptm_value,
+        "complex_plddt": best.get("complex_plddt"),
+        "complex_iplddt": best.get("complex_iplddt"),
+        "pair_chains_iptm": best.get("pair_chains_iptm"),
+        "chains_ptm": best.get("chains_ptm"),
+        "samples": [
+            {
+                "index": s.get("index"),
+                "iptm": None if monomer else s.get("iptm"),
+                "ptm": s.get("ptm"),
+                "confidence_score": s.get("confidence_score"),
+            }
+            for s in samples
+        ],
     }
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
-    try:
-        from pdockq_runner import compute_pdockq_from_boltz_dir
+    if not monomer:
+        try:
+            from pdockq_runner import compute_pdockq_from_boltz_dir
 
-        pq = compute_pdockq_from_boltz_dir(out_dir)
-        if pq.pdockq is not None and pq.pdockq > 0:
-            metrics["pdockq"] = pq.pdockq
-            metrics["pdockq2"] = pq.pdockq2
-            metrics["pdockq_interfaces"] = [
-                {
-                    "chain_a": i.chain_a,
-                    "chain_b": i.chain_b,
-                    "contact_pairs": i.contact_pairs,
-                    "avg_interface_plddt": i.avg_interface_plddt,
-                    "pdockq": i.pdockq,
-                    "pdockq2": i.pdockq2,
-                }
-                for i in pq.interfaces
-            ]
-            (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+            pq = compute_pdockq_from_boltz_dir(out_dir)
+            if pq.pdockq is not None and pq.pdockq > 0:
+                metrics["pdockq"] = pq.pdockq
+                metrics["pdockq2"] = pq.pdockq2
+                metrics["pdockq_interfaces"] = [
+                    {
+                        "chain_a": i.chain_a,
+                        "chain_b": i.chain_b,
+                        "contact_pairs": i.contact_pairs,
+                        "avg_interface_plddt": i.avg_interface_plddt,
+                        "pdockq": i.pdockq,
+                        "pdockq2": i.pdockq2,
+                    }
+                    for i in pq.interfaces
+                ]
+                (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+        except Exception:
+            pass
 
     return metrics
 
@@ -542,23 +690,26 @@ def fold_sequences(
 
     if skip_if_done and (job_dir / "metrics.json").exists():
         m = json.loads((job_dir / "metrics.json").read_text())
-        return FoldResult(
-            job_id=job_id,
-            status="ok",
-            fasta=str(fasta_path) if fasta_path else None,
-            num_chains=len(seqs),
-            total_length=total_len,
-            chains=chains_len,
-            pred_cif=m.get("pred_cif"),
-            pred_pdb=str(job_dir / "pred.pdb") if (job_dir / "pred.pdb").exists() else None,
-            iptm=m.get("iptm"),
-            ptm=m.get("ptm"),
-            confidence_score=m.get("confidence_score"),
-            complex_plddt=m.get("complex_plddt"),
-            pdockq=m.get("pdockq"),
-            pdockq2=m.get("pdockq2"),
-            seconds=m.get("seconds") or 0.0,
-        )
+        n_have = int(m.get("n_samples") or 1)
+        has_pred = (job_dir / "pred.cif").is_file() or (job_dir / "pred.pdb").is_file()
+        if n_have >= int(diffusion_samples or 1) and has_pred:
+            return FoldResult(
+                job_id=job_id,
+                status="ok",
+                fasta=str(fasta_path) if fasta_path else None,
+                num_chains=len(seqs),
+                total_length=total_len,
+                chains=chains_len,
+                pred_cif=m.get("pred_cif"),
+                pred_pdb=str(job_dir / "pred.pdb") if (job_dir / "pred.pdb").exists() else None,
+                iptm=m.get("iptm"),
+                ptm=m.get("ptm"),
+                confidence_score=m.get("confidence_score"),
+                complex_plddt=m.get("complex_plddt"),
+                pdockq=m.get("pdockq"),
+                pdockq2=m.get("pdockq2"),
+                seconds=m.get("seconds") or 0.0,
+            )
 
     try:
         if seqs:
@@ -625,9 +776,9 @@ def fold_sequences(
             result_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
             return result
 
-        # Prefer model_0 cif; also accept pdb if requested
-        cif_hits = sorted(job_dir.rglob("*_model_0.cif"))
-        pdb_hits = sorted(job_dir.rglob("*_model_0.pdb"))
+        # Any diffusion sample is enough to proceed; metrics 会选 best / 算 median
+        cif_hits = [p for p in sorted(job_dir.rglob("*_model_*.cif")) if p.name != "pred.cif"]
+        pdb_hits = sorted(job_dir.rglob("*_model_*.pdb"))
         if not cif_hits and not pdb_hits:
             err = _boltz_run_error(job_dir, proc)
             (job_dir / "error.log").write_text(err, encoding="utf-8")
@@ -672,7 +823,7 @@ def fold_sequences(
             result_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
             return result
 
-        metrics = extract_metrics(job_dir, seconds=elapsed)
+        metrics = extract_metrics(job_dir, seconds=elapsed, num_chains=len(seqs))
         pred_cif = Path(metrics["pred_cif"])
         pred_pdb_path: str | None = None
         if write_pdb and pred_cif.exists():

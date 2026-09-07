@@ -10,6 +10,7 @@ defineProps<{
   showDesign?: boolean
   showRosetta?: boolean
   showExport?: boolean
+  exportLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -50,7 +51,7 @@ const emit = defineEmits<{
         <el-button v-if="showDesign" @click="emit('startDesign')">启动序列设计</el-button>
         <el-button v-if="showRosetta" @click="emit('startRosetta')">启动结构评价</el-button>
         <el-button v-if="showMd" type="primary" @click="emit('startMd')">启动 MD</el-button>
-        <el-button v-if="showExport" @click="emit('export')">导出结构</el-button>
+        <el-button v-if="showExport" @click="emit('export')">{{ exportLabel || '导出结构' }}</el-button>
         <el-button type="danger" plain @click="emit('delete')">删除</el-button>
       </div>
     </div>

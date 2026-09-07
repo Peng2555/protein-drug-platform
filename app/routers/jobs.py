@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import sys
+import zipfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
@@ -15,6 +17,7 @@ from app.config import settings
 from app.engines import FOLD_ENGINES
 from app.database import get_db
 from app.deps import get_current_user
+from app.fold_samples import fold_sample_payload, list_fold_samples, resolve_fold_cif
 from app.job_paths import default_job_name, remove_job_outputs
 from app.job_service import create_and_queue_job, dispatch_job, fasta_from_seqs, sequence_hash
 from app.models import Job, JobStatus, User
@@ -25,6 +28,34 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from boltz_runner import parse_fasta_text, validate_boltz_chain_ids
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
+
+
+def _is_monomer_job(job: Job) -> bool:
+    return len(job.chains_json or {}) <= 1
+
+
+def _job_out(job: Job) -> JobOut:
+    out = JobOut.model_validate(job)
+    extra = fold_sample_payload(job)
+    monomer = _is_monomer_job(job)
+    if monomer:
+        stored_iptm = job.iptm
+        out.iptm = None
+        extra["has_interface"] = False
+        samples = extra.get("samples")
+        if isinstance(samples, list):
+            extra["samples"] = [
+                {**s, "iptm": None} if isinstance(s, dict) else s for s in samples
+            ]
+        if out.ptm is not None and stored_iptm is not None and float(stored_iptm) <= 1e-6:
+            bad = 0.2 * float(out.ptm)
+            if out.confidence_score is None or abs(float(out.confidence_score) - bad) < 1e-3:
+                out.confidence_score = out.ptm
+    if extra:
+        merged = dict(out.results_json or {})
+        merged.update(extra)
+        out.results_json = merged
+    return out
 
 
 def _seqs_from_body(body: JobCreate) -> dict[str, str]:
@@ -209,7 +240,7 @@ def list_jobs(
         count_q = count_q.where(Job.batch_id.is_(None))
     total = db.scalar(count_q) or 0
     rows = db.scalars(q.order_by(Job.created_at.desc()).limit(limit).offset(offset)).all()
-    return JobListOut(items=[JobOut.model_validate(j) for j in rows], total=total)
+    return JobListOut(items=[_job_out(j) for j in rows], total=total)
 
 
 @router.get("/{job_id}", response_model=JobOut)
@@ -217,7 +248,7 @@ def get_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(get
     job = db.get(Job, job_id)
     if not job or job.user_id != user.id:
         raise HTTPException(404, "Job not found")
-    return JobOut.model_validate(job)
+    return _job_out(job)
 
 
 @router.post("/{job_id}/cancel", response_model=JobOut)
@@ -287,32 +318,66 @@ def get_job_interface(job_id: str, db: Session = Depends(get_db), user: User = D
 
 
 @router.get("/{job_id}/structure")
-def download_structure(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def download_structure(
+    job_id: str,
+    model: int | None = Query(default=None, ge=0, description="扩散采样编号；省略则为 ipTM 最高的代表结构"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     job = db.get(Job, job_id)
     if not job or job.user_id != user.id:
         raise HTTPException(404, "Job not found")
     if job.status != JobStatus.done.value:
         raise HTTPException(409, f"Job status: {job.status}")
 
-    cif: Path | None = None
-    if job.structure_path:
-        cif = Path(job.structure_path)
-    elif job.work_dir:
-        cif = Path(job.work_dir) / "pred.cif"
-    else:
-        cif = settings.boltz2_out_root / job.id / "pred.cif"
-    if not cif.is_file() and job.work_dir:
-        cif = Path(job.work_dir) / "pred.cif"
-    if not cif.is_file():
-        legacy = settings.boltz2_out_root / job.id / "pred.cif"
-        if legacy.is_file():
-            cif = legacy
-    if not cif.is_file():
-        raise HTTPException(404, f"Structure file not found: {cif}")
-    # Do not put raw non-ASCII names in Content-Disposition; HTTP headers are latin-1.
-    # Starlette quotes filename*=utf-8''… when the name is not ASCII.
+    cif = resolve_fold_cif(job, model)
+    if cif is None or not cif.is_file():
+        # 兼容旧路径
+        if job.structure_path:
+            cif = Path(job.structure_path)
+        elif job.work_dir:
+            cif = Path(job.work_dir) / "pred.cif"
+        else:
+            cif = settings.boltz2_out_root / job.id / "pred.cif"
+        if not cif.is_file() and job.work_dir:
+            cif = Path(job.work_dir) / "pred.cif"
+        if not cif.is_file():
+            legacy = settings.boltz2_out_root / job.id / "pred.cif"
+            if legacy.is_file():
+                cif = legacy
+    if cif is None or not cif.is_file():
+        raise HTTPException(404, "Structure file not found")
+    suffix = f"_model_{model}" if model is not None else ""
     return FileResponse(
         cif,
-        filename=f"{job.name or job.id}.cif",
+        filename=f"{job.name or job.id}{suffix}.cif",
         media_type="chemical/x-mmcif",
     )
+
+
+@router.get("/{job_id}/structures.zip")
+def download_structures_zip(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    job = db.get(Job, job_id)
+    if not job or job.user_id != user.id:
+        raise HTTPException(404, "Job not found")
+    if job.status != JobStatus.done.value:
+        raise HTTPException(409, f"Job status: {job.status}")
+    samples = list_fold_samples(job)
+    if not samples:
+        raise HTTPException(404, "No structure samples found")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for row in samples:
+            src = Path(row["cif"])
+            if not src.is_file():
+                continue
+            tag = "_best" if row.get("is_selected") else ""
+            zf.write(src, arcname=f"model_{row['index']}{tag}.cif")
+    buf.seek(0)
+    filename = f"{job.name or job.id}_samples.zip"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=buf.getvalue(), media_type="application/zip", headers=headers)

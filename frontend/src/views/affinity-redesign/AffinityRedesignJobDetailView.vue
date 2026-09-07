@@ -12,6 +12,7 @@ import {
 import type {
   AffinityRedesignHit,
   AffinityRedesignJob,
+  AffinityRedesignMutationSiteRow,
   AffinityRedesignProgressOut,
   AffinityRedesignRankedRow,
 } from '@/api/types'
@@ -35,25 +36,48 @@ const params = computed(() => job.value?.params_json || {})
 const entryMode = computed(() =>
   params.value.entry_mode === 'structure' ? '入口 A · 已有复合物' : '入口 B · 仅序列',
 )
+const consensusLabel = computed(() => {
+  const k = Number(params.value.consensus_k)
+  const n = Number(params.value.plm_n_models || 6)
+  if (!k || Number.isNaN(k)) return ''
+  return `${k}/${n}`
+})
 
 type PipelineStep = { id: string; match: string[]; label: string; hint: string }
 
 const PIPELINE_STEPS: PipelineStep[] = [
   { id: 'structure', match: ['ensure_structure', 'fold_wt_complex'], label: 'WT 结构', hint: '复合物坐标或 Boltz2 折 WT' },
   { id: 'round1', match: ['round1', 'skip_round1'], label: 'Round1', hint: 'PLM + 结构轨采样' },
-  { id: 'boltz2', match: ['boltz2_wt'], label: 'Boltz2 全量', hint: 'WT + 候选复合物折叠' },
+  { id: 'boltz2', match: ['boltz2_wt', 'boltz2_pose', 'rescore'], label: 'Boltz2 全量', hint: '折叠 + 相对 WT 姿态标签' },
   { id: 'rosetta', match: ['rosetta'], label: 'Rosetta', hint: '界面 ΔΔG 排序' },
   { id: 'done', match: ['done'], label: '导出', hint: 'ranked / wetlab' },
 ]
+
+/** Round1 / 入口 B 折 WT 期间，不能把「仅 WT 1/1」当成全量 Boltz2 完成。 */
+const EARLY_STAGES = new Set([
+  'queued',
+  'ensure_structure',
+  'fold_wt_complex',
+  'round1',
+  'skip_round1',
+])
 
 const currentStage = computed(() => progress.value?.stage || job.value?.stage || 'queued')
 const completedStages = computed(() => progress.value?.workflow_status?.stages as string[] | undefined)
 
 const boltzComplete = computed(() => {
+  const cur = currentStage.value
+  if (EARLY_STAGES.has(cur)) return false
   const p = progress.value?.progress
+  if (p?.boltz2_wt_ready && Number(p?.boltz2_done ?? p?.boltz2_ok ?? 0) <= 1) {
+    const tot = Number(p?.boltz2_total ?? 0)
+    if (tot > 1) return false
+  }
   const ok = Number(p?.boltz2_ok ?? 0)
   const tot = Number(p?.boltz2_total ?? p?.boltz2_done ?? 0)
-  return tot > 0 && ok >= tot
+  // 仅 WT（入口 B 预折）不能算全量完成
+  if (tot <= 1) return false
+  return ok >= tot
 })
 
 const onRosetta = computed(() => {
@@ -63,6 +87,7 @@ const onRosetta = computed(() => {
 
 const onBoltz = computed(() => {
   const cur = currentStage.value
+  if (EARLY_STAGES.has(cur)) return false
   if (onRosetta.value || cur === 'done') return false
   return cur.startsWith('boltz2') || cur === 'rescore' || cur === 'boltz2_wt'
 })
@@ -72,7 +97,10 @@ function stepState(step: PipelineStep): 'done' | 'active' | 'pending' {
   const cur = currentStage.value
   if (step.match.includes('done') && job.value?.status === 'done') return 'done'
   if (step.id === 'boltz2') {
-    if (onRosetta.value || cur === 'done' || boltzComplete.value) return 'done'
+    if (EARLY_STAGES.has(cur)) return 'pending'
+    if (onRosetta.value || cur === 'done') return 'done'
+    if (cur === 'boltz2_pose') return 'active'
+    if (boltzComplete.value) return 'done'
     if (onBoltz.value) return 'active'
   }
   if (step.id === 'rosetta') {
@@ -90,7 +118,8 @@ function stepState(step: PipelineStep): 'done' | 'active' | 'pending' {
     return (
       s.match.includes(cur) ||
       (id === 'boltz2' && onBoltz.value) ||
-      (id === 'rosetta' && onRosetta.value)
+      (id === 'rosetta' && onRosetta.value) ||
+      (id === 'round1' && (cur === 'round1' || cur === 'skip_round1'))
     )
   })
   const stepIdx = order.indexOf(step.id)
@@ -247,6 +276,67 @@ const trackCounts = computed(() => ({
   both: trackSites.value.filter((r) => r.both).length,
 }))
 
+const mutationTable = computed<AffinityRedesignMutationSiteRow[]>(() => {
+  const fromApi = progress.value?.mutation_table
+  if (fromApi && fromApi.length) return fromApi
+  const grouped = new Map<string, { chain: string; region: string; tokens: { pos: number; tok: string }[] }>()
+  const seen = new Set<string>()
+  const src = ranked.value.length
+    ? ranked.value.map((r) => ({
+        chain: String(r.chain || 'H'),
+        wt: String(r.wt || ''),
+        position: Number(r.position),
+        region: String(r.region || ''),
+      }))
+    : trackSites.value.map((s) => ({
+        chain: s.chain,
+        wt: s.wt,
+        position: s.position,
+        region: s.region,
+      }))
+  const displayRegion = (raw: string) => {
+    const t = (raw || '').toUpperCase()
+    if (t.includes('CDR')) {
+      if (t.endsWith('1') || t.includes('-H1') || t.includes('-L1')) return 'CDR1'
+      if (t.endsWith('2') || t.includes('-H2') || t.includes('-L2')) return 'CDR2'
+      if (t.endsWith('3') || t.includes('-H3') || t.includes('-L3')) return 'CDR3'
+      return 'CDR'
+    }
+    if (t.startsWith('FR')) {
+      if (t.includes('1')) return 'FR1'
+      if (t.includes('2')) return 'FR2'
+      if (t.includes('3')) return 'FR3'
+      if (t.includes('4')) return 'FR4'
+      return 'FR'
+    }
+    return raw || '其他'
+  }
+  for (const row of src) {
+    const region = displayRegion(row.region)
+    const tok = row.wt && row.position ? `${row.wt}${row.position}` : ''
+    if (!tok) continue
+    const uniq = `${row.chain}:${region}:${tok}`
+    if (seen.has(uniq)) continue
+    seen.add(uniq)
+    const key = `${row.chain}::${region}`
+    const g = grouped.get(key) || { chain: row.chain, region, tokens: [] }
+    g.tokens.push({ pos: row.position || 0, tok })
+    grouped.set(key, g)
+  }
+  const order: Record<string, number> = { CDR1: 0, CDR2: 1, CDR3: 2, FR1: 3, FR2: 4, FR3: 5, FR4: 6 }
+  return [...grouped.values()]
+    .map((g) => {
+      g.tokens.sort((a, b) => a.pos - b.pos)
+      const sites = [...new Set(g.tokens.map((t) => t.tok))].join(', ')
+      return { chain: g.chain, region: g.region, sites, n_sites: g.tokens.length }
+    })
+    .sort(
+      (a, b) =>
+        (a.chain === 'H' ? 0 : 1) - (b.chain === 'H' ? 0 : 1) ||
+        (order[a.region] ?? 50) - (order[b.region] ?? 50),
+    )
+})
+
 function fmtScore(n: number | null | undefined) {
   if (n == null || Number.isNaN(n)) return ''
   return n.toFixed(2)
@@ -350,6 +440,13 @@ function decisionTagType(decision?: string): 'success' | 'warning' | 'info' | un
   return undefined
 }
 
+function poseBandClass(band?: string | null) {
+  if (band === 'prefer' || band === 'pass') return 'pose-band pose-band--ok'
+  if (band === 'grey' || band === 'mixed') return 'pose-band pose-band--mid'
+  if (band === 'caution' || band === 'drop' || band === 'severe') return 'pose-band pose-band--bad'
+  return ''
+}
+
 function statusTagType(status: string) {
   if (status === 'done') return 'success'
   if (status === 'running') return 'warning'
@@ -439,6 +536,36 @@ function statusTagType(status: string) {
         </div>
       </div>
 
+      <section v-if="mutationTable.length" class="ar-mut-table">
+        <div class="ar-mut-table__head">
+          <div>
+            <h3>突变位点汇总</h3>
+            <p>按抗体链与 CDR/FR 去重；位点为野生型氨基酸 + 序列编号。</p>
+          </div>
+          <el-button size="small" @click="download('mutation_sites.csv')">下载位点表</el-button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>抗体链</th>
+              <th>突变位点</th>
+              <th>突变区域</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, i) in mutationTable" :key="row.chain + row.region + i">
+              <td class="ar-mut-table__chain">{{ row.chain }}</td>
+              <td class="ar-mut-table__sites">{{ row.sites }}</td>
+              <td>
+                <span class="ar-mut-table__region" :class="row.region.startsWith('CDR') ? 'is-cdr' : 'is-fr'">
+                  {{ row.region }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <section v-if="showBoltzProgress" class="ar-detail__progress-block">
         <div class="ar-detail__progress-head">
           <span>Boltz2 折叠进度</span>
@@ -447,7 +574,9 @@ function statusTagType(status: string) {
           </span>
         </div>
         <el-progress :percentage="boltzPercent" :stroke-width="10" striped striped-flow />
-        <p class="ar-detail__progress-note">Boltz2 与结构预测 fold 共用 GPU 队列。</p>
+        <p class="ar-detail__progress-note">
+          每个变体 Boltz2 折 10 次；表中 ipTM 为 10 次中位数。与结构预测 fold 共用 GPU 队列。
+        </p>
       </section>
 
       <section v-if="showRosettaProgress" class="ar-detail__progress-block">
@@ -477,6 +606,10 @@ function statusTagType(status: string) {
             <div>
               <dt>入口</dt>
               <dd>{{ entryMode }}</dd>
+            </div>
+            <div v-if="consensusLabel">
+              <dt>PLM 共识</dt>
+              <dd>{{ consensusLabel }}</dd>
             </div>
             <div>
               <dt>开始时间</dt>
@@ -650,12 +783,16 @@ function statusTagType(status: string) {
           <el-button size="small" @click="download('sequences_wt_mutants.fasta')">
             突变前后 FASTA
           </el-button>
+          <el-button size="small" @click="download('mutation_sites.csv')">突变位点表</el-button>
           <el-button size="small" @click="download('wetlab_candidates.csv')">湿实验短名单</el-button>
-          <el-button size="small" @click="download('structures.zip')">structures.zip</el-button>
+          <el-button size="small" @click="download('structures.zip')">全部结构 ZIP</el-button>
           <el-button size="small" @click="download('summary.json')">summary.json</el-button>
         </div>
 
         <h4 class="ar-detail__table-title">突变体排序</h4>
+        <p class="ar-detail__table-hint">
+          iRMSD / CDR RMSD / 接触保留只着色，不单独 drop。iRMSD：抗原对齐后界面抗体 CA；&lt;3 Å 优先，3–5 灰，&gt;5 谨慎。接触：残基对重原子 4.5 Å；保留 ≥70% / 50%。同模式：10 帧中相对 WT iRMSD &lt;3 Å 的比例（≥7/10 视为稳定）。
+        </p>
         <el-table :data="ranked" size="small" stripe max-height="520">
           <el-table-column prop="rank" label="#" width="55" />
           <el-table-column label="decision" width="88">
@@ -670,13 +807,40 @@ function statusTagType(status: string) {
           <el-table-column prop="label" label="label" min-width="100" />
           <el-table-column prop="chain" label="链" width="52" />
           <el-table-column label="ΔipTM" width="88">
-            <template #default="{ row }">{{ fmt(row.delta_iptm) }}</template>
+            <template #default="{ row }">
+              <span :class="poseBandClass(row.delta_iptm_band)">{{ fmt(row.delta_iptm) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="iRMSD" width="88">
+            <template #default="{ row }">
+              <span :class="poseBandClass(row.irmsd_band)">{{ fmt(row.irmsd) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="CDR3 RMSD" width="100">
+            <template #default="{ row }">{{ fmt(row.cdr3_rmsd) }}</template>
+          </el-table-column>
+          <el-table-column label="接触保留" width="88">
+            <template #default="{ row }">
+              <span :class="poseBandClass(row.retention_band)">{{ fmt(row.contact_retention) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="同模式" width="88">
+            <template #default="{ row }">
+              <span v-if="row.n_seeds">{{ row.n_seed_same_mode }}/{{ row.n_seeds }}</span>
+              <span v-else>—</span>
+            </template>
           </el-table-column>
           <el-table-column label="ddG" width="80">
             <template #default="{ row }">{{ fmt(row.ddG) }}</template>
           </el-table-column>
           <el-table-column label="ipTM" width="80">
             <template #default="{ row }">{{ fmt(row.iptm) }}</template>
+          </el-table-column>
+          <el-table-column label="ipTM max" width="92">
+            <template #default="{ row }">{{ fmt(row.iptm_max) }}</template>
+          </el-table-column>
+          <el-table-column label="n" width="48">
+            <template #default="{ row }">{{ row.n_samples ?? '—' }}</template>
           </el-table-column>
           <el-table-column prop="wetlab" label="wetlab" width="72" />
           <el-table-column prop="reason" label="reason" min-width="120" show-overflow-tooltip />
@@ -690,7 +854,7 @@ function statusTagType(status: string) {
 
 <style scoped lang="scss">
 .ar-detail {
-  max-width: 1100px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 0.5rem 0 2rem;
 }
@@ -1237,7 +1401,114 @@ function statusTagType(status: string) {
 }
 
 .ar-detail__table-title {
-  margin: 0 0 0.65rem;
+  margin: 0 0 0.35rem;
   font-size: 0.95rem;
+}
+
+.ar-detail__table-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--el-text-color-secondary, #6b7280);
+}
+
+.pose-band--ok {
+  color: #047857;
+  font-weight: 600;
+}
+
+.pose-band--mid {
+  color: #a16207;
+}
+
+.pose-band--bad {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.ar-mut-table {
+  margin: 0 0 1.15rem;
+  padding: 0.9rem 1rem 0.75rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 10px);
+}
+
+.ar-mut-table__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.7rem;
+
+  h3 {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  p {
+    margin: 0.2rem 0 0;
+    font-size: 0.75rem;
+    color: var(--muted, #6b7280);
+  }
+}
+
+.ar-mut-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.ar-mut-table th,
+.ar-mut-table td {
+  border: 1px solid #d1d5db;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ar-mut-table th {
+  background: #f3f4f6;
+  font-weight: 700;
+  color: #374151;
+  white-space: nowrap;
+  width: 7.5rem;
+}
+
+.ar-mut-table th:nth-child(2),
+.ar-mut-table td.ar-mut-table__sites {
+  width: auto;
+}
+
+.ar-mut-table__chain {
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  text-align: center;
+}
+
+.ar-mut-table__sites {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+}
+
+.ar-mut-table__region {
+  display: inline-block;
+  min-width: 3.2rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+
+  &.is-cdr {
+    color: #1d4ed8;
+    background: #eff6ff;
+  }
+
+  &.is-fr {
+    color: #6b7280;
+    background: #f3f4f6;
+  }
 }
 </style>

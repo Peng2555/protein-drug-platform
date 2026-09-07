@@ -74,6 +74,27 @@ async def save_structure_upload(upload: UploadFile, dest: Path) -> Path:
     return dest
 
 
+def _write_round1_overrides(campaign_dir: Path, *, consensus_k: int) -> None:
+    """把本次任务的 PLM 共识写入 campaign 级 round1 配置，不改全局默认。"""
+    import yaml
+
+    pkg = Path(__file__).resolve().parents[1] / "affinity_redesign"
+    default = pkg / "configs" / "round1_default.yaml"
+    if default.is_file():
+        data = yaml.safe_load(default.read_text(encoding="utf-8")) or {}
+    else:
+        data = {}
+    plm = dict(data.get("plm") or {})
+    plm["consensus_k"] = int(consensus_k)
+    data["plm"] = plm
+    dest = campaign_dir / "round1_this_run.yaml"
+    dest.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    camp_path = campaign_dir / "campaign.yaml"
+    camp = yaml.safe_load(camp_path.read_text(encoding="utf-8")) or {}
+    camp["round1_config"] = "round1_this_run.yaml"
+    camp_path.write_text(yaml.safe_dump(camp, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+
 def create_and_queue_affinity_redesign_job(
     db,
     *,
@@ -82,6 +103,7 @@ def create_and_queue_affinity_redesign_job(
     fasta_text: str,
     complex_path: Path | None = None,
     skip_round1: bool = False,
+    consensus_k: int = 3,
 ) -> Job:
     _ensure_package()
     from affinity_redesign.pipeline.workflow import bootstrap_campaign
@@ -113,6 +135,9 @@ def create_and_queue_affinity_redesign_job(
     finally:
         tmp_fasta.unlink(missing_ok=True)
 
+    k = max(1, min(6, int(consensus_k or 3)))
+    _write_round1_overrides(campaign_dir, consensus_k=k)
+
     entry_mode = "structure" if complex_path else "sequence_only"
     job = Job(
         user_id=user_id,
@@ -129,6 +154,8 @@ def create_and_queue_affinity_redesign_job(
             "skip_round1": skip_round1,
             "entry_mode": entry_mode,
             "slug": slug,
+            "consensus_k": k,
+            "plm_n_models": 6,
         },
         work_dir=str(campaign_dir),
     )

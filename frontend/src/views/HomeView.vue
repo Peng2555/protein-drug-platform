@@ -15,7 +15,7 @@ import ScenarioShowcase from '@/components/home/ScenarioShowcase.vue'
 import WorkflowCards from '@/components/home/WorkflowCards.vue'
 import { WORKFLOWS_BY_SCENARIO, type ScenarioId } from '@/config/workflows'
 import { useModuleJobsStore } from '@/stores/moduleJobs'
-import { engineLabel } from '@/utils/constants'
+import { engineLabel, foldScoreTag } from '@/utils/constants'
 
 type RecentItem = {
   id: string
@@ -83,7 +83,7 @@ async function loadRecent() {
       meta: [
         engineLabel(j.engine),
         j.total_length ? `${j.total_length} aa` : null,
-        j.iptm != null ? `ipTM ${j.iptm.toFixed(3)}` : null,
+        foldScoreTag(j),
       ]
         .filter(Boolean)
         .join(' · '),

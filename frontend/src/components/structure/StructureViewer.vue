@@ -24,6 +24,8 @@ const props = withDefaults(
     status?: string | null
     chains?: InterfaceChainMeta[] | null
     cifText?: string | null
+    /** 扩散采样编号；不传则加载代表结构（pred.cif） */
+    modelIndex?: number | null
     /** hero：嵌入详情主舞台，占满父容器高度 */
     variant?: 'default' | 'hero'
     /** 由外层 ComplexViewer 提供工具栏时隐藏内置标题区 */
@@ -34,6 +36,7 @@ const props = withDefaults(
     status: null,
     chains: null,
     cifText: null,
+    modelIndex: null,
     variant: 'default',
     hideChrome: false,
   },
@@ -55,6 +58,7 @@ const colorMode = ref<ViewerColorMode>('chain')
 const loading = ref(false)
 const loadError = ref('')
 const loadedJobId = ref<string | null>(null)
+const loadedModel = ref<number | null>(null)
 const internalCifText = ref<string | null>(null)
 let pickUnsub: { unsubscribe: () => void } | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -93,7 +97,9 @@ async function refreshViewerStyles(): Promise<void> {
 }
 
 async function fetchStructureText(jobId: string): Promise<string> {
-  const resp = await api.get<string>(`/api/jobs/${jobId}/structure`, {
+  const idx = props.modelIndex
+  const qs = idx != null && idx >= 0 ? `?model=${idx}` : ''
+  const resp = await api.get<string>(`/api/jobs/${jobId}/structure${qs}`, {
     responseType: 'text',
     transformResponse: [(data) => data],
   })
@@ -130,6 +136,7 @@ async function mountStructure(jobId: string, text: string): Promise<void> {
 
   internalCifText.value = text
   loadedJobId.value = jobId
+  loadedModel.value = props.modelIndex ?? null
   await refreshViewerStyles()
   await nextTick()
   requestAnimationFrame(() => resizeMolstarViewer(v))
@@ -145,13 +152,14 @@ async function loadStructure(): Promise<void> {
     viewer.value = null
     selectionStore.detachViewer()
     loadedJobId.value = null
+    loadedModel.value = null
     internalCifText.value = null
     loadError.value = ''
     loading.value = false
     return
   }
 
-  if (loadedJobId.value === jobId && viewer.value) {
+  if (loadedJobId.value === jobId && viewer.value && loadedModel.value === props.modelIndex) {
     await refreshViewerStyles()
     return
   }
@@ -165,6 +173,7 @@ async function loadStructure(): Promise<void> {
     const message = e instanceof Error ? e.message : '3D 加载失败'
     loadError.value = message
     loadedJobId.value = null
+    loadedModel.value = null
     internalCifText.value = null
     destroyMolstarViewer(viewer.value, viewerEl.value)
     viewer.value = null
@@ -195,7 +204,7 @@ function retryLoad(): void {
 }
 
 watch(
-  () => [props.jobId, props.status, props.cifText] as const,
+  () => [props.jobId, props.status, props.cifText, props.modelIndex] as const,
   () => { void loadStructure() },
   { immediate: true },
 )

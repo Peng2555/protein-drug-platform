@@ -72,7 +72,7 @@ class RescoreConfig(BaseModel):
     use_msa_server: bool = True
     recycling_steps: int = 3
     sampling_steps: int = 200
-    diffusion_samples: int = 1
+    diffusion_samples: int = 10
     # 0 = 不限制；>0 时按 A→B→C 优先级截断进入 Boltz2 的总数（round1 全表仍保留）
     max_variants: int = 0
     # 0 = 自动：空闲几张卡用几张（上限 CELERY_GPU_COUNT）；>0 时最多用这么多张

@@ -287,16 +287,36 @@ export interface AffinityRedesignRankedRow {
   mut?: string
   region?: string
   delta_iptm?: string | number | null
+  delta_iptm_band?: string | null
+  irmsd?: string | number | null
+  irmsd_band?: string | null
+  cdr3_rmsd?: string | number | null
+  contact_retention?: string | number | null
+  retention_band?: string | null
+  n_seed_same_mode?: string | number | null
+  n_seeds?: string | number | null
+  pose_tags?: string | null
   ddG?: string | number | null
   iptm?: string | number | null
+  iptm_median?: string | number | null
+  iptm_max?: string | number | null
+  n_samples?: string | number | null
   variant_id?: string
   error?: string
+}
+
+export interface AffinityRedesignMutationSiteRow {
+  chain: string
+  sites: string
+  region: string
+  n_sites?: number
 }
 
 export interface AffinityRedesignRankedOut {
   ranked: AffinityRedesignRankedRow[]
   wetlab: AffinityRedesignRankedRow[]
   summary: Record<string, unknown> | null
+  mutation_table?: AffinityRedesignMutationSiteRow[]
 }
 
 export interface AffinityRedesignHit {
@@ -318,6 +338,7 @@ export interface AffinityRedesignProgressOut {
   workflow_status?: Record<string, unknown> | null
   plm_hits?: AffinityRedesignHit[]
   structure_hits?: AffinityRedesignHit[]
+  mutation_table?: AffinityRedesignMutationSiteRow[]
 }
 
 export interface MaskingPeptideJob extends Job {}

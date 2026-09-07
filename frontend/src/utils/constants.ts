@@ -77,6 +77,7 @@ export const AFFINITY_REDESIGN_STAGE_LABELS: Record<string, string> = {
   skip_round1: '跳过 Round1',
   rescore: '重打分流水线',
   boltz2_wt: 'Boltz2 WT 基准',
+  boltz2_pose: 'Boltz2 姿态标签',
   rosetta: 'Rosetta 界面能',
   done: '完成',
 }
@@ -92,4 +93,11 @@ export function affinityRedesignStageLabel(stage?: string | null): string {
 export function formatEsmfoldParams(params?: Record<string, number>) {
   if (!params) return ''
   return `loops=${params.num_loops} · steps=${params.num_sampling_steps} · samples=${params.num_diffusion_samples}`
+}
+
+/** 复合物显示 ipTM；单体无界面时显示 pTM，避免把 0 当成 ipTM。 */
+export function foldScoreTag(job: { iptm?: number | null; ptm?: number | null }): string | null {
+  if (job.iptm != null && Number(job.iptm) > 1e-6) return `ipTM ${Number(job.iptm).toFixed(2)}`
+  if (job.ptm != null) return `pTM ${Number(job.ptm).toFixed(2)}`
+  return null
 }

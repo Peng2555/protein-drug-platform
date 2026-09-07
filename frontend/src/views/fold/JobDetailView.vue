@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteJob, downloadStructure, fetchJob } from '@/api/jobs'
+import { deleteJob, downloadAllStructures, downloadStructure, fetchJob } from '@/api/jobs'
 import { fetchJobSequences } from '@/api/sequences'
 import ComplexViewer from '@/components/fold/ComplexViewer.vue'
 import FoldHeader from '@/components/fold/FoldHeader.vue'
@@ -24,6 +24,7 @@ const loading = ref(true)
 const job = ref<Job | null>(null)
 const sequences = ref<ChainSequence[]>([])
 const cifText = ref<string | null>(null)
+const selectedModel = ref<number | null>(null)
 const interfaceData = ref<JobInterfaceData | null>(null)
 const complexRef = ref<InstanceType<typeof ComplexViewer> | null>(null)
 const returnBatchId = ref<string | null>(
@@ -32,6 +33,30 @@ const returnBatchId = ref<string | null>(
 
 const jobId = computed(() => route.params.id as string)
 const chainCount = computed(() => Object.keys(job.value?.chains_json || {}).length)
+
+type FoldSampleRow = {
+  index: number
+  iptm?: number | null
+  ptm?: number | null
+  is_selected?: boolean
+}
+
+const foldSamples = computed((): FoldSampleRow[] => {
+  const raw = job.value?.results_json?.samples
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((row) => {
+      const r = row as FoldSampleRow
+      return {
+        index: Number(r.index),
+        iptm: r.iptm ?? null,
+        ptm: r.ptm ?? null,
+        is_selected: Boolean(r.is_selected),
+      }
+    })
+    .filter((r) => Number.isFinite(r.index))
+    .sort((a, b) => a.index - b.index)
+})
 
 const interfaceChains = computed((): InterfaceChainMeta[] | null => {
   if (!sequences.value.length) return null
@@ -57,6 +82,11 @@ const metaTags = computed(() => {
     const esm = formatEsmfoldParams(j.params_json as Record<string, number>)
     if (esm) tags.push(esm)
   }
+  const nDiff = Number(j.params_json?.diffusion_samples)
+  const nHave = Number(j.results_json?.n_samples)
+  if (j.engine === 'boltz2' && (nHave > 1 || nDiff > 1)) {
+    tags.push(`扩散采样: ${nHave || nDiff} 次`)
+  }
   return tags
 })
 
@@ -65,17 +95,56 @@ const scoreCards = computed((): FoldScoreCard[] => {
   if (!j) return []
   const ix = interfaceData.value?.primary_interface
   const ixTotal = ix?.interaction_summary?.n_total ?? ix?.interactions?.length ?? null
-  const conf =
-    j.confidence_score ??
-    (j.iptm != null && j.ptm != null
-      ? 0.8 * j.iptm + 0.2 * j.ptm
-      : j.iptm ?? j.ptm ?? null)
+  const nChains = Object.keys(j.chains_json || {}).length
+  const monomer = nChains <= 1 || j.results_json?.has_interface === false
+  const iptmOk = !monomer && j.iptm != null && Number(j.iptm) > 1e-6
+  const conf = monomer
+    ? (j.confidence_score ?? j.ptm ?? null)
+    : j.confidence_score ??
+      (iptmOk && j.ptm != null ? 0.8 * j.iptm! + 0.2 * j.ptm : j.ptm ?? null)
+  const nSamp = Number(j.results_json?.n_samples)
+  const cards: FoldScoreCard[] = []
+  if (monomer || !iptmOk) {
+    cards.push({
+      key: 'ptm',
+      label: 'pTM',
+      value: j.ptm != null ? j.ptm.toFixed(3) : '—',
+      hint: monomer ? '单体整体拓扑置信度（无界面，不适用 ipTM）' : '整体拓扑置信度',
+      tone: 'primary',
+      level: metricLevel(j.ptm, 'iptm'),
+    })
+    cards.push({
+      key: 'plddt',
+      label: 'pLDDT',
+      value: j.complex_plddt != null ? formatPlddt(j.complex_plddt) : '—',
+      hint: '局部结构置信度',
+      tone: 'ok',
+      level: metricLevel(j.complex_plddt, 'plddt'),
+    })
+    cards.push({
+      key: 'iptm',
+      label: 'ipTM',
+      value: '不适用',
+      hint: '单体没有链间界面',
+      tone: 'muted',
+      level: null,
+    })
+    cards.push({
+      key: 'conf',
+      label: '置信度',
+      value: conf != null ? Number(conf).toFixed(3) : '—',
+      hint: nSamp > 1 ? `${nSamp} 次采样 · 代表构象按 pTM` : '与 pTM 一致',
+      tone: 'info',
+      level: metricLevel(conf, 'iptm'),
+    })
+    return cards
+  }
   return [
     {
       key: 'iptm',
       label: 'ipTM',
       value: j.iptm != null ? j.iptm.toFixed(3) : '—',
-      hint: '复合物界面置信度',
+      hint: nSamp > 1 ? '多次采样的 ipTM 中位数' : '复合物界面置信度',
       tone: 'primary',
       level: metricLevel(j.iptm, 'iptm'),
     },
@@ -98,7 +167,7 @@ const scoreCards = computed((): FoldScoreCard[] => {
     {
       key: 'conf',
       label: '置信度',
-      value: conf != null ? conf.toFixed(3) : '—',
+      value: conf != null ? Number(conf).toFixed(3) : '—',
       hint:
         ixTotal != null
           ? `相互作用 ${ixTotal} 条`
@@ -151,6 +220,17 @@ async function loadDetail(silent = false) {
   if (!silent) loading.value = true
   try {
     job.value = await fetchJob(jobId.value)
+    const samples = job.value.results_json?.samples
+    if (Array.isArray(samples) && samples.length) {
+      const idxs = samples.map((s) => Number((s as FoldSampleRow).index))
+      if (selectedModel.value == null || !idxs.includes(selectedModel.value)) {
+        const selected = samples.find((s) => (s as FoldSampleRow).is_selected) as FoldSampleRow | undefined
+        const idx = selected?.index ?? (samples[0] as FoldSampleRow).index
+        selectedModel.value = Number(idx)
+      }
+    } else if (!silent) {
+      selectedModel.value = null
+    }
     selectionStore.clearSequenceResidueSelection()
     try {
       const seqData = await fetchJobSequences(jobId.value)
@@ -209,7 +289,11 @@ async function onDelete() {
 function onDownload() {
   const j = job.value
   if (!j) return
-  void downloadStructure(j.id, j.name || j.id)
+  if (foldSamples.value.length > 1) {
+    void downloadAllStructures(j.id, j.name || j.id)
+    return
+  }
+  void downloadStructure(j.id, j.name || j.id, selectedModel.value)
 }
 
 function startMd() {
@@ -294,6 +378,7 @@ onUnmounted(() => {
         :show-design="job.status === 'done' && (job.engine === 'boltz2' || job.engine === 'esmfold2')"
         :show-rosetta="job.status === 'done' && (job.engine === 'boltz2' || job.engine === 'esmfold2')"
         :show-export="job.status === 'done'"
+        :export-label="foldSamples.length > 1 ? '导出全部构象 ZIP' : '导出结构'"
         @back="goBack"
         @start-md="startMd"
         @start-design="startDesign"
@@ -311,6 +396,9 @@ onUnmounted(() => {
           :status="job.status"
           :chains="interfaceChains"
           :sequences="sequences"
+          :samples="foldSamples"
+          :model-index="selectedModel"
+          @update:model-index="(v) => (selectedModel = v)"
           @loaded="onStructureLoaded"
         />
 
@@ -329,6 +417,10 @@ onUnmounted(() => {
               <div><dt>总残基数</dt><dd>{{ complexInfo.totalResidues ?? '—' }}</dd></div>
               <div><dt>模型</dt><dd>{{ complexInfo.model }}</dd></div>
               <div><dt>预测时间</dt><dd>{{ complexInfo.predictedAt }}</dd></div>
+              <div v-if="foldSamples.length > 1">
+                <dt>构象数</dt>
+                <dd>{{ foldSamples.length }}（导出为 ZIP）</dd>
+              </div>
             </dl>
           </section>
         </aside>

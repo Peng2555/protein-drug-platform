@@ -47,6 +47,17 @@ const skipRound1 = ref(false)
 const showAdvanced = ref(false)
 const submitting = ref(false)
 const entryMode = ref<'with_structure' | 'sequence_only'>('sequence_only')
+/** PLM 共识：至少 k 个模型 dll>0。默认 3（原「三模型共识」）。共 6 个模型。 */
+const PLM_N_MODELS = 6
+const consensusK = ref(3)
+const consensusHints: Record<number, string> = {
+  1: '最宽松：任一模型看好即保留',
+  2: '较宽松：至少两个模型同意',
+  3: '默认：三模型共识（Hie 等常用阈值）',
+  4: '较严：至少四个模型同意',
+  5: '严格：几乎全体同意',
+  6: '最严：六个模型全部 dll>0',
+}
 
 const pipelineSteps = [
   { id: 'round1', label: 'Round1 双轨', desc: 'PLM + 结构轨采样' },
@@ -149,6 +160,7 @@ async function submit() {
     const payload = {
       name: name.value.trim() || null,
       skip_round1: skipRound1.value,
+      consensus_k: consensusK.value,
     }
     const job =
       entryMode.value === 'with_structure' && complexFile.value
@@ -273,6 +285,29 @@ function fillExample() {
           </div>
         </section>
 
+        <section class="ar-section">
+          <h2 class="ar-section__title">PLM 共识</h2>
+          <p class="field__hint consensus-lead">
+            Round1 序列轨用 ESM-1b + ESM-1v×5 共 <strong>{{ PLM_N_MODELS }}</strong> 个模型打分。
+            突变需至少 <strong>K</strong> 个模型满足 ΔLL &gt; 0 才进入 PLM 候选（原先固定为 3）。
+          </p>
+          <div class="consensus-picks" role="radiogroup" aria-label="共识模型数">
+            <button
+              v-for="k in PLM_N_MODELS"
+              :key="k"
+              type="button"
+              class="consensus-pick"
+              :class="{ 'is-active': consensusK === k, 'is-default': k === 3 }"
+              :aria-pressed="consensusK === k"
+              @click="consensusK = k"
+            >
+              <strong>{{ k }}/{{ PLM_N_MODELS }}</strong>
+              <span v-if="k === 3">推荐</span>
+            </button>
+          </div>
+          <p class="consensus-hint">{{ consensusHints[consensusK] }}</p>
+        </section>
+
         <section class="ar-section ar-section--muted">
           <button type="button" class="optional-toggle" @click="showAdvanced = !showAdvanced">
             {{ showAdvanced ? '▾' : '▸' }} 高级选项
@@ -305,8 +340,9 @@ function fillExample() {
           <ul>
             <li><strong>ΔipTM &lt; −0.03</strong> → drop</li>
             <li><strong>ddG &gt; 3</strong> → review</li>
-            <li>不做 top-N：过门槛的全部保留</li>
+            <li>PLM 共识默认 <strong>3/6</strong>，提交前可改</li>
             <li>A / C 全部进 Boltz2；B（仅结构）默认软上限 100</li>
+            <li>Boltz2 每个变体 <strong>10</strong> 次采样；官方 ipTM 为中位数，结构取最高 ipTM</li>
             <li>冻住 N 端 1–4（QVQL）；C 端只冻 <code>TVSS</code></li>
           </ul>
         </div>
@@ -316,7 +352,7 @@ function fillExample() {
             <li><code>ranked_mutations.csv</code> 全表</li>
             <li><code>sequences_wt_mutants.fasta</code> WT + 各突变序列</li>
             <li><code>wetlab_candidates.csv</code> 湿实验短名单</li>
-            <li><code>structures/</code> WT + 短名单 PDB</li>
+            <li><code>structures/</code> WT + 全部 Boltz2 成功 PDB</li>
             <li><code>summary.json</code> 汇总指标</li>
           </ul>
         </div>
@@ -667,6 +703,59 @@ function fillExample() {
   border-top: 1px solid #e5e7eb;
   font-size: 0.84rem;
   color: #4b5563;
+}
+
+.consensus-lead {
+  margin: 0 0 0.75rem;
+  line-height: 1.55;
+}
+
+.consensus-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.consensus-pick {
+  min-width: 4.4rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12rem;
+
+  strong {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #111827;
+  }
+
+  span {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #0f766e;
+  }
+
+  &:hover {
+    border-color: #99f6e4;
+    background: #f0fdfa;
+  }
+
+  &.is-active {
+    border-color: #0d9488;
+    background: #ccfbf1;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+  }
+}
+
+.consensus-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+  color: #6b7280;
 }
 
 .actions {

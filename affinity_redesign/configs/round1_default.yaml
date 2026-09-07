@@ -57,6 +57,6 @@ rescore:
   use_msa_server: true
   recycling_steps: 3
   sampling_steps: 200
-  diffusion_samples: 1
+  diffusion_samples: 10        # 每个变体 10 个扩散样本；官方 ipTM 用中位数，结构取 ipTM 最高
   max_variants: 0         # 0=不限制总数；>0 时按 A→B→C 再截断 Boltz2 入口
   n_gpus: 0               # 0=空闲几张卡用几张；>0 时最多占用这么多张 GPU

@@ -22,4 +22,5 @@ def test_round1_default_loads():
     assert cfg.structure_track.top_per_chain == 0
     assert cfg.structure_track.engine == "antifold"
     assert cfg.rescore.nstruct == 1
+    assert cfg.rescore.diffusion_samples == 10
     assert cfg.merge.tier_quotas["B"] == 100
