@@ -12,6 +12,11 @@ from queue import Queue
 
 from affinity_redesign.common.fasta import parse_fasta_file, write_fasta
 from affinity_redesign.config import settings
+from affinity_redesign.pipeline.boltz2_pose import (
+    compare_mutant_to_wt,
+    delta_iptm_band,
+    list_sample_structures,
+)
 from affinity_redesign.pipeline.merge import load_plm_top_csv, load_structure_top_csv
 from affinity_redesign.schemas import CampaignConfig, RescoreConfig, Round1Config
 from affinity_redesign.tracks.boltz2 import fold_complex
@@ -55,12 +60,21 @@ def build_wt_mutant_fasta(
     ranked: list[dict],
     *,
     antigen_chain: str | None = None,
+    antibody_chains: list[str] | None = None,
 ) -> str:
-    """WT + 每个突变体的完整复合物序列；header 标明 WT / 突变。"""
+    """WT + 每个突变体的抗体序列（不含抗原）；header 标明 WT / 突变。"""
+    if antibody_chains:
+        ab_ids = [c for c in antibody_chains if c and c in seqs]
+    else:
+        ab_ids = [c for c in seqs if not antigen_chain or c != antigen_chain]
+    if not ab_ids:
+        # 兜底：没有可识别抗体链时仍导出全部，避免空文件
+        ab_ids = list(seqs.keys())
+
     lines: list[str] = []
-    for cid, seq in seqs.items():
+    for cid in ab_ids:
         lines.append(f">WT chain={cid} role=wild-type")
-        lines.append(_wrap_seq(seq))
+        lines.append(_wrap_seq(seqs[cid]))
     for row in ranked:
         chain = str(row.get("chain") or "").strip()
         wt = str(row.get("wt") or "").strip()
@@ -78,14 +92,14 @@ def build_wt_mutant_fasta(
             mut_seqs = apply_mutation(seqs, chain, pos, wt, mut)
         except (KeyError, ValueError):
             continue
-        for cid, seq in mut_seqs.items():
+        for cid in ab_ids:
+            if cid not in mut_seqs:
+                continue
             extra = " role=mutated" if cid == chain else " role=unchanged"
-            if antigen_chain and cid == antigen_chain and cid != chain:
-                extra = " role=antigen_unchanged"
             lines.append(
                 f">{vid} chain={cid} mutation={mut_tag} wt={wt} mut={mut} position={pos}{extra}"
             )
-            lines.append(_wrap_seq(seq))
+            lines.append(_wrap_seq(mut_seqs[cid]))
     return "\n".join(lines) + "\n"
 
 
@@ -158,6 +172,24 @@ def _f(v) -> float | None:
         return None
 
 
+def _annotate_ab_regions(seqs: dict[str, str], ab_ids: list[str]) -> dict[str, list[str]]:
+    from affinity_redesign.common.cdr import annotate_antibody_chain
+
+    out: dict[str, list[str]] = {}
+    for cid in ab_ids:
+        seq = seqs.get(cid)
+        if not seq:
+            continue
+        try:
+            ab = annotate_antibody_chain(seq)
+        except Exception:
+            ab = None
+        regs = (ab or {}).get("regions") if isinstance(ab, dict) else None
+        if isinstance(regs, list) and regs:
+            out[cid] = [str(x) for x in regs]
+    return out
+
+
 def recommend_row(row: dict, cfg: RescoreConfig) -> tuple[str, str, bool]:
     """返回 (decision, reason, wetlab)."""
     if row.get("boltz2_status") != "ok":
@@ -174,34 +206,27 @@ def recommend_row(row: dict, cfg: RescoreConfig) -> tuple[str, str, bool]:
     return "keep", "Boltz2 未明显变差" + ("" if ddg is None else " 且 Rosetta ddG 可接受"), True
 
 
-def _run_rosetta(
+def _read_rosetta_scores(work_dir: Path) -> dict[str, dict]:
+    scores_path = work_dir / "scores.csv"
+    by_name: dict[str, dict] = {}
+    if scores_path.is_file():
+        with scores_path.open(newline="", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                by_name[r["name"]] = r
+    return by_name
+
+
+def _run_rosetta_local(
     work_dir: Path,
-    wt_pdb: Path,
-    mutants: list[tuple[str, Path]],
+    wt_copy: Path,
+    mut_copies: list[Path],
     campaign: CampaignConfig,
-    cfg: RescoreConfig,
-) -> dict[str, dict]:
-    work_dir.mkdir(parents=True, exist_ok=True)
+    n_jobs: int,
+    nstruct: int,
+) -> None:
     import os
     import subprocess
 
-    staged = work_dir / "inputs"
-    staged.mkdir(parents=True, exist_ok=True)
-    wt_copy = staged / "WT.pdb"
-    shutil.copy2(wt_pdb, wt_copy)
-    mut_copies: list[Path] = []
-    for name, path in mutants:
-        dest = staged / f"{name}.pdb"
-        shutil.copy2(path, dest)
-        mut_copies.append(dest)
-
-    n_jobs = int(cfg.n_jobs or 0)
-    override = work_dir.parent / "n_jobs_override"
-    if override.is_file():
-        try:
-            n_jobs = int(override.read_text(encoding="utf-8").strip())
-        except ValueError:
-            pass
     cmd = [
         settings.pyrosetta_python,
         str(settings.boltz2_root / "scripts" / "rosetta_eval_runner.py"),
@@ -210,7 +235,7 @@ def _run_rosetta(
         "--wt",
         str(wt_copy),
         "--nstruct",
-        str(cfg.nstruct),
+        str(nstruct),
         "--n-jobs",
         str(n_jobs),
         "--antibody-chains",
@@ -230,13 +255,115 @@ def _run_rosetta(
         tail = log.read_text(encoding="utf-8", errors="replace")[-4000:]
         raise RuntimeError(f"Rosetta 失败 (code={proc.returncode}):\n{tail}")
 
-    scores_path = work_dir / "scores.csv"
-    by_name: dict[str, dict] = {}
-    if scores_path.is_file():
-        with scores_path.open(newline="", encoding="utf-8") as f:
-            for r in csv.DictReader(f):
-                by_name[r["name"]] = r
-    return by_name
+
+def _run_rosetta_cluster(
+    work_dir: Path,
+    wt_copy: Path,
+    mut_copies: list[Path],
+    campaign: CampaignConfig,
+    n_jobs: int,
+    nstruct: int,
+) -> None:
+    import os
+    import subprocess
+    import uuid
+
+    bridge = settings.boltz2_root / "scripts" / "rosetta_cluster_bridge.py"
+    if not bridge.is_file():
+        raise FileNotFoundError(f"缺少集群桥接脚本: {bridge}")
+
+    # 用 campaign 目录名作远程 job 名，避免冲突
+    job_name = work_dir.resolve().parents[2].name  # .../<campaign>/round1/rescore/rosetta
+    job_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in job_name)[:48] or uuid.uuid4().hex[:10]
+
+    ab_chains = " ".join([campaign.chains.heavy] + ([campaign.chains.light] if campaign.chains.light else []))
+    cluster_cpus = int(getattr(settings, "rosetta_cluster_cpus", 0) or 0) or (n_jobs if n_jobs > 0 else 64)
+    if n_jobs <= 0:
+        n_jobs = cluster_cpus
+
+    env = os.environ.copy()
+    env.setdefault("ROSETTA_CLUSTER_HOST", settings.rosetta_cluster_host)
+    env.setdefault("ROSETTA_CLUSTER_WORKDIR", settings.rosetta_cluster_workdir)
+    env.setdefault("ROSETTA_CLUSTER_PARTITION", settings.rosetta_cluster_partition)
+    env.setdefault("ROSETTA_CLUSTER_CPUS", str(cluster_cpus))
+    env.setdefault("ROSETTA_CLUSTER_TIME", settings.rosetta_cluster_time)
+    env.setdefault("ROSETTA_CLUSTER_CONDA_ENV", settings.rosetta_cluster_conda_env)
+
+    log = work_dir / "rosetta_cluster.log"
+    cmd = [
+        settings.boltz2_python,
+        str(bridge),
+        "--local-work-dir",
+        str(work_dir),
+        "--job-name",
+        job_name,
+        "--wt",
+        str(wt_copy),
+        "--nstruct",
+        str(nstruct),
+        "--n-jobs",
+        str(n_jobs),
+        "--antibody-chains",
+        ab_chains,
+        "--antigen-chains",
+        campaign.chains.antigen,
+        "--mutant",
+        *[str(p) for p in mut_copies],
+    ]
+    with log.open("w", encoding="utf-8") as f:
+        f.write(" ".join(cmd) + "\n\n")
+        f.flush()
+        proc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, text=True, check=False, env=env)
+    if proc.returncode != 0:
+        tail = log.read_text(encoding="utf-8", errors="replace")[-4000:]
+        raise RuntimeError(f"集群 Rosetta 失败 (code={proc.returncode}):\n{tail}")
+
+
+def _run_rosetta(
+    work_dir: Path,
+    wt_pdb: Path,
+    mutants: list[tuple[str, Path]],
+    campaign: CampaignConfig,
+    cfg: RescoreConfig,
+) -> dict[str, dict]:
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    staged = work_dir / "inputs"
+    staged.mkdir(parents=True, exist_ok=True)
+    wt_copy = staged / "WT.pdb"
+    shutil.copy2(wt_pdb, wt_copy)
+    mut_copies: list[Path] = []
+    for name, path in mutants:
+        dest = staged / f"{name}.pdb"
+        shutil.copy2(path, dest)
+        mut_copies.append(dest)
+
+    n_jobs = int(cfg.n_jobs or 0)
+    override = work_dir.parent / "n_jobs_override"
+    if override.is_file():
+        try:
+            n_jobs = int(override.read_text(encoding="utf-8").strip())
+        except ValueError:
+            pass
+
+    use_cluster = bool(getattr(settings, "rosetta_cluster_enabled", False)) and bool(
+        getattr(settings, "rosetta_cluster_host", "")
+    )
+    if use_cluster:
+        try:
+            _run_rosetta_cluster(work_dir, wt_copy, mut_copies, campaign, n_jobs, int(cfg.nstruct))
+            return _read_rosetta_scores(work_dir)
+        except Exception as exc:
+            if not getattr(settings, "rosetta_cluster_fallback_local", True):
+                raise
+            (work_dir / "rosetta_cluster_fallback.log").write_text(
+                f"cluster failed, fallback local:\n{exc}\n", encoding="utf-8"
+            )
+            _run_rosetta_local(work_dir, wt_copy, mut_copies, campaign, n_jobs, int(cfg.nstruct))
+            return _read_rosetta_scores(work_dir)
+
+    _run_rosetta_local(work_dir, wt_copy, mut_copies, campaign, n_jobs, int(cfg.nstruct))
+    return _read_rosetta_scores(work_dir)
 
 
 def _fold_kwargs(cfg: RescoreConfig) -> dict:
@@ -421,6 +548,10 @@ def run_rescore(
             "variant_id": vid,
             "boltz2_status": fold.get("status"),
             "iptm": iptm,
+            "iptm_median": fold.get("iptm_median", iptm),
+            "iptm_max": fold.get("iptm_max"),
+            "iptm_mean": fold.get("iptm_mean"),
+            "n_samples": fold.get("n_samples"),
             "delta_iptm": None if iptm is None or wt_iptm is None else round(float(iptm) - float(wt_iptm), 6),
             "ptm": fold.get("ptm"),
             "complex_plddt": fold.get("complex_plddt"),
@@ -435,8 +566,30 @@ def run_rescore(
             mutant_pdbs.append((vid, Path(pdb)))
         ranked.append(row)
 
-    stage("rosetta")
     wt_pdb = Path(wt_fold["pred_pdb"])
+    ab_ids = [campaign.chains.heavy]
+    if campaign.chains.light:
+        ab_ids.append(campaign.chains.light)
+    regions_by_chain = _annotate_ab_regions(seqs, ab_ids)
+    stage("boltz2_pose")
+    for row in ranked:
+        if row.get("boltz2_status") != "ok":
+            continue
+        pdb = row.get("pred_pdb")
+        if not pdb or not Path(pdb).is_file():
+            continue
+        pose = compare_mutant_to_wt(
+            wt_pdb,
+            Path(pdb),
+            ab_chains=ab_ids,
+            ag_chain=campaign.chains.antigen,
+            regions_by_chain=regions_by_chain,
+            sample_paths=list_sample_structures(Path(pdb).parent),
+        )
+        row.update(pose)
+        row["delta_iptm_band"] = delta_iptm_band(_f(row.get("delta_iptm")))
+
+    stage("rosetta")
     rosetta_dir = rescore_dir / "rosetta"
     rosetta_by = {}
     if mutant_pdbs:
@@ -490,7 +643,28 @@ def run_rescore(
         "plm_score",
         "structure_score",
         "iptm",
+        "iptm_median",
+        "iptm_max",
+        "iptm_mean",
+        "n_samples",
         "delta_iptm",
+        "delta_iptm_band",
+        "irmsd",
+        "irmsd_band",
+        "cdr1_rmsd",
+        "cdr2_rmsd",
+        "cdr3_rmsd",
+        "contact_retention",
+        "retention_band",
+        "n_wt_contacts",
+        "n_new_contacts",
+        "plddt_overall",
+        "plddt_interface",
+        "plddt_cdr3",
+        "n_seed_same_mode",
+        "n_seeds",
+        "seed_stable",
+        "pose_tags",
         "iptm_H_A",
         "iptm_L_A",
         "ptm",
@@ -516,14 +690,36 @@ def run_rescore(
         w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()
         w.writerows(wetlab_rows)
-        for r in wetlab_rows:
-            src = r.get("pred_pdb")
-            if src and Path(src).is_file():
-                shutil.copy2(src, struct_dir / f"{r['variant_id']}.pdb")
 
+    # 导出全部 Boltz2 成功结构（不仅湿实验短名单）
+    for r in ranked:
+        src = r.get("pred_pdb")
+        vid = str(r.get("variant_id") or "").strip()
+        if not vid or not src:
+            continue
+        src_path = Path(src)
+        if src_path.is_file():
+            shutil.copy2(src_path, struct_dir / f"{vid}.pdb")
+    # 兜底：从 boltz2 目录扫入尚未拷贝的 pred.pdb
+    fold_root = rescore_dir / "boltz2"
+    if fold_root.is_dir():
+        for pred in fold_root.glob("*/pred.pdb"):
+            name = pred.parent.name
+            dest = struct_dir / ("WT.pdb" if name == "WT" else f"{name}.pdb")
+            if not dest.is_file():
+                shutil.copy2(pred, dest)
+
+    ab_chains = [campaign.chains.heavy]
+    if campaign.chains.light:
+        ab_chains.append(campaign.chains.light)
     fasta_path = exports / SEQUENCES_FASTA_NAME
     fasta_path.write_text(
-        build_wt_mutant_fasta(seqs, ranked, antigen_chain=campaign.chains.antigen),
+        build_wt_mutant_fasta(
+            seqs,
+            ranked,
+            antigen_chain=campaign.chains.antigen,
+            antibody_chains=ab_chains,
+        ),
         encoding="utf-8",
     )
 

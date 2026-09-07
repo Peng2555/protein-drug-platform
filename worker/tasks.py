@@ -33,6 +33,8 @@ from masking_peptide_runner import run_masking_peptide_job as run_masking_peptid
 
 def _needs_pdockq(job: Job) -> bool:
     """Recompute when missing or stuck at 0 (ESMFold subprocess often wrote 0 before worker fix)."""
+    if len(job.chains_json or {}) <= 1:
+        return False
     return job.pdockq is None or job.pdockq == 0.0
 
 
@@ -59,7 +61,12 @@ def _ensure_pdockq(work_dir: Path, job: Job) -> None:
             if job.confidence_score is None:
                 iptm = payload.get("iptm", job.iptm)
                 ptm = payload.get("ptm", job.ptm)
-                if iptm is not None and ptm is not None:
+                n_chains = len(job.chains_json or {})
+                if n_chains <= 1 or payload.get("has_interface") is False:
+                    if ptm is not None:
+                        job.confidence_score = float(ptm)
+                        payload["confidence_score"] = job.confidence_score
+                elif iptm is not None and ptm is not None:
                     job.confidence_score = 0.8 * float(iptm) + 0.2 * float(ptm)
                     payload["confidence_score"] = job.confidence_score
                 elif iptm is not None:
@@ -161,13 +168,33 @@ def run_fold_job(self, job_id: str) -> dict:
             job.status = JobStatus.done.value
             job.iptm = result.iptm
             job.ptm = result.ptm
+            if len(job.chains_json or {}) <= 1 or result.num_chains <= 1:
+                job.iptm = None
             job.confidence_score = result.confidence_score
+            if job.iptm is None and job.ptm is not None and job.confidence_score is None:
+                job.confidence_score = job.ptm
             job.complex_plddt = result.complex_plddt
             job.pdockq = result.pdockq
             job.pdockq2 = result.pdockq2
             job.structure_path = result.pred_cif
             job.error_message = None
             _ensure_pdockq(work_dir, job)
+
+            metrics_path = work_dir / "metrics.json"
+            if metrics_path.is_file():
+                try:
+                    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+                    job.results_json = {
+                        **(job.results_json or {}),
+                        "has_interface": metrics.get("has_interface"),
+                        "n_samples": metrics.get("n_samples"),
+                        "selected_model": metrics.get("selected_model"),
+                        "iptm_median": metrics.get("iptm_median"),
+                        "iptm_max": metrics.get("iptm_max"),
+                        "samples": metrics.get("samples"),
+                    }
+                except json.JSONDecodeError:
+                    pass
 
             params = job.params_json or {}
             ref_path = params.get("reference_pdb")

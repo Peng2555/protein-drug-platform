@@ -135,8 +135,12 @@ onUnmounted(() => {
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="ipTM" width="90">
-            <template #default="{ row }">{{ row.iptm?.toFixed(3) ?? '—' }}</template>
+          <el-table-column label="ipTM / pTM" width="110">
+            <template #default="{ row }">
+              <span v-if="row.iptm != null">{{ row.iptm.toFixed(3) }}</span>
+              <span v-else-if="row.ptm != null">pTM {{ row.ptm.toFixed(3) }}</span>
+              <span v-else>—</span>
+            </template>
           </el-table-column>
           <el-table-column label="pDockQ" width="90">
             <template #default="{ row }">{{ row.pdockq?.toFixed(3) ?? '—' }}</template>

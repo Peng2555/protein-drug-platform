@@ -30,20 +30,33 @@ export async function deleteJob(id: string) {
   await apiJson(`/api/jobs/${id}`, { method: 'DELETE' })
 }
 
-export async function fetchStructureText(jobId: string): Promise<string> {
-  const resp = await api.get<string>(`/api/jobs/${jobId}/structure`, {
+export async function fetchStructureText(jobId: string, model?: number | null): Promise<string> {
+  const qs = model != null && model >= 0 ? `?model=${model}` : ''
+  const resp = await api.get<string>(`/api/jobs/${jobId}/structure${qs}`, {
     responseType: 'text',
     transformResponse: [(data) => data],
   })
   return resp.data
 }
 
-export async function downloadStructure(jobId: string, filename: string) {
-  const resp = await api.get<Blob>(`/api/jobs/${jobId}/structure`, { responseType: 'blob' })
+export async function downloadStructure(jobId: string, filename: string, model?: number | null) {
+  const qs = model != null && model >= 0 ? `?model=${model}` : ''
+  const resp = await api.get<Blob>(`/api/jobs/${jobId}/structure${qs}`, { responseType: 'blob' })
   const url = URL.createObjectURL(resp.data)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${filename.replace(/[^\w.-]+/g, '_')}.cif`
+  const suffix = model != null && model >= 0 ? `_model_${model}` : ''
+  a.download = `${filename.replace(/[^\w.-]+/g, '_')}${suffix}.cif`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function downloadAllStructures(jobId: string, filename: string) {
+  const resp = await api.get<Blob>(`/api/jobs/${jobId}/structures.zip`, { responseType: 'blob' })
+  const url = URL.createObjectURL(resp.data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${filename.replace(/[^\w.-]+/g, '_')}_samples.zip`
   a.click()
   URL.revokeObjectURL(url)
 }

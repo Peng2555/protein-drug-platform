@@ -41,6 +41,16 @@ class Settings(BaseSettings):
 
     affinity_runs_root: Path = _BOLTZ_ROOT / "affinity_redesign_outputs"
 
+    # Rosetta 集群投递（空 host 或 enabled=false → 本机 PyRosetta）
+    rosetta_cluster_enabled: bool = False
+    rosetta_cluster_host: str = "cluster-cpu"
+    rosetta_cluster_workdir: str = "/share/home/bj3212/boltz2_rosetta"
+    rosetta_cluster_partition: str = "batch"
+    rosetta_cluster_cpus: int = 64
+    rosetta_cluster_time: str = "24:00:00"
+    rosetta_cluster_conda_env: str = "rosetta-eval"
+    rosetta_cluster_fallback_local: bool = True
+
 
 settings = Settings()
 settings.affinity_runs_root.mkdir(parents=True, exist_ok=True)

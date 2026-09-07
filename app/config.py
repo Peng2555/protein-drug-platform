@@ -80,6 +80,15 @@ class Settings(BaseSettings):
     rosetta_nstruct: int = 3
     rosetta_n_jobs: int = 16
     pyrosetta_python: str = "/home/pengpai/data/envs/pyrosetta/bin/python"
+    # 亲和力改造 Rosetta：默认本机；开启后走 Slurm 集群
+    rosetta_cluster_enabled: bool = False
+    rosetta_cluster_host: str = "cluster-cpu"
+    rosetta_cluster_workdir: str = "/share/home/bj3212/boltz2_rosetta"
+    rosetta_cluster_partition: str = "batch"
+    rosetta_cluster_cpus: int = 64
+    rosetta_cluster_time: str = "24:00:00"
+    rosetta_cluster_conda_env: str = "rosetta-eval"
+    rosetta_cluster_fallback_local: bool = True
     esm2_3b_path: Path = Path(
         "/home/pengpai/data/cache/torch/hub/checkpoints/esm2_t36_3B_UR50D.pt"
     )

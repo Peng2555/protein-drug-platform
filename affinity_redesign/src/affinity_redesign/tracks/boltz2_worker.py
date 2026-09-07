@@ -61,6 +61,11 @@ def fold_one(
         "pred_pdb": result.pred_pdb,
         "pred_cif": result.pred_cif,
         "error": result.error,
+        "n_samples": extra.get("n_samples"),
+        "selected_model": extra.get("selected_model"),
+        "iptm_median": extra.get("iptm_median", result.iptm),
+        "iptm_max": extra.get("iptm_max"),
+        "iptm_mean": extra.get("iptm_mean"),
     }
     out_path = out_root / job_id / "fold_result.json"
     out_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -75,7 +80,7 @@ def main() -> int:
     p.add_argument("--use-msa-server", action="store_true")
     p.add_argument("--recycling-steps", type=int, default=3)
     p.add_argument("--sampling-steps", type=int, default=200)
-    p.add_argument("--diffusion-samples", type=int, default=1)
+    p.add_argument("--diffusion-samples", type=int, default=10)
     args = p.parse_args()
     result = fold_one(
         fasta=Path(args.fasta),

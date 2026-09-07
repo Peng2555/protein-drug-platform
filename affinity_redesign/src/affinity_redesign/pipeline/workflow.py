@@ -73,7 +73,12 @@ def ensure_complex_structure(
         on_stage("fold_wt_complex")
     fasta = campaign_dir / "input" / "sequences.fasta"
     out_root = campaign_dir / "round1" / "rescore" / "boltz2"
-    fold = fold_complex(fasta, out_root, "WT")
+    n_diff = 10
+    try:
+        n_diff = int(_load_round1_config(campaign_dir, campaign).rescore.diffusion_samples or 10)
+    except Exception:
+        n_diff = 10
+    fold = fold_complex(fasta, out_root, "WT", diffusion_samples=n_diff)
     if fold.get("status") != "ok" or not fold.get("pred_pdb"):
         raise RuntimeError(f"仅序列入口需要 WT 复合物，Boltz2 失败: {fold.get('error')}")
     dest = campaign_dir / rel

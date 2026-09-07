@@ -42,6 +42,13 @@ from boltz_runner import parse_fasta_text, validate_boltz_chain_ids
 router = APIRouter(prefix="/api/batches", tags=["batches"])
 
 
+def _batch_job_out(job: Job) -> BatchJobOut:
+    out = BatchJobOut.model_validate(job)
+    if len(job.chains_json or {}) <= 1:
+        out.iptm = None
+    return out
+
+
 def _parse_heavy_csv_bytes(raw: bytes, filename: str) -> HeavyCsvParseOut:
     if len(raw) > 10 * 1024 * 1024:
         raise HTTPException(400, "文件过大（最大 10MB）")
@@ -261,7 +268,7 @@ def list_batch_jobs(
         q.order_by(Job.iptm.desc().nullslast(), Job.created_at).limit(limit).offset(offset)
     ).all()
     return BatchJobsListOut(
-        items=[BatchJobOut.model_validate(j) for j in jobs],
+        items=[_batch_job_out(j) for j in jobs],
         total=total,
         limit=limit,
         offset=offset,

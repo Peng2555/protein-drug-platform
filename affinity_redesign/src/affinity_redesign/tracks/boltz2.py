@@ -20,17 +20,30 @@ def fold_complex(
     use_msa_server: bool = True,
     recycling_steps: int = 3,
     sampling_steps: int = 200,
-    diffusion_samples: int = 1,
+    diffusion_samples: int = 10,
     gpu_id: int | None = None,
 ) -> dict:
     out_root.mkdir(parents=True, exist_ok=True)
     result_path = out_root / job_id / "fold_result.json"
     if result_path.is_file():
         data = json.loads(result_path.read_text(encoding="utf-8"))
-        if data.get("status") == "ok" and data.get("pred_pdb"):
-            pdb = Path(data["pred_pdb"])
-            if pdb.is_file():
-                return data
+        n_have = int(data.get("n_samples") or 0)
+        if n_have < 1:
+            metrics_path = out_root / job_id / "metrics.json"
+            if metrics_path.is_file():
+                try:
+                    n_have = int(json.loads(metrics_path.read_text(encoding="utf-8")).get("n_samples") or 1)
+                except json.JSONDecodeError:
+                    n_have = 1
+            else:
+                n_have = 1
+        if (
+            data.get("status") == "ok"
+            and data.get("pred_pdb")
+            and Path(data["pred_pdb"]).is_file()
+            and n_have >= int(diffusion_samples or 1)
+        ):
+            return data
 
     cmd = [
         settings.boltz2_python,

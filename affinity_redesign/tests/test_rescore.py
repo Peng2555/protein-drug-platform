@@ -34,11 +34,13 @@ def test_build_wt_mutant_fasta():
         seqs,
         [{"chain": "H", "position": 3, "wt": "T", "mut": "S", "label": "T3S", "variant_id": "H_T3S"}],
         antigen_chain="A",
+        antibody_chains=["H"],
     )
     assert ">WT chain=H role=wild-type" in text
-    assert ">WT chain=A role=wild-type" in text
+    assert ">WT chain=A role=wild-type" not in text
+    assert "AAAAA" not in text
     assert "mutation=H:T3S" in text
     assert "QISLE" in text
-    assert "role=antigen_unchanged" in text
+    assert "role=antigen_unchanged" not in text
     assert seqs["H"] == "QITLE"
 
