@@ -129,10 +129,23 @@ function stepState(step: PipelineStep): 'done' | 'active' | 'pending' {
 
 const elapsedSeconds = computed(() => {
   const j = job.value
-  if (!j?.started_at) return null
-  const start = new Date(j.started_at).getTime()
-  if (j.runtime_seconds != null && j.status !== 'running') return Math.round(j.runtime_seconds)
+  if (!j) return null
+  // 从提交起算整段墙钟。Celery 重试会改写 started_at / runtime_seconds，只剩最后一段。
+  const start = parseApiTimeMs(j.created_at) ?? parseApiTimeMs(j.started_at)
+  if (start == null) return null
+  const done = j.status === 'done' || j.status === 'failed' || j.status === 'cancelled'
+  if (done) {
+    const end = parseApiTimeMs(j.finished_at)
+    if (end != null) return Math.max(0, Math.round((end - start) / 1000))
+  }
   return Math.max(0, Math.round((nowTs.value - start) / 1000))
+})
+
+const elapsedLabel = computed(() => {
+  const s = job.value?.status
+  if (s === 'done' || s === 'failed' || s === 'cancelled') return '总耗时'
+  if (s === 'queued') return '排队中'
+  return '已运行'
 })
 
 const boltzPercent = computed(() => {
@@ -423,6 +436,22 @@ function fmt(v: number | string | null | undefined, digits = 3) {
   return n.toFixed(digits)
 }
 
+function parseApiTimeMs(iso: string | null | undefined): number | null {
+  if (!iso) return null
+  const raw = iso.trim()
+  if (!raw) return null
+  const hasTz = /[zZ]$/.test(raw) || /[+-]\d{2}:\d{2}$/.test(raw) || /[+-]\d{4}$/.test(raw)
+  const normalized = hasTz ? raw : `${raw.replace(' ', 'T')}Z`
+  const t = Date.parse(normalized)
+  return Number.isNaN(t) ? null : t
+}
+
+function formatApiTime(iso: string | null | undefined): string {
+  const t = parseApiTimeMs(iso)
+  if (t == null) return '—'
+  return new Date(t).toLocaleString('zh-CN')
+}
+
 function fmtDuration(sec: number | null) {
   if (sec == null) return '—'
   if (sec < 60) return `${sec} 秒`
@@ -430,7 +459,9 @@ function fmtDuration(sec: number | null) {
   const s = sec % 60
   if (m < 60) return `${m} 分 ${s} 秒`
   const h = Math.floor(m / 60)
-  return `${h} 时 ${m % 60} 分`
+  if (h < 24) return `${h} 时 ${m % 60} 分 ${s} 秒`
+  const d = Math.floor(h / 24)
+  return `${d} 天 ${h % 24} 时 ${m % 60} 分`
 }
 
 function decisionTagType(decision?: string): 'success' | 'warning' | 'info' | undefined {
@@ -463,7 +494,7 @@ function statusTagType(status: string) {
           <span class="ar-detail__badge">亲和力改造</span>
           <h1>{{ job.name || job.id.slice(0, 8) }}</h1>
           <p class="ar-detail__meta">
-            #{{ job.id.slice(0, 8) }} · {{ new Date(job.created_at).toLocaleString('zh-CN') }} ·
+            #{{ job.id.slice(0, 8) }} · {{ formatApiTime(job.created_at) }} ·
             {{ entryMode }}
           </p>
         </div>
@@ -504,7 +535,7 @@ function statusTagType(status: string) {
         <div class="ar-detail__stat">
           <el-icon><Clock /></el-icon>
           <div>
-            <span>已运行</span>
+            <span>{{ elapsedLabel }}</span>
             <strong>{{ fmtDuration(elapsedSeconds) }}</strong>
           </div>
         </div>
@@ -612,8 +643,20 @@ function statusTagType(status: string) {
               <dd>{{ consensusLabel }}</dd>
             </div>
             <div>
-              <dt>开始时间</dt>
-              <dd>{{ job.started_at ? new Date(job.started_at).toLocaleString('zh-CN') : '—' }}</dd>
+              <dt>提交时间</dt>
+              <dd>{{ formatApiTime(job.created_at) }}</dd>
+            </div>
+            <div>
+              <dt>最近一次开始</dt>
+              <dd>{{ formatApiTime(job.started_at) }}</dd>
+            </div>
+            <div>
+              <dt>结束时间</dt>
+              <dd>{{ formatApiTime(job.finished_at) }}</dd>
+            </div>
+            <div>
+              <dt>总耗时</dt>
+              <dd>{{ fmtDuration(elapsedSeconds) }}</dd>
             </div>
             <div>
               <dt>Campaign</dt>

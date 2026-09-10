@@ -57,6 +57,11 @@ export function batchStatusLabel(status: string) {
   return BATCH_STATUS_LABELS[status] || status
 }
 
+export function batchTypeLabel(batch: { batch_type?: string; target_name?: string }) {
+  if (batch.batch_type === 'antibody_only') return '抗体批量'
+  return batch.target_name || 'VHH 批量'
+}
+
 export function engineLabel(engine?: string) {
   if (engine === 'esmfold2') return 'ESMFold2'
   if (engine === 'boltz2') return 'Boltz2'

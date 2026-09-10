@@ -73,6 +73,12 @@ export interface VhhPanelCreateOut {
   skipped_duplicates: number
 }
 
+export interface AntibodyRowPayload {
+  id: string
+  heavy: string
+  light?: string | null
+}
+
 export interface CdrSpan {
   name: string
   start: number

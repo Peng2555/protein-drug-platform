@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import base64
+import io
+import re
 import sys
+import zipfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
@@ -17,6 +20,9 @@ from app.job_paths import remove_job_outputs
 from app.job_service import create_and_queue_job, dispatch_job, sequence_hash
 from app.models import Batch, Job, JobStatus, User
 from app.schemas import (
+    AntibodyOnlyCreate,
+    AntibodyParseOut,
+    AntibodyParseRow,
     BatchDetailOut,
     BatchJobOut,
     BatchJobsListOut,
@@ -33,6 +39,13 @@ from app.csv_decode import (
     format_heavy_chain_display,
     parse_heavy_chain_text,
 )
+from app.antibody_only import (
+    AntibodySpec,
+    format_antibody_display,
+    parse_antibody_text,
+    prepare_antibody_only_jobs,
+)
+from app.fold_samples import list_fold_samples
 from app.vhh_panel import HeavyChainSpec, prepare_panel_jobs
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -213,6 +226,125 @@ def create_vhh_panel(body: VhhPanelCreate, db: Session = Depends(get_db), user: 
     )
 
 
+@router.post("/antibody-only", response_model=VhhPanelCreateOut, status_code=status.HTTP_201_CREATED)
+def create_antibody_only(body: AntibodyOnlyCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    antibodies = [
+        AntibodySpec(
+            id=ab.id,
+            heavy=ab.heavy,
+            light=(ab.light.strip() if ab.light and ab.light.strip() else None),
+        )
+        for ab in body.antibodies
+    ]
+    batch_name, job_specs, skipped = prepare_antibody_only_jobs(
+        batch_name=body.batch_name,
+        antibodies=antibodies,
+        heavy_chain_id=body.heavy_chain_id,
+        light_chain_id=body.light_chain_id,
+    )
+
+    if body.engine == "boltz2":
+        try:
+            sample = {body.heavy_chain_id: "A"}
+            if any(ab.light for ab in antibodies):
+                sample[body.light_chain_id] = "A"
+            validate_boltz_chain_ids(sample)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    boltz_dump = body.boltz_params.model_dump() if body.engine == "boltz2" and body.boltz_params else None
+    if body.engine == "boltz2":
+        if boltz_dump is None:
+            boltz_dump = {"use_msa_server": body.use_msa_server}
+        use_msa = bool(boltz_dump.get("use_msa_server", body.use_msa_server))
+    else:
+        use_msa = False
+
+    batch = Batch(
+        user_id=user.id,
+        name=batch_name,
+        batch_type="antibody_only",
+        target_name="",
+        target_chain_id="",
+        target_sequence="",
+        heavy_chain_id=body.heavy_chain_id,
+        heavy_chain_count=len(job_specs),
+        use_msa_server=use_msa,
+    )
+    db.add(batch)
+    db.flush()
+
+    job_ids: list[str] = []
+    pending_jobs: list[Job] = []
+    for job_name, hid, fasta_text in job_specs:
+        seqs = parse_fasta_text(fasta_text)
+        job = create_and_queue_job(
+            db,
+            user_id=user.id,
+            name=job_name,
+            fasta_text=fasta_text,
+            chains_json={k: len(v) for k, v in seqs.items()},
+            total_length=sum(len(v) for v in seqs.values()),
+            seq_hash=sequence_hash(seqs),
+            use_msa_server=use_msa,
+            batch_id=batch.id,
+            heavy_chain_id=hid,
+            skip_running_limit=True,
+            engine=body.engine,
+            boltz_params=boltz_dump if body.engine == "boltz2" else None,
+            esmfold_params=body.esmfold_params.model_dump() if body.engine == "esmfold2" and body.esmfold_params else None,
+            defer_dispatch=True,
+        )
+        pending_jobs.append(job)
+        job_ids.append(job.id)
+
+    db.commit()
+    for job in pending_jobs:
+        dispatch_job(db, job)
+    db.commit()
+    db.refresh(batch)
+    return VhhPanelCreateOut(
+        batch=_batch_out(batch, db),
+        job_ids=job_ids,
+        skipped_duplicates=skipped,
+    )
+
+
+def _parse_antibody_bytes(raw: bytes, filename: str) -> AntibodyParseOut:
+    if len(raw) > 10 * 1024 * 1024:
+        raise HTTPException(400, "文件过大（最大 10MB）")
+    try:
+        text, encoding = decode_upload_bytes(raw, filename)
+        rows, fmt = parse_antibody_text(text)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(400, f"文件解析失败: {exc}") from exc
+    display = format_antibody_display(rows, fmt) if rows else text
+    return AntibodyParseOut(
+        text=display,
+        encoding=encoding,
+        format=fmt,
+        rows=[AntibodyParseRow(id=ab.id, heavy=ab.heavy, light=ab.light) for ab in rows],
+        row_count=len(rows),
+    )
+
+
+@router.post("/parse-antibody-csv", response_model=AntibodyParseOut)
+async def parse_antibody_csv_upload(file: UploadFile = File(...)):
+    raw = await file.read()
+    return _parse_antibody_bytes(raw, file.filename or "")
+
+
+@router.post("/parse-antibody-csv-b64", response_model=AntibodyParseOut)
+def parse_antibody_csv_b64(body: HeavyCsvParseB64):
+    try:
+        raw = base64.b64decode(body.content_b64, validate=True)
+    except Exception as exc:
+        raise HTTPException(400, "文件内容无效") from exc
+    return _parse_antibody_bytes(raw, body.filename)
+
+
 @router.get("", response_model=BatchListOut)
 def list_batches(
     db: Session = Depends(get_db),
@@ -242,6 +374,54 @@ def get_batch(batch_id: str, db: Session = Depends(get_db), user: User = Depends
         **base.model_dump(),
         target_sequence=batch.target_sequence,
     )
+
+
+def _zip_seq_dir(raw: str, used: set[str], job_id: str) -> str:
+    base = re.sub(r"[^\w.\-]+", "_", (raw or "").strip(), flags=re.UNICODE).strip("._")[:80]
+    name = base or "structure"
+    if name in used:
+        name = f"{name}_{job_id[:8]}"
+    used.add(name)
+    return name
+
+
+@router.get("/{batch_id}/structures.zip")
+def download_batch_structures(
+    batch_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    batch = db.get(Batch, batch_id)
+    if not batch or batch.user_id != user.id:
+        raise HTTPException(404, "Batch not found")
+
+    jobs = db.scalars(
+        select(Job)
+        .where(Job.batch_id == batch_id, Job.status == JobStatus.done.value)
+        .order_by(Job.created_at)
+    ).all()
+
+    buf = io.BytesIO()
+    used: set[str] = set()
+    packed = 0
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for job in jobs:
+            folder = _zip_seq_dir(job.heavy_chain_id or job.name or job.id, used, job.id)
+            samples = list_fold_samples(job)
+            for row in samples:
+                src = Path(row["cif"])
+                if not src.is_file():
+                    continue
+                tag = "_best" if row.get("is_selected") else ""
+                zf.write(src, arcname=f"{folder}/model_{row['index']}{tag}.cif")
+                packed += 1
+    if packed == 0:
+        raise HTTPException(404, "批次中还没有可下载的结构（需至少一条已完成）")
+
+    buf.seek(0)
+    safe = re.sub(r"[^\w.\-]+", "_", batch.name)[:80] or "batch"
+    headers = {"Content-Disposition": f'attachment; filename="{safe}_structures.zip"'}
+    return Response(content=buf.getvalue(), media_type="application/zip", headers=headers)
 
 
 @router.get("/{batch_id}/jobs", response_model=BatchJobsListOut)

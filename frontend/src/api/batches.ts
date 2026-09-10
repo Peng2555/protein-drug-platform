@@ -1,5 +1,6 @@
-import { apiJson } from './client'
+import { api, apiJson } from './client'
 import type {
+  AntibodyRowPayload,
   BatchDetail,
   BatchJobsListOut,
   BatchListOut,
@@ -31,6 +32,19 @@ export async function createVhhPanel(body: {
   esmfold_params?: Record<string, number>
 }) {
   return apiJson<VhhPanelCreateOut>('/api/batches/vhh-panel', { method: 'POST', data: body })
+}
+
+export async function createAntibodyOnly(body: {
+  batch_name?: string | null
+  heavy_chain_id?: string
+  light_chain_id?: string
+  antibodies: AntibodyRowPayload[]
+  engine: string
+  use_msa_server: boolean
+  boltz_params?: Record<string, unknown>
+  esmfold_params?: Record<string, number>
+}) {
+  return apiJson<VhhPanelCreateOut>('/api/batches/antibody-only', { method: 'POST', data: body })
 }
 
 export async function deleteBatch(id: string) {
@@ -75,6 +89,19 @@ export async function exportBatchCsv(batchId: string, batchName: string) {
   const a = document.createElement('a')
   a.href = url
   a.download = `${batchName.replace(/[^\w.-]+/g, '_')}_results.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function downloadBatchStructures(batchId: string, batchName: string) {
+  const resp = await api.get<Blob>(`/api/batches/${batchId}/structures.zip`, {
+    responseType: 'blob',
+    timeout: 600_000,
+  })
+  const url = URL.createObjectURL(resp.data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${batchName.replace(/[^\w.-]+/g, '_')}_structures.zip`
   a.click()
   URL.revokeObjectURL(url)
 }

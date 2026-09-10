@@ -6,7 +6,7 @@ import { deleteJob } from '@/api/jobs'
 import { deleteBatch } from '@/api/batches'
 import { useFoldTasksStore } from '@/stores/foldTasks'
 import type { Batch, Job } from '@/api/types'
-import { batchStatusLabel, engineLabel, foldScoreTag, statusLabel } from '@/utils/constants'
+import { batchStatusLabel, batchTypeLabel, engineLabel, foldScoreTag, statusLabel } from '@/utils/constants'
 
 const route = useRoute()
 const router = useRouter()
@@ -85,7 +85,7 @@ onMounted(() => {
     <header class="fold-tasks__head">
       <div>
         <h1>全部任务</h1>
-        <p>结构预测单条与 VHH 批次任务列表</p>
+        <p>结构预测单条、VHH 复合物批次与抗体批量任务列表</p>
       </div>
       <div class="fold-tasks__actions">
         <el-button text :loading="store.loading" @click="store.refreshFoldTasks()">刷新</el-button>
@@ -165,7 +165,7 @@ onMounted(() => {
             </template>
           </template>
           <template v-else>
-            {{ (item.data as Batch).target_name }}
+            {{ batchTypeLabel(item.data as Batch) }}
             · {{ (item.data as Batch).done_count }}/{{ (item.data as Batch).heavy_chain_count }} 完成
           </template>
           · {{ formatTime(item.data.created_at) }}

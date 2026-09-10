@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteBatch, exportBatchCsv } from '@/api/batches'
+import { deleteBatch, downloadBatchStructures, exportBatchCsv } from '@/api/batches'
 import { useBatchDetailStore, useFoldTasksStore } from '@/stores/foldTasks'
 import { BATCH_JOBS_PAGE_SIZE, batchStatusLabel, statusLabel } from '@/utils/constants'
 
@@ -63,6 +63,26 @@ function onExport() {
   void exportBatchCsv(b.id, b.name)
 }
 
+const downloadingZip = ref(false)
+
+async function onDownloadStructures() {
+  const b = batchStore.batch
+  if (!b) return
+  if (!b.done_count) {
+    ElMessage.warning('还没有已完成的结构可下载')
+    return
+  }
+  downloadingZip.value = true
+  try {
+    await downloadBatchStructures(b.id, b.name)
+    ElMessage.success('已开始下载结构 ZIP')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '下载失败')
+  } finally {
+    downloadingZip.value = false
+  }
+}
+
 function statusTagType(status: string) {
   if (status === 'done') return 'success'
   if (status === 'running' || status === 'partial') return 'warning'
@@ -93,10 +113,15 @@ onUnmounted(() => {
         <div class="detail-title-block">
           <h2>{{ batchStore.batch.name }}</h2>
           <p class="detail-meta">
-            靶点 {{ batchStore.batch.target_name }}（{{ batchStore.batch.target_chain_id }}，{{
-              batchStore.batch.target_sequence.length
-            }}
-            aa）· 重链链 ID {{ batchStore.batch.heavy_chain_id }} · 提交于
+            <template v-if="batchStore.batch.batch_type === 'antibody_only'">
+              抗体批量（无抗原）· 重链链 ID {{ batchStore.batch.heavy_chain_id }} · 提交于
+            </template>
+            <template v-else>
+              靶点 {{ batchStore.batch.target_name }}（{{ batchStore.batch.target_chain_id }}，{{
+                batchStore.batch.target_sequence.length
+              }}
+              aa）· 重链链 ID {{ batchStore.batch.heavy_chain_id }} · 提交于
+            </template>
             {{ new Date(batchStore.batch.created_at).toLocaleString('zh-CN') }}
           </p>
         </div>
@@ -108,6 +133,16 @@ onUnmounted(() => {
             {{ batchStatusLabel(batchStore.batch.status) }}
           </el-tag>
           <el-button size="small" @click="onExport">导出 CSV</el-button>
+          <el-button
+            size="small"
+            type="primary"
+            plain
+            :loading="downloadingZip"
+            :disabled="!batchStore.batch.done_count"
+            @click="onDownloadStructures"
+          >
+            下载全部构象 ZIP
+          </el-button>
           <el-button size="small" type="danger" plain @click="onDelete">删除批次</el-button>
         </div>
       </div>
@@ -119,11 +154,12 @@ onUnmounted(() => {
         进度 {{ batchStore.batch.done_count }}/{{ batchStore.batch.heavy_chain_count }} 完成 · 运行
         {{ batchStore.batch.running_count }} · 排队 {{ batchStore.batch.queued_count }} · 失败
         {{ batchStore.batch.failed_count }}
+        · ZIP 含每条序列的全部构象（采样数与提交时一致，选定帧带 _best）
       </p>
 
       <div class="batch-jobs-table">
         <el-table :data="batchStore.batchJobs" stripe @row-click="(row) => openJob(row.id)">
-          <el-table-column label="重链 ID" min-width="120">
+          <el-table-column :label="batchStore.batch.batch_type === 'antibody_only' ? '抗体 ID' : '重链 ID'" min-width="120">
             <template #default="{ row }">
               <strong>{{ row.heavy_chain_id || row.name || '—' }}</strong>
             </template>

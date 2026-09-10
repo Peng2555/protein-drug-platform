@@ -81,6 +81,21 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _aware_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _wall_seconds(started: datetime | None, finished: datetime | None) -> float | None:
+    a, b = _aware_utc(started), _aware_utc(finished)
+    if a is None or b is None:
+        return None
+    return max(0.0, (b - a).total_seconds())
+
+
 def _run_structure_fold(job: Job, seqs: dict[str, str], work_dir: Path):
     common = {
         "seqs": seqs,
@@ -790,7 +805,8 @@ def run_affinity_redesign_job(self, job_id: str) -> dict:
         if not job:
             return {"job_id": job_id, "status": "deleted"}
         job.finished_at = _utcnow()
-        job.runtime_seconds = result.seconds
+        wall = _wall_seconds(job.started_at, job.finished_at)
+        job.runtime_seconds = wall if wall is not None else result.seconds
         job.stage = result.stage
         job.results_json = result.results
         if result.status == "ok":
@@ -807,6 +823,9 @@ def run_affinity_redesign_job(self, job_id: str) -> dict:
             job.status = JobStatus.failed.value
             job.error_message = str(exc)[:8000]
             job.finished_at = _utcnow()
+            wall = _wall_seconds(job.started_at, job.finished_at)
+            if wall is not None:
+                job.runtime_seconds = wall
             db.commit()
         raise
     finally:

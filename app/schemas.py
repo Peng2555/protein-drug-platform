@@ -690,6 +690,23 @@ class VhhPanelCreate(BaseModel):
     esmfold_params: EsmFold2Params | None = None
 
 
+class AntibodyInput(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    heavy: str = Field(min_length=5)
+    light: str | None = None
+
+
+class AntibodyOnlyCreate(BaseModel):
+    batch_name: str | None = Field(default=None, max_length=128)
+    heavy_chain_id: str = Field(default="H", max_length=16)
+    light_chain_id: str = Field(default="L", max_length=16)
+    antibodies: list[AntibodyInput] = Field(min_length=1)
+    engine: Literal["boltz2", "esmfold2"] = "boltz2"
+    use_msa_server: bool = True
+    boltz_params: Boltz2Params | None = None
+    esmfold_params: EsmFold2Params | None = None
+
+
 class BatchJobOut(JobOut):
     pass
 
@@ -752,3 +769,17 @@ class HeavyCsvParseOut(BaseModel):
 class HeavyCsvParseB64(BaseModel):
     filename: str = Field(default="upload.csv", max_length=256)
     content_b64: str = Field(min_length=1)
+
+
+class AntibodyParseRow(BaseModel):
+    id: str
+    heavy: str
+    light: str | None = None
+
+
+class AntibodyParseOut(BaseModel):
+    text: str
+    encoding: str
+    format: Literal["csv", "fasta"] = "csv"
+    rows: list[AntibodyParseRow]
+    row_count: int
