@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     # 算法包默认用仓库内 affinity_redesign/；仍可通过环境变量改到外部目录
     antibody_redesign_root: Path = ROOT
     masking_peptide_out_root: Path = ROOT / "masking_peptide_outputs"
+    hydro_redesign_out_root: Path = ROOT / "hydro_redesign_outputs"
+    cic_profile_out_root: Path = ROOT / "cic_profile_outputs"
     masking_peptide_project_root: Path = Path(
         "/home/pengpai/data/Company_Project/CD98-23110_masking_peptide"
     )
@@ -143,6 +145,8 @@ settings.design_out_root.mkdir(parents=True, exist_ok=True)
 settings.rosetta_eval_out_root.mkdir(parents=True, exist_ok=True)
 settings.affinity_redesign_out_root.mkdir(parents=True, exist_ok=True)
 settings.masking_peptide_out_root.mkdir(parents=True, exist_ok=True)
+settings.hydro_redesign_out_root.mkdir(parents=True, exist_ok=True)
+settings.cic_profile_out_root.mkdir(parents=True, exist_ok=True)
 (ROOT / "data").mkdir(parents=True, exist_ok=True)
 
 # Propagate cache env vars for boltz subprocess

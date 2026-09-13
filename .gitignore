@@ -18,6 +18,8 @@ design_outputs
 rosetta_eval_outputs
 affinity_redesign_outputs
 masking_peptide_outputs
+hydro_redesign_outputs
+cic_profile_outputs
 
 # ── 2. 日志与进程 pid ───────────────────────────────────────────────────────
 logs

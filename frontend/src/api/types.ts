@@ -367,6 +367,46 @@ export interface MaskingPeptideSequencesOut {
   summary: Record<string, unknown> | null
 }
 
+export interface HydroRedesignJob extends Job {}
+
+export interface HydroRedesignJobListOut {
+  items: HydroRedesignJob[]
+  total: number
+}
+
+export interface HydroRedesignProgressOut {
+  stage: string
+  status: string
+  summary: Record<string, unknown> | null
+}
+
+export interface HydroRedesignRankedOut {
+  mutations: Record<string, unknown>[]
+  wetlab: Record<string, unknown>[]
+  patches: Record<string, unknown>[]
+  residues: Record<string, unknown>[]
+  summary: Record<string, unknown> | null
+}
+
+export interface CicProfileJob extends Job {}
+
+export interface CicProfileJobListOut {
+  items: CicProfileJob[]
+  total: number
+}
+
+export interface CicProfileProgressOut {
+  stage: string
+  status: string
+  summary: Record<string, unknown> | null
+}
+
+export interface CicProfileRankedOut {
+  patches: Record<string, unknown>[]
+  residues: Record<string, unknown>[]
+  summary: Record<string, unknown> | null
+}
+
 export interface DesignCandidate {
   index: number
   header?: string

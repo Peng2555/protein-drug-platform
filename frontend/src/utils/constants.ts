@@ -70,6 +70,8 @@ export function engineLabel(engine?: string) {
   if (engine === 'rosetta_interface_eval') return 'Rosetta 结构评价'
   if (engine === 'affinity_redesign') return '亲和力改造'
   if (engine === 'masking_peptide') return '多肽遮蔽设计'
+  if (engine === 'hydro_redesign') return '抗体疏水性改造'
+  if (engine === 'cic_profile') return '抗体 CIC 表面斑'
   if (engine === 'iggm_maturation') return 'IgGM 亲和力成熟'
   return engine || '—'
 }
@@ -93,6 +95,23 @@ export function affinityRedesignStageLabel(stage?: string | null): string {
   const m = stage.match(/^boltz2_(\d+)\/(\d+)_(.+)$/)
   if (m) return `Boltz2 折叠 ${m[1]}/${m[2]} · ${m[3]}`
   return stage
+}
+
+export const CIC_PROFILE_STAGE_LABELS: Record<string, string> = {
+  queued: '排队中',
+  fold: '折抗体',
+  patches: '算表面斑',
+  done: '完成',
+  failed: '失败',
+}
+
+export const HYDRO_REDESIGN_STAGE_LABELS: Record<string, string> = {
+  queued: '排队中',
+  fold: '折抗体',
+  patches: '算疏水斑',
+  enumerate: '枚举突变',
+  done: '完成',
+  failed: '失败',
 }
 
 export function formatEsmfoldParams(params?: Record<string, number>) {

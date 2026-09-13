@@ -134,8 +134,8 @@ export function scenarioById(id: string): ScenarioDef | undefined {
 
 /** 各场景下高亮模块（能力地图默认筛选） */
 export const SCENARIO_MODULES: Record<ScenarioId, ModuleId[]> = {
-  vhh: ['fold', 'rosetta', 'maturation', 'synthesis', 'developability', 'design'],
-  antibody: ['fold', 'design', 'rosetta', 'developability', 'maturation'],
+  vhh: ['fold', 'rosetta', 'maturation', 'synthesis', 'developability', 'design', 'hydro_redesign', 'cic_profile'],
+  antibody: ['fold', 'design', 'rosetta', 'developability', 'maturation', 'hydro_redesign', 'cic_profile'],
   small_molecule: ['docking', 'md'],
   general: ['fold', 'design'],
 }
@@ -168,6 +168,24 @@ export const WORKFLOWS_BY_SCENARIO: Record<ScenarioId, WorkflowDef[]> = {
       ctaLabel: '进入序列改造',
       ctaRoute: '/developability/new',
       accent: 'violet',
+    },
+    {
+      id: 'vhh-hydro',
+      title: '表面疏水性改造',
+      description: '无抗原：Boltz2 折抗体后识别疏水斑，枚举亲水突变并按斑分排序。',
+      steps: [{ label: '折抗体' }, { label: '算疏水斑' }, { label: '亲水枚举' }],
+      ctaLabel: '进入疏水性改造',
+      ctaRoute: '/hydro-redesign/new',
+      accent: 'cyan',
+    },
+    {
+      id: 'vhh-cic',
+      title: 'CIC 表面斑诊断',
+      description: '实验 pH 下看表面正电、负电与疏水斑，定位非特异相互作用风险。',
+      steps: [{ label: '折抗体' }, { label: '正负电斑' }, { label: '疏水斑' }],
+      ctaLabel: '进入 CIC 分析',
+      ctaRoute: '/cic-profile/new',
+      accent: 'blue',
     },
     {
       id: 'vhh-synthesis',
@@ -206,6 +224,24 @@ export const WORKFLOWS_BY_SCENARIO: Record<ScenarioId, WorkflowDef[]> = {
       ctaLabel: '进入结构评价',
       ctaRoute: '/rosetta/new',
       accent: 'violet',
+    },
+    {
+      id: 'ab-hydro',
+      title: '表面疏水性改造',
+      description: '无抗原：折抗体或上传结构，识别疏水斑并枚举亲水突变。',
+      steps: [{ label: '折抗体' }, { label: '疏水斑' }, { label: '湿实验短名单' }],
+      ctaLabel: '进入疏水性改造',
+      ctaRoute: '/hydro-redesign/new',
+      accent: 'cyan',
+    },
+    {
+      id: 'ab-cic',
+      title: 'CIC 表面斑诊断',
+      description: '按 CIC 实验 pH 识别正电、负电与疏水斑，并在分子表面着色。',
+      steps: [{ label: '折抗体' }, { label: '算斑' }, { label: '3D 展示' }],
+      ctaLabel: '进入 CIC 分析',
+      ctaRoute: '/cic-profile/new',
+      accent: 'blue',
     },
   ],
   small_molecule: [
@@ -258,6 +294,8 @@ export const MODULE_ENGINES: Partial<Record<ModuleId, string>> = {
   developability: 'ESM-2 · MAXWELL',
   maturation: 'IgGM',
   affinity_redesign: 'round1 · Boltz2 · Rosetta',
+  hydro_redesign: 'Boltz2 · 疏水斑',
+  cic_profile: 'Boltz2 · CIC 斑',
   synthesis: '表交叉筛选',
   docking: 'AutoDock Vina',
   md: 'GROMACS',

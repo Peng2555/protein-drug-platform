@@ -30,6 +30,8 @@ from app.routers import (
     rosetta_eval_jobs,
     affinity_redesign_jobs,
     masking_peptide_jobs,
+    hydro_redesign_jobs,
+    cic_profile_jobs,
 )
 from app.schemas import HealthOut
 
@@ -73,6 +75,8 @@ app.include_router(design_jobs.router)
 app.include_router(rosetta_eval_jobs.router)
 app.include_router(affinity_redesign_jobs.router)
 app.include_router(masking_peptide_jobs.router)
+app.include_router(hydro_redesign_jobs.router)
+app.include_router(cic_profile_jobs.router)
 
 
 @app.on_event("startup")

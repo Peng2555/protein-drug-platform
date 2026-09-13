@@ -12,6 +12,8 @@ export type ModuleId =
   | 'maturation'
   | 'affinity_redesign'
   | 'masking_peptide'
+  | 'hydro_redesign'
+  | 'cic_profile'
   | 'synthesis'
   | 'docking'
   | 'md'
@@ -70,6 +72,18 @@ export const NAV_GROUPS: NavGroup[] = [
         label: '多肽遮蔽设计',
         hint: 'RFdiffusion + MPNN 环肽设计（CD98）',
       },
+      {
+        id: 'hydro_redesign',
+        path: '/hydro-redesign',
+        label: '疏水性改造',
+        hint: '表面疏水斑 × 亲水突变（无抗原）',
+      },
+      {
+        id: 'cic_profile',
+        path: '/cic-profile',
+        label: 'CIC 表面斑',
+        hint: '实验 pH 下正电 / 负电 / 疏水斑（诊断）',
+      },
       { id: 'synthesis', path: '/synthesis', label: '合成候选', hint: '测序表与突变表交叉筛选' },
     ],
   },
@@ -89,6 +103,8 @@ export function moduleIdFromPath(path: string): ModuleId {
   if (path === '/' || path.startsWith('/home')) return 'home'
   if (path.startsWith('/affinity-redesign')) return 'affinity_redesign'
   if (path.startsWith('/masking-peptide')) return 'masking_peptide'
+  if (path.startsWith('/hydro-redesign')) return 'hydro_redesign'
+  if (path.startsWith('/cic-profile')) return 'cic_profile'
   if (path.startsWith('/md')) return 'md'
   if (path.startsWith('/maturation')) return 'maturation'
   if (path.startsWith('/synthesis')) return 'synthesis'
@@ -104,6 +120,8 @@ export function moduleIdFromPath(path: string): ModuleId {
 export function moduleRoutePrefix(id: ModuleId): string {
   if (id === 'affinity_redesign') return 'affinity-redesign'
   if (id === 'masking_peptide') return 'masking-peptide'
+  if (id === 'hydro_redesign') return 'hydro-redesign'
+  if (id === 'cic_profile') return 'cic-profile'
   return id
 }
 

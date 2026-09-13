@@ -10,6 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(ROOT / "affinity_redesign" / "src"))
+sys.path.insert(0, str(ROOT / "hydro_redesign" / "src"))
+sys.path.insert(0, str(ROOT / "cic_profile" / "src"))
 sys.path.insert(0, str(SCRIPTS))
 sys.path.insert(0, str(ROOT))
 
@@ -29,6 +31,8 @@ from proteinmpnn_design_runner import run_design_job as run_design_pipeline
 from rosetta_eval_runner import run_rosetta_eval_job as run_rosetta_eval_pipeline
 from affinity_redesign_runner import run_affinity_redesign_job as run_affinity_redesign_pipeline
 from masking_peptide_runner import run_masking_peptide_job as run_masking_peptide_pipeline
+from hydro_redesign_runner import run_hydro_redesign_job as run_hydro_redesign_pipeline
+from cic_profile_runner import run_cic_profile_job as run_cic_profile_pipeline
 
 
 def _needs_pdockq(job: Job) -> bool:
@@ -880,6 +884,131 @@ def run_masking_peptide_job(self, job_id: str) -> dict:
             job.status = JobStatus.failed.value
             job.error_message = str(exc)[:8000]
             job.finished_at = _utcnow()
+            db.commit()
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, name="worker.tasks.run_hydro_redesign_job")
+def run_hydro_redesign_job(self, job_id: str) -> dict:
+    db: Session = SessionLocal()
+    try:
+        job = db.get(Job, job_id)
+        if not job or job.engine != "hydro_redesign":
+            return {"error": "not a hydro redesign job"}
+        if job.status == JobStatus.cancelled.value:
+            return {"status": "cancelled"}
+        params = dict(job.params_json or {})
+        job.status = JobStatus.running.value
+        job.stage = "queued"
+        if job.started_at is None:
+            job.started_at = _utcnow()
+        job.celery_task_id = self.request.id
+        db.commit()
+
+        def on_stage(stage: str) -> None:
+            current = db.get(Job, job_id)
+            if current and current.status != JobStatus.cancelled.value:
+                current.stage = stage
+                db.commit()
+
+        result = run_hydro_redesign_pipeline(
+            work_dir=Path(job.work_dir or settings.hydro_redesign_out_root / job.id),
+            params=params,
+            fasta_text=job.fasta_text or "",
+            on_stage=on_stage,
+        )
+        job = db.get(Job, job_id)
+        if not job:
+            return {"job_id": job_id, "status": "deleted"}
+        job.finished_at = _utcnow()
+        wall = _wall_seconds(job.started_at, job.finished_at)
+        job.runtime_seconds = wall if wall is not None else result.seconds
+        job.stage = result.stage
+        job.results_json = result.results
+        if result.status == "ok":
+            job.status = JobStatus.done.value
+            job.error_message = None
+        else:
+            job.status = JobStatus.failed.value
+            job.error_message = (result.error or "Hydro redesign workflow failed")[:8000]
+        db.commit()
+        return {"job_id": job_id, "status": job.status}
+    except Exception as exc:
+        job = db.get(Job, job_id)
+        if job:
+            job.status = JobStatus.failed.value
+            job.error_message = str(exc)[:8000]
+            job.finished_at = _utcnow()
+            wall = _wall_seconds(job.started_at, job.finished_at)
+            if wall is not None:
+                job.runtime_seconds = wall
+            db.commit()
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, name="worker.tasks.run_cic_profile_job")
+def run_cic_profile_job(self, job_id: str) -> dict:
+    db: Session = SessionLocal()
+    try:
+        job = db.get(Job, job_id)
+        if not job or job.engine != "cic_profile":
+            return {"error": "not a CIC profile job"}
+        if job.status == JobStatus.cancelled.value:
+            return {"status": "cancelled"}
+        params = dict(job.params_json or {})
+        job.status = JobStatus.running.value
+        job.stage = "queued"
+        if job.started_at is None:
+            job.started_at = _utcnow()
+        job.celery_task_id = self.request.id
+        db.commit()
+
+        def on_stage(stage: str) -> None:
+            current = db.get(Job, job_id)
+            if current and current.status != JobStatus.cancelled.value:
+                current.stage = stage
+                db.commit()
+
+        result = run_cic_profile_pipeline(
+            work_dir=Path(job.work_dir or settings.cic_profile_out_root / job.id),
+            params=params,
+            fasta_text=job.fasta_text or "",
+            on_stage=on_stage,
+        )
+        job = db.get(Job, job_id)
+        if not job:
+            return {"job_id": job_id, "status": "deleted"}
+        job.finished_at = _utcnow()
+        wall = _wall_seconds(job.started_at, job.finished_at)
+        job.runtime_seconds = wall if wall is not None else result.seconds
+        job.stage = result.stage
+        payload = result.results or {}
+        job.results_json = {
+            "summary": payload.get("summary"),
+            "pred_cif": payload.get("pred_cif"),
+            "n_patches": len(payload.get("patches") or []),
+        }
+        if result.status == "ok":
+            job.status = JobStatus.done.value
+            job.error_message = None
+        else:
+            job.status = JobStatus.failed.value
+            job.error_message = (result.error or "CIC profile workflow failed")[:8000]
+        db.commit()
+        return {"job_id": job_id, "status": job.status}
+    except Exception as exc:
+        job = db.get(Job, job_id)
+        if job:
+            job.status = JobStatus.failed.value
+            job.error_message = str(exc)[:8000]
+            job.finished_at = _utcnow()
+            wall = _wall_seconds(job.started_at, job.finished_at)
+            if wall is not None:
+                job.runtime_seconds = wall
             db.commit()
         raise
     finally:

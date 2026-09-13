@@ -8,12 +8,16 @@ import { fetchSynthesisJobs } from '@/api/synthesis'
 import { fetchMaturationJobs } from '@/api/maturation'
 import { fetchAffinityRedesignJobs } from '@/api/affinityRedesign'
 import { fetchMaskingPeptideJobs } from '@/api/maskingPeptide'
+import { fetchHydroRedesignJobs } from '@/api/hydroRedesign'
+import { fetchCicProfileJobs } from '@/api/cicProfile'
 import { fetchMdJobs } from '@/api/md'
 import type {
   AffinityRedesignJob,
   DesignJob,
   DevelopabilityJob,
   DockingJob,
+  HydroRedesignJob,
+  CicProfileJob,
   MaskingPeptideJob,
   MaturationJob,
   MdJob,
@@ -28,6 +32,8 @@ export type ModuleJobKind =
   | 'maturation'
   | 'affinity_redesign'
   | 'masking_peptide'
+  | 'hydro_redesign'
+  | 'cic_profile'
   | 'synthesis'
   | 'design'
   | 'rosetta'
@@ -62,6 +68,8 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
   const maturationJobs = ref<MaturationJob[]>([])
   const affinityRedesignJobs = ref<AffinityRedesignJob[]>([])
   const maskingPeptideJobs = ref<MaskingPeptideJob[]>([])
+  const hydroRedesignJobs = ref<HydroRedesignJob[]>([])
+  const cicProfileJobs = ref<CicProfileJob[]>([])
   const synthesisJobs = ref<SynthesisJob[]>([])
   const designJobs = ref<DesignJob[]>([])
   const rosettaJobs = ref<RosettaEvalJob[]>([])
@@ -74,6 +82,8 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     maturation: maturationJobs.value.length,
     affinity_redesign: affinityRedesignJobs.value.length,
     masking_peptide: maskingPeptideJobs.value.length,
+    hydro_redesign: hydroRedesignJobs.value.length,
+    cic_profile: cicProfileJobs.value.length,
     synthesis: synthesisJobs.value.length,
     design: designJobs.value.length,
     rosetta: rosettaJobs.value.length,
@@ -87,6 +97,8 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
       maturation: toNavItems(maturationJobs.value, '成熟'),
       affinity_redesign: toNavItems(affinityRedesignJobs.value, '改造'),
       masking_peptide: toNavItems(maskingPeptideJobs.value, '多肽'),
+      hydro_redesign: toNavItems(hydroRedesignJobs.value, '疏水'),
+      cic_profile: toNavItems(cicProfileJobs.value, 'CIC'),
       synthesis: toNavItems(synthesisJobs.value, '合成'),
       design: toNavItems(designJobs.value, '设计'),
       rosetta: toNavItems(rosettaJobs.value, '评价'),
@@ -124,6 +136,16 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     maskingPeptideJobs.value = data.items ?? []
   }
 
+  async function refreshCicProfile() {
+    const data = await fetchCicProfileJobs(50)
+    cicProfileJobs.value = data.items ?? []
+  }
+
+  async function refreshHydroRedesign() {
+    const data = await fetchHydroRedesignJobs(50)
+    hydroRedesignJobs.value = data.items ?? []
+  }
+
   async function refreshSynthesis() {
     const data = await fetchSynthesisJobs(50)
     synthesisJobs.value = data.items ?? []
@@ -149,6 +171,8 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
         refreshMaturation().catch(() => undefined),
         refreshAffinityRedesign().catch(() => undefined),
         refreshMaskingPeptide().catch(() => undefined),
+        refreshHydroRedesign().catch(() => undefined),
+        refreshCicProfile().catch(() => undefined),
         refreshSynthesis().catch(() => undefined),
         refreshDesign().catch(() => undefined),
         refreshRosetta().catch(() => undefined),
@@ -165,6 +189,8 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     if (kind === 'maturation') return refreshMaturation()
     if (kind === 'affinity_redesign') return refreshAffinityRedesign()
     if (kind === 'masking_peptide') return refreshMaskingPeptide()
+    if (kind === 'hydro_redesign') return refreshHydroRedesign()
+    if (kind === 'cic_profile') return refreshCicProfile()
     if (kind === 'design') return refreshDesign()
     if (kind === 'rosetta') return refreshRosetta()
     return refreshSynthesis()
@@ -177,6 +203,8 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     maturationJobs,
     affinityRedesignJobs,
     maskingPeptideJobs,
+    hydroRedesignJobs,
+    cicProfileJobs,
     synthesisJobs,
     designJobs,
     rosettaJobs,
@@ -191,6 +219,8 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     refreshMaturation,
     refreshAffinityRedesign,
     refreshMaskingPeptide,
+    refreshHydroRedesign,
+    refreshCicProfile,
     refreshSynthesis,
     refreshDesign,
     refreshRosetta,

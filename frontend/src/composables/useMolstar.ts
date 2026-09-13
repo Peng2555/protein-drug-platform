@@ -2,6 +2,7 @@ import { QualityAssessmentProvider } from 'molstar/lib/extensions/model-archive/
 import { Viewer } from 'molstar/lib/apps/viewer/app'
 import { Bond, StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure'
 import { Vec3 } from 'molstar/lib/mol-math/linear-algebra'
+import { PresetStructureRepresentations } from 'molstar/lib/mol-plugin-state/builder/structure/representation-preset'
 import { ColorThemeCategory } from 'molstar/lib/mol-theme/color/categories'
 import type { ColorTheme } from 'molstar/lib/mol-theme/color'
 import { Color } from 'molstar/lib/mol-util/color'
@@ -189,6 +190,25 @@ export async function loadMolstarCif(viewer: MolstarViewer, cifText: string): Pr
   viewer.plugin.canvas3d?.requestCameraReset()
 }
 
+export type MolstarReprKind = 'molecular-surface' | 'polymer-cartoon'
+
+/** 切换 cartoon / 分子表面。表面计算较慢，调用方应避免在每次着色时重复套用。 */
+export async function applyMolstarStructurePreset(
+  viewer: MolstarViewer,
+  kind: MolstarReprKind,
+): Promise<void> {
+  const { plugin } = viewer
+  const structures = plugin.managers.structure.hierarchy.current.structures
+  if (!structures.length) return
+  const provider = PresetStructureRepresentations[kind]
+  await plugin.managers.structure.component.applyPreset(structures, provider, {
+    quality: kind === 'molecular-surface' ? 'high' : 'auto',
+    ignoreHydrogens: true,
+    ignoreLight: false,
+  } as never)
+  plugin.canvas3d?.requestDraw()
+}
+
 export async function applyMolstarColorMode(viewer: MolstarViewer, mode: ViewerColorMode): Promise<void> {
   const { plugin } = viewer
   const structures = plugin.managers.structure.hierarchy.current.structures
@@ -205,6 +225,101 @@ export async function applyMolstarColorMode(viewer: MolstarViewer, mode: ViewerC
   }
 
   await updateAllRepresentationThemes(plugin, { color: 'chain-id' })
+}
+
+const HYDRO_PATCH_THEME_NAME = 'boltz-hydro-patch'
+
+type HydroPatchThemeState = {
+  colorByKey: Map<string, number>
+  patchByKey: Map<string, string>
+  focusPatchId: string | null
+}
+
+const hydroPatchThemeState: HydroPatchThemeState = {
+  colorByKey: new Map(),
+  patchByKey: new Map(),
+  focusPatchId: null,
+}
+
+const HYDRO_BASE = Color(0xe8edf3)
+const HYDRO_DIM = Color(0xcbd5e1)
+
+function hydroLocationKey(location: StructureElement.Location): string | null {
+  const chain =
+    StructureProperties.chain.auth_asym_id(location) ||
+    StructureProperties.chain.label_asym_id(location)
+  const seq =
+    StructureProperties.residue.auth_seq_id(location) ??
+    StructureProperties.residue.label_seq_id(location)
+  if (!chain || seq == null || Number.isNaN(Number(seq))) return null
+  return `${chain}:${Number(seq)}`
+}
+
+function hydroColorForKey(key: string | null): Color {
+  if (!key) return HYDRO_BASE
+  const patchId = hydroPatchThemeState.patchByKey.get(key)
+  const rgb = hydroPatchThemeState.colorByKey.get(key)
+  if (!patchId || rgb == null) return HYDRO_BASE
+  if (hydroPatchThemeState.focusPatchId && hydroPatchThemeState.focusPatchId !== patchId) {
+    return HYDRO_DIM
+  }
+  return Color(rgb)
+}
+
+const HydroPatchColorThemeParams = {}
+
+function createHydroPatchColorTheme(ctx: { structure?: { root: unknown } }) {
+  const color = (location: unknown) => {
+    if (StructureElement.Location.is(location) && Unit.isAtomic(location.unit)) {
+      return hydroColorForKey(hydroLocationKey(location))
+    }
+    return HYDRO_BASE
+  }
+  void ctx
+  return {
+    factory: createHydroPatchColorTheme,
+    granularity: 'group' as const,
+    preferSmoothing: true,
+    color,
+    props: HydroPatchColorThemeParams,
+    description: 'Hydrophobic surface patches (FILMWVY, RSA≥0.25).',
+  }
+}
+
+const HydroPatchColorThemeProvider = {
+  name: HYDRO_PATCH_THEME_NAME,
+  label: 'Hydrophobic patch',
+  category: ColorThemeCategory.Validation,
+  factory: createHydroPatchColorTheme,
+  getParams: () => HydroPatchColorThemeParams,
+  defaultValues: PD.getDefaultValues(HydroPatchColorThemeParams),
+  isApplicable: () => true,
+} as ColorTheme.Provider
+
+function registerHydroPatchTheme(plugin: PluginUIContext): void {
+  const registry = plugin.representation.structure.themes.colorThemeRegistry
+  if (!registry.has(HydroPatchColorThemeProvider)) {
+    registry.add(HydroPatchColorThemeProvider)
+  }
+}
+
+export type HydroPatchColorInput = {
+  residueColors: Map<string, string>
+  residuePatch: Map<string, string>
+  focusPatchId?: string | null
+}
+
+export async function applyMolstarHydroPatchTheme(
+  viewer: MolstarViewer,
+  state: HydroPatchColorInput,
+): Promise<void> {
+  hydroPatchThemeState.colorByKey = new Map(
+    [...state.residueColors.entries()].map(([k, hex]) => [k, parseInt(hex.replace('#', ''), 16)]),
+  )
+  hydroPatchThemeState.patchByKey = new Map(state.residuePatch)
+  hydroPatchThemeState.focusPatchId = state.focusPatchId ?? null
+  registerHydroPatchTheme(viewer.plugin)
+  await updateAllRepresentationThemes(viewer.plugin, { color: HYDRO_PATCH_THEME_NAME })
 }
 
 export function syncMolstarSelection(viewer: MolstarViewer, selected: SelectedResidue[]): void {

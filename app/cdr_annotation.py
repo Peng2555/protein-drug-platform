@@ -32,6 +32,14 @@ HMMER_PATH = os.environ.get(
 )
 
 
+def _domain_from_anarci_chain_type(chain_type: str | None) -> str:
+    """ANARCI: H=重链, K=kappa, L=lambda。Kappa 不是 L 开头，不能只认 startswith('L')。"""
+    ct = str(chain_type or "H").upper()
+    if ct.startswith(("K", "L")):
+        return "L"
+    return "H"
+
+
 def _cdr_defs(domain: str) -> dict[str, tuple[int, int]]:
     return KABAT_CDR_LIGHT if domain == "L" else KABAT_CDR_HEAVY
 
@@ -70,7 +78,7 @@ def annotate_antibody_chain(sequence: str) -> dict | None:
     domain = "H"
     if detail and detail[0] and isinstance(detail[0], list) and detail[0][0]:
         chain_type = detail[0][0].get("chain_type", "H")
-        domain = "L" if str(chain_type).upper().startswith("L") else "H"
+        domain = _domain_from_anarci_chain_type(chain_type)
 
     cdr_defs = _cdr_defs(domain)
     seq_index = 0

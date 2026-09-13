@@ -12,6 +12,8 @@ DESIGN_ENGINE = "protein_mpnn"
 ROSETTA_EVAL_ENGINE = "rosetta_interface_eval"
 AFFINITY_REDESIGN_ENGINE = "affinity_redesign"
 MASKING_PEPTIDE_ENGINE = "masking_peptide"
+HYDRO_REDESIGN_ENGINE = "hydro_redesign"
+CIC_PROFILE_ENGINE = "cic_profile"
 DEFAULT_FOLD_ENGINE = "boltz2"
 
 

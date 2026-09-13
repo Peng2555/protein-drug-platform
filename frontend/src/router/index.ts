@@ -218,6 +218,36 @@ const router = createRouter({
           },
         ),
         moduleChildren(
+          'hydro-redesign',
+          {
+            module: '疏水性改造',
+            new: '新建改造',
+            tasks: '全部任务',
+            task: '改造详情',
+          },
+          {
+            workspace: () => import('@/views/hydro-redesign/HydroRedesignWorkspaceView.vue'),
+            new: () => import('@/views/hydro-redesign/HydroRedesignNewView.vue'),
+            tasks: () => import('@/views/hydro-redesign/HydroRedesignTasksView.vue'),
+            task: () => import('@/views/hydro-redesign/HydroRedesignJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
+          'cic-profile',
+          {
+            module: 'CIC 表面斑',
+            new: '新建分析',
+            tasks: '全部任务',
+            task: '分析详情',
+          },
+          {
+            workspace: () => import('@/views/cic-profile/CicProfileWorkspaceView.vue'),
+            new: () => import('@/views/cic-profile/CicProfileNewView.vue'),
+            tasks: () => import('@/views/cic-profile/CicProfileTasksView.vue'),
+            task: () => import('@/views/cic-profile/CicProfileJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
           'synthesis',
           {
             module: '合成候选',

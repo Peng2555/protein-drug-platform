@@ -18,6 +18,14 @@ function openDetail(id: string) {
     router.push({ name: 'masking-peptide-new' })
     return
   }
+  if (id === 'hydro-redesign') {
+    router.push({ name: 'hydro-redesign-new' })
+    return
+  }
+  if (id === 'cic-profile') {
+    router.push({ name: 'cic-profile-new' })
+    return
+  }
   router.push({ name: 'workflow-detail', params: { id } })
 }
 </script>

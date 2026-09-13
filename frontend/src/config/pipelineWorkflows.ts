@@ -120,6 +120,73 @@ export const PIPELINE_WORKFLOWS: PipelineWorkflowDef[] = [
       },
     ],
   },
+  {
+    id: 'hydro-redesign',
+    title: '抗体疏水性改造',
+    description:
+      '无抗原、第一版无 PLM：Boltz2 折抗体（或上传结构）→ 表面疏水斑 → STNQA 枚举，按斑分与亲水分排序。',
+    scene: 'antibody',
+    accent: 'violet',
+    estimatedDuration: '折结构约十余分钟至数小时；有结构时仅数分钟',
+    status: 'beta',
+    inputHint: '提交抗体 FASTA（H 或 H+L）；可选上传 PDB/CIF 跳过折叠。默认冻结 CDR。',
+    inputFields: [
+      { key: 'name', label: '任务名称', placeholder: '例如 VHH_hydro', required: true },
+      { key: 'fasta', label: '抗体 FASTA', placeholder: '>H 与可选 >L', required: true },
+    ],
+    steps: [
+      {
+        id: 'fold',
+        label: '折抗体',
+        description: 'Boltz2 仅折抗体链，diffusion_samples=3。',
+        moduleId: 'fold',
+        moduleRoute: '/fold/new',
+      },
+      {
+        id: 'patches',
+        label: '表面疏水斑',
+        description: '相对 SASA ≥ 0.25，FILMWVY，Cβ 8 Å 聚类。',
+      },
+      {
+        id: 'export',
+        label: '枚举与导出',
+        description: 'mutations.csv、wetlab 短名单与 pred.cif。',
+        moduleId: 'hydro_redesign',
+        moduleRoute: '/hydro-redesign/new',
+      },
+    ],
+  },
+  {
+    id: 'cic-profile',
+    title: '抗体 CIC 表面斑',
+    description:
+      '独立于疏水改造：按 CIC 实验 pH 计算有效电荷，识别表面正电斑、负电斑与疏水斑，并在分子表面着色。第一版不做 APBS 与突变。',
+    scene: 'antibody',
+    accent: 'blue',
+    estimatedDuration: '折结构约十余分钟至数小时；有结构时仅数分钟',
+    status: 'beta',
+    inputHint: '提交抗体 FASTA（H 或 H+L）；可选上传 PDB/CIF。填写实验 pH，默认 7.0。',
+    inputFields: [
+      { key: 'name', label: '任务名称', placeholder: '例如 VHH_cic', required: true },
+      { key: 'fasta', label: '抗体 FASTA', placeholder: '>H 与可选 >L', required: true },
+    ],
+    steps: [
+      {
+        id: 'fold',
+        label: '折抗体',
+        description: 'Boltz2 仅折抗体链。',
+        moduleId: 'fold',
+        moduleRoute: '/fold/new',
+      },
+      {
+        id: 'patches',
+        label: 'CIC 表面斑',
+        description: '正电 / 负电 / 疏水，Cβ 8 Å 聚类。',
+        moduleId: 'cic_profile',
+        moduleRoute: '/cic-profile/new',
+      },
+    ],
+  },
 ]
 
 export function pipelineById(id: string): PipelineWorkflowDef | undefined {

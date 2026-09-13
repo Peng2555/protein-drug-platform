@@ -389,6 +389,63 @@ class MaskingPeptideSequencesOut(BaseModel):
     summary: dict | None = None
 
 
+class HydroRedesignJobCreate(BaseModel):
+    name: str | None = Field(default=None, max_length=128)
+    fasta: str = Field(min_length=20, description="抗体 FASTA，链 ID 为 H 或 H+L")
+    allow_cdr: bool = False
+    allow_charged: bool = False
+
+
+class HydroRedesignJobOut(JobOut):
+    pass
+
+
+class HydroRedesignJobListOut(BaseModel):
+    items: list[HydroRedesignJobOut]
+    total: int
+
+
+class HydroRedesignProgressOut(BaseModel):
+    stage: str
+    status: str
+    summary: dict | None = None
+
+
+class HydroRedesignRankedOut(BaseModel):
+    mutations: list[dict] = Field(default_factory=list)
+    wetlab: list[dict] = Field(default_factory=list)
+    patches: list[dict] = Field(default_factory=list)
+    residues: list[dict] = Field(default_factory=list)
+    summary: dict | None = None
+
+
+class CicProfileJobCreate(BaseModel):
+    name: str | None = Field(default=None, max_length=128)
+    fasta: str = Field(min_length=20, description="抗体 FASTA，链 ID 为 H 或 H+L")
+    ph: float = Field(default=7.0, ge=4.0, le=10.0)
+
+
+class CicProfileJobOut(JobOut):
+    pass
+
+
+class CicProfileJobListOut(BaseModel):
+    items: list[CicProfileJobOut]
+    total: int
+
+
+class CicProfileProgressOut(BaseModel):
+    stage: str
+    status: str
+    summary: dict | None = None
+
+
+class CicProfileRankedOut(BaseModel):
+    patches: list[dict] = Field(default_factory=list)
+    residues: list[dict] = Field(default_factory=list)
+    summary: dict | None = None
+
+
 class IgGMParams(BaseModel):
     num_samples: int = Field(default=100, ge=1, le=500)
     steps: int = Field(default=10, ge=1, le=50)
@@ -467,6 +524,7 @@ class AffinityRedesignProgressOut(BaseModel):
     sections: list[MaturationLogSection] = Field(default_factory=list)
     workflow_status: dict | None = None
     plm_hits: list[dict] = Field(default_factory=list)
+    structure_hits: list[dict] = Field(default_factory=list)
     mutation_table: list[dict] = Field(default_factory=list)
 
 
