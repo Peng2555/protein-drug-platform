@@ -10,14 +10,17 @@ import { fetchAffinityRedesignJobs } from '@/api/affinityRedesign'
 import { fetchMaskingPeptideJobs } from '@/api/maskingPeptide'
 import { fetchHydroRedesignJobs } from '@/api/hydroRedesign'
 import { fetchCicProfileJobs } from '@/api/cicProfile'
+import { fetchTnpProfileBatches, fetchTnpProfileJobs } from '@/api/tnpProfile'
 import { fetchMdJobs } from '@/api/md'
 import type {
   AffinityRedesignJob,
+  Batch,
   DesignJob,
   DevelopabilityJob,
   DockingJob,
   HydroRedesignJob,
   CicProfileJob,
+  TnpProfileJob,
   MaskingPeptideJob,
   MaturationJob,
   MdJob,
@@ -34,6 +37,7 @@ export type ModuleJobKind =
   | 'masking_peptide'
   | 'hydro_redesign'
   | 'cic_profile'
+  | 'tnp_profile'
   | 'synthesis'
   | 'design'
   | 'rosetta'
@@ -44,6 +48,7 @@ export type ModuleNavItem = {
   status: string
   created_at: string
   kindLabel: string
+  routeName?: string
 }
 
 function toNavItems(
@@ -70,6 +75,8 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
   const maskingPeptideJobs = ref<MaskingPeptideJob[]>([])
   const hydroRedesignJobs = ref<HydroRedesignJob[]>([])
   const cicProfileJobs = ref<CicProfileJob[]>([])
+  const tnpProfileJobs = ref<TnpProfileJob[]>([])
+  const tnpProfileBatches = ref<Batch[]>([])
   const synthesisJobs = ref<SynthesisJob[]>([])
   const designJobs = ref<DesignJob[]>([])
   const rosettaJobs = ref<RosettaEvalJob[]>([])
@@ -84,6 +91,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     masking_peptide: maskingPeptideJobs.value.length,
     hydro_redesign: hydroRedesignJobs.value.length,
     cic_profile: cicProfileJobs.value.length,
+    tnp_profile: tnpProfileJobs.value.length + tnpProfileBatches.value.length,
     synthesis: synthesisJobs.value.length,
     design: designJobs.value.length,
     rosetta: rosettaJobs.value.length,
@@ -99,6 +107,17 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
       masking_peptide: toNavItems(maskingPeptideJobs.value, '多肽'),
       hydro_redesign: toNavItems(hydroRedesignJobs.value, '疏水'),
       cic_profile: toNavItems(cicProfileJobs.value, 'CIC'),
+      tnp_profile: [
+        ...toNavItems(tnpProfileJobs.value, '单条'),
+        ...tnpProfileBatches.value.map((b) => ({
+          id: b.id,
+          name: b.name,
+          status: b.status,
+          created_at: b.created_at,
+          kindLabel: '批次',
+          routeName: 'tnp-profile-batch',
+        })),
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       synthesis: toNavItems(synthesisJobs.value, '合成'),
       design: toNavItems(designJobs.value, '设计'),
       rosetta: toNavItems(rosettaJobs.value, '评价'),
@@ -141,6 +160,12 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     cicProfileJobs.value = data.items ?? []
   }
 
+  async function refreshTnpProfile() {
+    const [jobs, batches] = await Promise.all([fetchTnpProfileJobs(50), fetchTnpProfileBatches(50)])
+    tnpProfileJobs.value = jobs.items ?? []
+    tnpProfileBatches.value = batches.items ?? []
+  }
+
   async function refreshHydroRedesign() {
     const data = await fetchHydroRedesignJobs(50)
     hydroRedesignJobs.value = data.items ?? []
@@ -173,6 +198,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
         refreshMaskingPeptide().catch(() => undefined),
         refreshHydroRedesign().catch(() => undefined),
         refreshCicProfile().catch(() => undefined),
+        refreshTnpProfile().catch(() => undefined),
         refreshSynthesis().catch(() => undefined),
         refreshDesign().catch(() => undefined),
         refreshRosetta().catch(() => undefined),
@@ -191,6 +217,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     if (kind === 'masking_peptide') return refreshMaskingPeptide()
     if (kind === 'hydro_redesign') return refreshHydroRedesign()
     if (kind === 'cic_profile') return refreshCicProfile()
+    if (kind === 'tnp_profile') return refreshTnpProfile()
     if (kind === 'design') return refreshDesign()
     if (kind === 'rosetta') return refreshRosetta()
     return refreshSynthesis()
@@ -205,6 +232,8 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     maskingPeptideJobs,
     hydroRedesignJobs,
     cicProfileJobs,
+    tnpProfileJobs,
+    tnpProfileBatches,
     synthesisJobs,
     designJobs,
     rosettaJobs,
@@ -221,6 +250,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     refreshMaskingPeptide,
     refreshHydroRedesign,
     refreshCicProfile,
+    refreshTnpProfile,
     refreshSynthesis,
     refreshDesign,
     refreshRosetta,

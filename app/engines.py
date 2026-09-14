@@ -14,6 +14,7 @@ AFFINITY_REDESIGN_ENGINE = "affinity_redesign"
 MASKING_PEPTIDE_ENGINE = "masking_peptide"
 HYDRO_REDESIGN_ENGINE = "hydro_redesign"
 CIC_PROFILE_ENGINE = "cic_profile"
+TNP_PROFILE_ENGINE = "tnp_profile"
 DEFAULT_FOLD_ENGINE = "boltz2"
 
 

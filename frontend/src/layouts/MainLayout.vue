@@ -24,6 +24,7 @@ import {
   UserFilled,
   Umbrella,
   Lightning,
+  Guide,
 } from '@element-plus/icons-vue'
 import ModuleNavBranch from '@/components/layout/ModuleNavBranch.vue'
 import HomeLandingNav from '@/components/home/HomeLandingNav.vue'
@@ -62,6 +63,7 @@ const expanded = reactive<Record<string, boolean>>({
   masking_peptide: false,
   hydro_redesign: false,
   cic_profile: false,
+  tnp_profile: false,
   synthesis: false,
   docking: false,
   md: false,
@@ -93,6 +95,7 @@ const iconMap = {
   masking_peptide: SetUp,
   hydro_redesign: Umbrella,
   cic_profile: Lightning,
+  tnp_profile: Guide,
   synthesis: Histogram,
   docking: Aim,
   md: Timer,
@@ -108,6 +111,7 @@ const expandableIds: ModuleId[] = [
   'masking_peptide',
   'hydro_redesign',
   'cic_profile',
+  'tnp_profile',
   'synthesis',
   'docking',
   'md',
@@ -124,6 +128,7 @@ const badgeMap = computed(() => ({
   masking_peptide: moduleJobs.counts.masking_peptide,
   hydro_redesign: moduleJobs.counts.hydro_redesign,
   cic_profile: moduleJobs.counts.cic_profile,
+  tnp_profile: moduleJobs.counts.tnp_profile,
   synthesis: moduleJobs.counts.synthesis,
   docking: moduleJobs.counts.docking,
   md: moduleJobs.counts.md,
@@ -231,7 +236,7 @@ function crumbHint() {
   const name = String(route.name || '')
   if (name.endsWith('-new')) return '新建任务'
   if (name.endsWith('-tasks')) return '全部任务'
-  if (name === 'fold-batch') return '批次详情'
+  if (name === 'fold-batch' || name === 'tnp-profile-batch') return '批次详情'
   if (name.endsWith('-task') || name.endsWith('-job')) return '任务详情'
   return currentNav.value.hint
 }

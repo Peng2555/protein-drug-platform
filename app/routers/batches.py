@@ -352,10 +352,18 @@ def list_batches(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    total = db.scalar(select(func.count()).select_from(Batch).where(Batch.user_id == user.id)) or 0
+    fold_types = ("vhh_panel", "antibody_only")
+    total = (
+        db.scalar(
+            select(func.count())
+            .select_from(Batch)
+            .where(Batch.user_id == user.id, Batch.batch_type.in_(fold_types))
+        )
+        or 0
+    )
     rows = db.scalars(
         select(Batch)
-        .where(Batch.user_id == user.id)
+        .where(Batch.user_id == user.id, Batch.batch_type.in_(fold_types))
         .order_by(Batch.created_at.desc())
         .limit(limit)
         .offset(offset)

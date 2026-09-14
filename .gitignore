@@ -20,6 +20,7 @@ affinity_redesign_outputs
 masking_peptide_outputs
 hydro_redesign_outputs
 cic_profile_outputs
+tnp_profile_outputs
 
 # ── 2. 日志与进程 pid ───────────────────────────────────────────────────────
 logs

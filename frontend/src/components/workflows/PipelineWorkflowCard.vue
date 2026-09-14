@@ -26,6 +26,10 @@ function openDetail(id: string) {
     router.push({ name: 'cic-profile-new' })
     return
   }
+  if (id === 'tnp-profile') {
+    router.push({ name: 'tnp-profile-new' })
+    return
+  }
   router.push({ name: 'workflow-detail', params: { id } })
 }
 </script>

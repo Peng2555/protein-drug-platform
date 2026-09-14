@@ -248,6 +248,29 @@ const router = createRouter({
           },
         ),
         moduleChildren(
+          'tnp-profile',
+          {
+            module: 'VHH 可开发性画像',
+            new: '新建画像',
+            tasks: '全部任务',
+            task: '画像详情',
+          },
+          {
+            workspace: () => import('@/views/tnp-profile/TnpProfileWorkspaceView.vue'),
+            new: () => import('@/views/tnp-profile/TnpProfileNewView.vue'),
+            tasks: () => import('@/views/tnp-profile/TnpProfileTasksView.vue'),
+            task: () => import('@/views/tnp-profile/TnpProfileJobDetailView.vue'),
+          },
+          [
+            {
+              path: 'batch/:id',
+              name: 'tnp-profile-batch',
+              component: () => import('@/views/tnp-profile/TnpProfileBatchDetailView.vue'),
+              meta: { title: '批量画像' },
+            },
+          ],
+        ),
+        moduleChildren(
           'synthesis',
           {
             module: '合成候选',

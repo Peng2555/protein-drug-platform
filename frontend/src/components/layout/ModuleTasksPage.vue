@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { statusLabel } from '@/utils/constants'
+import { batchStatusLabel, statusLabel } from '@/utils/constants'
 
 const props = defineProps<{
   title: string
@@ -10,7 +10,15 @@ const props = defineProps<{
   kindLabel: string
   taskRouteName: string
   newRouteName: string
-  jobs: Array<{ id: string; name?: string | null; status: string; created_at: string; meta?: string }>
+  jobs: Array<{
+    id: string
+    name?: string | null
+    status: string
+    created_at: string
+    meta?: string
+    kindLabel?: string
+    routeName?: string
+  }>
   loading?: boolean
 }>()
 
@@ -22,9 +30,10 @@ const emit = defineEmits<{
 const route = useRoute()
 const router = useRouter()
 
-const activeId = computed(() =>
-  route.name === props.taskRouteName ? (route.params.id as string) : null,
-)
+const activeId = computed(() => {
+  const names = [props.taskRouteName, 'tnp-profile-batch']
+  return names.includes(String(route.name || '')) ? (route.params.id as string) : null
+})
 
 function formatTime(ts: string) {
   return new Date(ts).toLocaleString('zh-CN', {
@@ -42,8 +51,12 @@ function statusTagType(status: string) {
   return 'info'
 }
 
-function open(id: string) {
-  router.push({ name: props.taskRouteName, params: { id } })
+function open(job: { id: string; routeName?: string }) {
+  router.push({ name: job.routeName || props.taskRouteName, params: { id: job.id } })
+}
+
+function rowStatus(job: { status: string; kindLabel?: string }) {
+  return job.kindLabel === '批次' ? batchStatusLabel(job.status) : statusLabel(job.status)
 }
 
 async function onDelete(id: string, name: string) {
@@ -80,13 +93,13 @@ onMounted(() => emit('refresh'))
         :key="job.id"
         class="task-row"
         :class="{ active: activeId === job.id }"
-        @click="open(job.id)"
+        @click="open(job)"
       >
         <div class="task-row__main">
-          <span class="kind-badge">{{ kindLabel }}</span>
+          <span class="kind-badge">{{ job.kindLabel || kindLabel }}</span>
           <strong>{{ job.name || job.id.slice(0, 8) }}</strong>
           <el-tag :type="statusTagType(job.status)" size="small" effect="light">
-            {{ statusLabel(job.status) }}
+            {{ rowStatus(job) }}
           </el-tag>
         </div>
         <div class="task-row__meta">

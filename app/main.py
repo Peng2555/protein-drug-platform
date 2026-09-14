@@ -32,6 +32,7 @@ from app.routers import (
     masking_peptide_jobs,
     hydro_redesign_jobs,
     cic_profile_jobs,
+    tnp_profile_jobs,
 )
 from app.schemas import HealthOut
 
@@ -77,6 +78,7 @@ app.include_router(affinity_redesign_jobs.router)
 app.include_router(masking_peptide_jobs.router)
 app.include_router(hydro_redesign_jobs.router)
 app.include_router(cic_profile_jobs.router)
+app.include_router(tnp_profile_jobs.router)
 
 
 @app.on_event("startup")

@@ -134,8 +134,8 @@ export function scenarioById(id: string): ScenarioDef | undefined {
 
 /** 各场景下高亮模块（能力地图默认筛选） */
 export const SCENARIO_MODULES: Record<ScenarioId, ModuleId[]> = {
-  vhh: ['fold', 'rosetta', 'maturation', 'synthesis', 'developability', 'design', 'hydro_redesign', 'cic_profile'],
-  antibody: ['fold', 'design', 'rosetta', 'developability', 'maturation', 'hydro_redesign', 'cic_profile'],
+  vhh: ['fold', 'rosetta', 'maturation', 'synthesis', 'developability', 'design', 'hydro_redesign', 'cic_profile', 'tnp_profile'],
+  antibody: ['fold', 'design', 'rosetta', 'developability', 'maturation', 'hydro_redesign', 'cic_profile', 'tnp_profile'],
   small_molecule: ['docking', 'md'],
   general: ['fold', 'design'],
 }
@@ -186,6 +186,15 @@ export const WORKFLOWS_BY_SCENARIO: Record<ScenarioId, WorkflowDef[]> = {
       ctaLabel: '进入 CIC 分析',
       ctaRoute: '/cic-profile/new',
       accent: 'blue',
+    },
+    {
+      id: 'vhh-tnp',
+      title: 'VHH 可开发性画像',
+      description: 'Boltz2 + Kabat 六项指标与 tetrad，相对临床参考集给出交通灯。',
+      steps: [{ label: '折抗体' }, { label: 'Kabat 计分' }, { label: '交通灯' }],
+      ctaLabel: '进入可开发性画像',
+      ctaRoute: '/tnp-profile/new',
+      accent: 'violet',
     },
     {
       id: 'vhh-synthesis',
@@ -243,6 +252,15 @@ export const WORKFLOWS_BY_SCENARIO: Record<ScenarioId, WorkflowDef[]> = {
       ctaRoute: '/cic-profile/new',
       accent: 'blue',
     },
+    {
+      id: 'ab-tnp',
+      title: 'VHH 可开发性画像',
+      description: '对单域重链做 Boltz2 + Kabat 六项画像，支持单条与批量。',
+      steps: [{ label: '折抗体' }, { label: '计分' }, { label: '交通灯' }],
+      ctaLabel: '进入可开发性画像',
+      ctaRoute: '/tnp-profile/new',
+      accent: 'violet',
+    },
   ],
   small_molecule: [
     {
@@ -296,6 +314,7 @@ export const MODULE_ENGINES: Partial<Record<ModuleId, string>> = {
   affinity_redesign: 'round1 · Boltz2 · Rosetta',
   hydro_redesign: 'Boltz2 · 疏水斑',
   cic_profile: 'Boltz2 · CIC 斑',
+  tnp_profile: 'Boltz2 · Kabat 画像',
   synthesis: '表交叉筛选',
   docking: 'AutoDock Vina',
   md: 'GROMACS',

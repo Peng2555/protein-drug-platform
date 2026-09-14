@@ -407,6 +407,26 @@ export interface CicProfileRankedOut {
   summary: Record<string, unknown> | null
 }
 
+export interface TnpProfileJob extends Job {}
+
+export interface TnpProfileJobListOut {
+  items: TnpProfileJob[]
+  total: number
+}
+
+export interface TnpProfileProgressOut {
+  stage: string
+  status: string
+  summary: Record<string, unknown> | null
+}
+
+export interface TnpProfileRankedOut {
+  patches: Record<string, unknown>[]
+  residues: Record<string, unknown>[]
+  metrics: Record<string, unknown>[]
+  summary: Record<string, unknown> | null
+}
+
 export interface DesignCandidate {
   index: number
   header?: string

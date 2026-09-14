@@ -14,6 +14,7 @@ export type ModuleId =
   | 'masking_peptide'
   | 'hydro_redesign'
   | 'cic_profile'
+  | 'tnp_profile'
   | 'synthesis'
   | 'docking'
   | 'md'
@@ -84,6 +85,12 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'CIC 表面斑',
         hint: '实验 pH 下正电 / 负电 / 疏水斑（诊断）',
       },
+      {
+        id: 'tnp_profile',
+        path: '/tnp-profile',
+        label: 'VHH 可开发性画像',
+        hint: 'Boltz2 · Kabat 六项画像',
+      },
       { id: 'synthesis', path: '/synthesis', label: '合成候选', hint: '测序表与突变表交叉筛选' },
     ],
   },
@@ -105,6 +112,7 @@ export function moduleIdFromPath(path: string): ModuleId {
   if (path.startsWith('/masking-peptide')) return 'masking_peptide'
   if (path.startsWith('/hydro-redesign')) return 'hydro_redesign'
   if (path.startsWith('/cic-profile')) return 'cic_profile'
+  if (path.startsWith('/tnp-profile')) return 'tnp_profile'
   if (path.startsWith('/md')) return 'md'
   if (path.startsWith('/maturation')) return 'maturation'
   if (path.startsWith('/synthesis')) return 'synthesis'
@@ -122,6 +130,7 @@ export function moduleRoutePrefix(id: ModuleId): string {
   if (id === 'masking_peptide') return 'masking-peptide'
   if (id === 'hydro_redesign') return 'hydro-redesign'
   if (id === 'cic_profile') return 'cic-profile'
+  if (id === 'tnp_profile') return 'tnp-profile'
   return id
 }
 

@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, ArrowRight, Clock, Plus } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
-import { statusLabel } from '@/utils/constants'
+import { batchStatusLabel, statusLabel } from '@/utils/constants'
 import type { ModuleNavItem } from '@/stores/moduleJobs'
 
 const props = defineProps<{
@@ -28,9 +28,12 @@ const router = useRouter()
 
 const onNew = computed(() => route.name === props.newRouteName)
 const onTasks = computed(() => route.name === props.tasksRouteName)
-const activeTaskId = computed(() =>
-  route.name === props.taskRouteName ? (route.params.id as string) : null,
-)
+const activeTaskId = computed(() => {
+  if (route.name === props.taskRouteName || String(route.name || '').endsWith('-batch')) {
+    return route.params.id as string
+  }
+  return null
+})
 
 function statusTone(status: string) {
   if (status === 'done') return 'ok'
@@ -56,8 +59,8 @@ function openTasks() {
   router.push({ name: props.tasksRouteName })
 }
 
-function openTask(id: string) {
-  router.push({ name: props.taskRouteName, params: { id } })
+function openTask(item: ModuleNavItem) {
+  router.push({ name: item.routeName || props.taskRouteName, params: { id: item.id } })
 }
 </script>
 
@@ -104,13 +107,13 @@ function openTask(id: string) {
           type="button"
           class="mod-task"
           :class="{ active: activeTaskId === item.id }"
-          @click="openTask(item.id)"
+          @click="openTask(item)"
         >
           <span class="mod-task__dot" :class="`is-${statusTone(item.status)}`" />
           <span class="mod-task__kind">{{ item.kindLabel }}</span>
           <span class="mod-task__name">{{ item.name }}</span>
           <span class="mod-task__status" :class="`is-${statusTone(item.status)}`">
-            {{ statusLabel(item.status) }}
+            {{ item.kindLabel === '批次' ? batchStatusLabel(item.status) : statusLabel(item.status) }}
           </span>
           <span class="mod-task__time">{{ formatShortTime(item.created_at) }}</span>
         </button>

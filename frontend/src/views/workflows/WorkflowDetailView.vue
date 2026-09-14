@@ -46,6 +46,10 @@ watch(
       router.replace({ name: 'cic-profile-new' })
       return
     }
+    if (p?.id === 'tnp-profile') {
+      router.replace({ name: 'tnp-profile-new' })
+      return
+    }
     if (!p) router.replace({ name: 'workflows' })
   },
   { immediate: true },

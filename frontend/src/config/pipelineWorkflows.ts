@@ -187,6 +187,37 @@ export const PIPELINE_WORKFLOWS: PipelineWorkflowDef[] = [
       },
     ],
   },
+  {
+    id: 'tnp-profile',
+    title: 'VHH 可开发性画像',
+    description:
+      'Boltz2 折叠 VHH，按 Kabat 计算六项指标与 tetrad，相对临床参考集给出绿 / 黄 / 红。支持单条与批量。',
+    scene: 'antibody',
+    accent: 'violet',
+    estimatedDuration: '折结构约十余分钟至数小时；有结构时仅数分钟',
+    status: 'beta',
+    inputHint: '提交 VHH FASTA（链 ID H）；可选上传 PDB/CIF。',
+    inputFields: [
+      { key: 'name', label: '任务名称', placeholder: '例如 VHH_profile', required: true },
+      { key: 'fasta', label: 'VHH FASTA', placeholder: '>H', required: true },
+    ],
+    steps: [
+      {
+        id: 'fold',
+        label: '折抗体',
+        description: 'Boltz2 仅折 VHH。',
+        moduleId: 'fold',
+        moduleRoute: '/fold/new',
+      },
+      {
+        id: 'score',
+        label: 'Kabat 计分',
+        description: 'L / L3 / C / PSH / PPC / PNC 与 tetrad。',
+        moduleId: 'tnp_profile',
+        moduleRoute: '/tnp-profile/new',
+      },
+    ],
+  },
 ]
 
 export function pipelineById(id: string): PipelineWorkflowDef | undefined {

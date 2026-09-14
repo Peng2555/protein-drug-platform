@@ -15,7 +15,7 @@ const category = ref<'all' | 'structure' | 'sequence' | 'ligand'>('all')
 
 const CATEGORY_MODULES: Record<'structure' | 'sequence' | 'ligand', ModuleId[]> = {
   structure: ['fold'],
-  sequence: ['design', 'rosetta', 'developability', 'maturation', 'synthesis'],
+  sequence: ['design', 'rosetta', 'developability', 'maturation', 'hydro_redesign', 'cic_profile', 'tnp_profile', 'synthesis'],
   ligand: ['docking', 'md'],
 }
 
