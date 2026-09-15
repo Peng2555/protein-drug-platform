@@ -17,8 +17,10 @@
 | `docs/` | ✅ | 模块集成与仓库说明 |
 | `inputs/` | ✅ | 示例 FASTA 等小输入 |
 | `external/ras-tricomplex-docking/` | 🔗 子模块 | RAS 三元复合物对接外部流程，见下文 |
+| `external/TNP/` | 本地依赖 | TNP 上游代码的本地对照副本，当前不是正式子模块 |
 | `run/` | ❌ | 所有任务运行结果与日志的实际目录 |
-| `outputs/` 等 `*_outputs/`、`logs/` | ❌ | 指向 `run/` 的兼容链接（`.env` 与历史 `work_dir` 仍走这些路径） |
+| `outputs/` 等 `*_outputs/`、`logs/` | ❌ | 兼容输出路径；多数目标为归入 `run/`，但部分路径当前仍可能是根目录实目录 |
+| `HER2_domain_binding*.csv` | 分析产物 | HER2 domain binding 汇总结果，不是源码或固定输入 |
 | `data/` | ❌ | 本地 SQLite 或运行时数据 |
 
 ## 提交信息
@@ -30,18 +32,22 @@
 RAS 对接依赖独立仓库，以 **git submodule** 管理：
 
 ```bash
-git clone https://github.com/Peng2555/Boltz2.git
-cd Boltz2
+git clone https://github.com/Peng2555/protein-drug-platform.git
+cd protein-drug-platform
 git submodule update --init --recursive external/ras-tricomplex-docking
 ```
 
 或克隆时一并拉子模块：
 
 ```bash
-git clone --recurse-submodules https://github.com/Peng2555/Boltz2.git
+git clone --recurse-submodules https://github.com/Peng2555/protein-drug-platform.git
 ```
 
+主仓库实际 remote 名称为 `protein-drug-platform.git`。上述地址不包含访问凭据；私有访问令牌应由 Git 凭据管理器或 SSH 代理提供。
+
 子模块内的大型复现输出（`reproduction/output/` 等）在子模块自己的 `.gitignore` 中处理，**不要**提交到 Boltz2 主仓库。
+
+`external/TNP/` 当前是本地对照依赖，不是 `.gitmodules` 管理的正式子模块。克隆主仓库后不能假定它会由 `git submodule update` 自动还原；如需运行 TNP profile，应按授权来源单独准备并核对版本。
 
 ## 每次提交应忽略的内容（速查）
 
@@ -50,7 +56,8 @@ git clone --recurse-submodules https://github.com/Peng2555/Boltz2.git
 ### 绝不上传
 
 - **密钥**：`.env`、任何含密码/Token 的文件（只提交 `.env.example`）
-- **任务产物**：`run/`，以及根目录兼容链接 `outputs/`、`md_outputs/`、`docking_outputs/`、`maturation_outputs/`、`synthesis_outputs/`、`developability_outputs/`
+- **任务产物**：`run/`，以及根目录兼容路径 `outputs/`、`md_outputs/`、`docking_outputs/`、`maturation_outputs/`、`synthesis_outputs/`、`developability_outputs/`、`hydro_redesign_outputs/`、`cic_profile_outputs/`、`tnp_profile_outputs/`
+- **分析汇总**：根目录 `HER2_domain_binding.csv`、`HER2_domain_binding_iptm_max.csv` 等可重新生成的分析产物
 - **结构/轨迹**：`*.cif`、`*.pdb`、`*.npz`、`*.gro`、`*.xtc` 等
 - **模型权重**：`*.ckpt`、`*.pt`、`weights/`
 - **前端构建**：`frontend/dist/`、`frontend/node_modules/`
@@ -90,6 +97,14 @@ bash scripts/stop_platform.sh && bash scripts/start_platform.sh
 ```
 
 `start_platform.sh` 在检测到 `dist/` 缺失时会提示运行上述构建脚本。
+
+`frontend/dist/` 是 Vue 生产构建产物，可以从 `frontend/src/`、`package.json` 和锁文件重建；`web/` 是 legacy 静态页面，只保留兼容访问。
+
+## 运行目录现状与目标
+
+长期目标是所有任务产物实际存放在 `run/`，根目录 `outputs/` 与各 `*_outputs/` 仅作为兼容链接，以适配 `.env` 和历史 `work_dir`。
+
+当前部署中 `hydro_redesign_outputs/`、`cic_profile_outputs/`、`tnp_profile_outputs/` 仍可能是根目录实目录，而不是链接。清理、备份或迁移前必须先判断路径类型并确认内容已经复制到 `run/`，不得直接按“都是符号链接”处理。
 
 ## 提交前自检
 
