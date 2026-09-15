@@ -14,7 +14,7 @@ for source_root in (
     ROOT / "affinity_redesign" / "src",
     ROOT / "hydro_redesign" / "src",
     ROOT / "workflows" / "cic_profile" / "src",
-    ROOT / "tnp_profile" / "src",
+    ROOT / "workflows" / "tnp_profile" / "src",
 ):
     if str(source_root) not in sys.path:
         sys.path.insert(0, str(source_root))

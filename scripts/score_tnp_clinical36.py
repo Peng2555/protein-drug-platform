@@ -21,7 +21,7 @@ from tnp_profile.numbering import annotate_kabat, parse_fasta
 from tnp_profile.patches import patch_scores
 from tnp_profile.structure import THREE_TO_ONE, load_residues, pick_chain
 
-FASTA = ROOT / "tnp_profile" / "src" / "tnp_profile" / "data" / "clinical_vhh.fasta"
+FASTA = ROOT / "workflows" / "tnp_profile" / "src" / "tnp_profile" / "data" / "clinical_vhh.fasta"
 MODELS = ROOT / "external" / "TNP" / "paper" / "paper_data" / "vhh_clinical_set_models"
 OFFICIAL = ROOT / "external" / "TNP" / "paper" / "paper_data" / "insilico_descriptors" / "VHH_TSD_all_properties_FINAL.csv"
 OUT = ROOT / "tnp_profile_outputs" / "_clinical_ref_score"

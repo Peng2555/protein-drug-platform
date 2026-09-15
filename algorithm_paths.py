@@ -13,6 +13,7 @@ ALGORITHM_SOURCE_DIRS = (
     ROOT / "hydro_redesign" / "src",
     ROOT / "workflows" / "cic_profile" / "src",
     ROOT / "cic_profile" / "src",
+    ROOT / "workflows" / "tnp_profile" / "src",
     ROOT / "tnp_profile" / "src",
 )
 
