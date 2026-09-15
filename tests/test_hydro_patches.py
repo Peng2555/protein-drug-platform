@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "hydro_redesign" / "src"))
+sys.path.insert(0, str(ROOT / "workflows" / "hydro_redesign" / "src"))
 
 
 def _pdb_extended(seq: str, chain: str = "H") -> str:

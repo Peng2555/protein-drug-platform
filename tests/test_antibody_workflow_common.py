@@ -11,7 +11,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 for source_root in (
     ROOT / "affinity_redesign" / "src",
-    ROOT / "hydro_redesign" / "src",
+    ROOT / "workflows" / "hydro_redesign" / "src",
     ROOT / "workflows" / "tnp_profile" / "src",
 ):
     if str(source_root) not in sys.path:

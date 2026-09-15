@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 for source_root in (
     ROOT / "scripts",
     ROOT / "affinity_redesign" / "src",
-    ROOT / "hydro_redesign" / "src",
+    ROOT / "workflows" / "hydro_redesign" / "src",
     ROOT / "workflows" / "cic_profile" / "src",
     ROOT / "workflows" / "tnp_profile" / "src",
 ):
