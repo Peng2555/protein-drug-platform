@@ -21,15 +21,11 @@ def _ensure_affinity_redesign_path() -> None:
         bootstrap_algorithm_paths()
     except Exception:
         root = Path(__file__).resolve().parents[1]
-        for src in (
-            root / "workflows" / "affinity_redesign" / "src",
-            root / "affinity_redesign" / "src",
-        ):
-            if src.is_dir():
-                src_str = str(src)
-                if src_str not in sys.path:
-                    sys.path.insert(0, src_str)
-                break
+        src = root / "workflows" / "affinity_redesign" / "src"
+        if src.is_dir():
+            src_str = str(src)
+            if src_str not in sys.path:
+                sys.path.insert(0, src_str)
 
 
 @dataclass

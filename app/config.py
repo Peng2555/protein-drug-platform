@@ -121,9 +121,6 @@ def affinity_redesign_src_dir() -> Path:
     bundled = ROOT / "workflows" / "affinity_redesign" / "src"
     if bundled.is_dir():
         return bundled
-    legacy = ROOT / "affinity_redesign" / "src"
-    if legacy.is_dir():
-        return legacy
     return Path(settings.antibody_redesign_root) / "affinity_redesign" / "src"
 
 

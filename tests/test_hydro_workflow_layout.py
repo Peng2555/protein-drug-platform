@@ -1,9 +1,8 @@
-"""Hydro redesign workflow 目录迁移、导入与兼容契约。"""
+"""Hydro redesign workflow 标准目录与公开导入契约。"""
 
 from __future__ import annotations
 
 import importlib
-import os
 import sys
 from pathlib import Path
 
@@ -16,19 +15,16 @@ WORKFLOW_ROOT = ROOT / "workflows" / "hydro_redesign"
 LEGACY_ROOT = ROOT / "hydro_redesign"
 
 
-def test_hydro_workflow_new_path_precedes_legacy_fallback():
-    new_source = WORKFLOW_ROOT / "src"
-    legacy_source = LEGACY_ROOT / "src"
+def test_hydro_workflow_uses_standard_source_layout():
+    source = WORKFLOW_ROOT / "src"
 
-    assert new_source.is_dir()
-    assert ALGORITHM_SOURCE_DIRS.index(new_source) < ALGORITHM_SOURCE_DIRS.index(legacy_source)
+    assert source.is_dir()
+    assert source in ALGORITHM_SOURCE_DIRS
 
 
-def test_hydro_legacy_root_resolves_to_workflow():
-    if LEGACY_ROOT.is_symlink():
-        assert os.readlink(LEGACY_ROOT) == "workflows/hydro_redesign"
-    else:
-        assert LEGACY_ROOT.resolve() == WORKFLOW_ROOT.resolve()
+def test_hydro_legacy_root_entry_is_absent():
+    assert not LEGACY_ROOT.exists()
+    assert not LEGACY_ROOT.is_symlink()
 
 
 def test_hydro_dependencies_are_declared():

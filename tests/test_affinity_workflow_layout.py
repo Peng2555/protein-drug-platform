@@ -1,4 +1,4 @@
-"""Affinity redesign workflow 目录迁移、导入与 CLI 兼容契约。"""
+"""Affinity redesign workflow 标准目录、导入与 CLI 契约。"""
 
 from __future__ import annotations
 
@@ -17,20 +17,18 @@ WORKFLOW_ROOT = ROOT / "workflows" / "affinity_redesign"
 LEGACY_ROOT = ROOT / "affinity_redesign"
 
 
-def test_affinity_workflow_layout_and_new_path_precedence():
-    new_source = WORKFLOW_ROOT / "src"
-    legacy_source = LEGACY_ROOT / "src"
+def test_affinity_workflow_uses_standard_source_layout():
+    source = WORKFLOW_ROOT / "src"
 
-    assert new_source.is_dir()
-    assert ALGORITHM_SOURCE_DIRS.index(new_source) < ALGORITHM_SOURCE_DIRS.index(legacy_source)
+    assert source.is_dir()
+    assert source in ALGORITHM_SOURCE_DIRS
     for name in ("pyproject.toml", "tests", "configs", "campaigns", "docs"):
         assert (WORKFLOW_ROOT / name).exists()
 
 
-def test_affinity_legacy_root_is_relative_compatibility_link():
-    assert LEGACY_ROOT.is_symlink()
-    assert os.readlink(LEGACY_ROOT) == "workflows/affinity_redesign"
-    assert LEGACY_ROOT.resolve() == WORKFLOW_ROOT.resolve()
+def test_affinity_legacy_root_entry_is_absent():
+    assert not LEGACY_ROOT.exists()
+    assert not LEGACY_ROOT.is_symlink()
 
 
 def test_affinity_import_resolves_from_workflow_path():

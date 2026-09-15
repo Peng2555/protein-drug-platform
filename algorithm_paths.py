@@ -10,13 +10,9 @@ ROOT = Path(__file__).resolve().parent
 ALGORITHM_SOURCE_DIRS = (
     ROOT / "shared" / "src",
     ROOT / "workflows" / "affinity_redesign" / "src",
-    ROOT / "affinity_redesign" / "src",
     ROOT / "workflows" / "hydro_redesign" / "src",
-    ROOT / "hydro_redesign" / "src",
     ROOT / "workflows" / "cic_profile" / "src",
-    ROOT / "cic_profile" / "src",
     ROOT / "workflows" / "tnp_profile" / "src",
-    ROOT / "tnp_profile" / "src",
 )
 
 

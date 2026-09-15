@@ -8,6 +8,7 @@
 |------|----------|------|
 | `app/` | ✅ | FastAPI 后端、各业务路由与服务 |
 | `worker/` | ✅ | Celery 异步任务 |
+| `workflows/*/` | ✅ | 算法源码的唯一仓库位置；根目录不保留同名源码兼容入口 |
 | `scripts/` | ✅ | 预测/对接/MD/平台启停脚本；力场文件 `md_forcefields/` 需保留 |
 | `frontend/src/` | ✅ | Vue 3 源码（不含自动生成 d.ts） |
 | `frontend/public/` | ✅ | 静态公共资源（logo、favicon） |
@@ -103,6 +104,8 @@ bash scripts/stop_platform.sh && bash scripts/start_platform.sh
 ## 运行目录现状与目标
 
 长期目标是所有任务产物实际存放在 `run/`，根目录 `outputs/` 与各 `*_outputs/` 仅作为兼容链接，以适配 `.env` 和历史 `work_dir`。
+
+这些输出兼容链接与源码布局无关，继续保留。`affinity_redesign`、`hydro_redesign`、`cic_profile`、`tnp_profile` 的算法源码只存放在 `workflows/` 下，根目录不再提供同名源码软链接。
 
 当前部署中 `hydro_redesign_outputs/`、`cic_profile_outputs/`、`tnp_profile_outputs/` 仍可能是根目录实目录，而不是链接。清理、备份或迁移前必须先判断路径类型并确认内容已经复制到 `run/`，不得直接按“都是符号链接”处理。
 

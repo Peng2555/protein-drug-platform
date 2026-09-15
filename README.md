@@ -17,7 +17,7 @@
 
 **亲和力成熟**　IgGM 在指定 CDR 上采样变体，再汇总去重。
 
-**亲和力改造**　算法在仓库 `workflows/affinity_redesign/`：PLM + AntiFold 双轨，再 Boltz2 / Rosetta 重打分。根目录 `affinity_redesign` 为兼容软链接。Web 提交即可，无需再克隆外部 `antibody_redesign`。仍需本机 ESM / AntiFold / PyRosetta 环境。
+**亲和力改造**　算法源码只在仓库 `workflows/affinity_redesign/`：PLM + AntiFold 双轨，再 Boltz2 / Rosetta 重打分。Web 提交即可，无需再克隆外部 `antibody_redesign`。仍需本机 ESM / AntiFold / PyRosetta 环境。
 
 **合成筛选**　把 IgGM 结果和测序表对齐，筛可下单序列。
 
@@ -53,7 +53,7 @@
 
 ## 主要目录
 
-`app/` 是 FastAPI 与各模块路由，`worker/` 是 Celery 任务，`scripts/` 里是预测、对接、ESM-2、平台启停脚本。前端在 `frontend/`（部署前需 `bash scripts/build_frontend.sh` 生成 `frontend/dist/`）。运行产物集中在本地 `run/`（根目录的 `outputs/`、`md_outputs/` 等是兼容链接），**不会进 git**——详见 [docs/REPOSITORY.md](docs/REPOSITORY.md)。
+`app/` 是 FastAPI 与各模块路由，`worker/` 是 Celery 任务，四个算法包的源码只在 `workflows/affinity_redesign/`、`workflows/hydro_redesign/`、`workflows/cic_profile/`、`workflows/tnp_profile/`，`scripts/` 里是预测、对接、ESM-2、平台启停脚本。前端在 `frontend/`（部署前需 `bash scripts/build_frontend.sh` 生成 `frontend/dist/`）。运行产物集中在本地 `run/`；根目录的 `outputs/`、`md_outputs/` 等输出兼容链接继续保留，**不会进 git**——详见 [docs/REPOSITORY.md](docs/REPOSITORY.md)。
 
 克隆后若使用 RAS 对接，需初始化子模块：
 
