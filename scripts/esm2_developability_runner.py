@@ -169,7 +169,7 @@ def score_sequences(
         sys.path.insert(0, str(root / "scripts"))
 
     from boltz_runner import parse_fasta_text
-    from app.cdr_annotation import annotate_antibody_chain
+    from app.common.cdr_annotation import annotate_antibody_chain
 
     seqs = parse_fasta_text(fasta_text)
     if on_stage:

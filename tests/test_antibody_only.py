@@ -1,4 +1,4 @@
-from app.antibody_only import AntibodySpec, parse_antibody_text, prepare_antibody_only_jobs
+from app.common.antibody_only import AntibodySpec, parse_antibody_text, prepare_antibody_only_jobs
 
 
 def test_csv_vhh_and_hl():

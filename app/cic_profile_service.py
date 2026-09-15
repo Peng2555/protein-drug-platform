@@ -11,10 +11,10 @@ from fastapi import HTTPException
 
 from app.config import settings
 from app.engines import CIC_PROFILE_ENGINE
-from app.job_paths import sanitize_label
+from app.common.job_paths import sanitize_label
 from app.models import Job, JobStatus
 from app.queue_service import dispatch_to_gpu
-from app.sequence_inputs import parse_fasta_chain_lengths, save_structure_upload
+from app.common.sequence_inputs import parse_fasta_chain_lengths, save_structure_upload
 from worker.tasks import run_cic_profile_job
 
 def parse_fasta_chains(fasta_text: str) -> dict[str, int]:

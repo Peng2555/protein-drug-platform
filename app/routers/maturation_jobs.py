@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.engines import MATURATION_ENGINE
-from app.job_paths import remove_job_outputs
+from app.common.job_paths import remove_job_outputs
 from app.maturation_service import (
     collect_maturation_logs,
     create_and_queue_maturation_job,

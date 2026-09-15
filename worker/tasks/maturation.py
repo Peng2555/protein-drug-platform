@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.job_paths import job_output_dir, write_job_info
-from app.structure_paths import resolve_structure_path
+from app.common.job_paths import job_output_dir, write_job_info
+from app.common.structure_paths import resolve_structure_path
 from worker.task_runtime import (
     Job,
     JobStatus,

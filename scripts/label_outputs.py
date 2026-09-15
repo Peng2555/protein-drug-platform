@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.database import SessionLocal
-from app.job_paths import job_output_dir, job_output_dir_name, write_job_info
+from app.common.job_paths import job_output_dir, job_output_dir_name, write_job_info
 from app.models import Job, User
 
 

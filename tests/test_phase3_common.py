@@ -10,14 +10,14 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException, UploadFile
 
-from app.batch_common import batch_counts, batch_out, batch_status
+from app.common.batch_common import batch_counts, batch_out, batch_status
 from app.models import Batch, Job
-from app.sequence_inputs import (
+from app.common.sequence_inputs import (
     parse_fasta_chain_lengths,
     parse_vhh_records,
     save_structure_upload,
 )
-from app.structure_paths import resolve_structure_path
+from app.common.structure_paths import resolve_structure_path
 from worker.task_helpers import compact_profile_results, wall_seconds
 
 
@@ -124,7 +124,7 @@ def test_worker_helpers_handle_naive_time_and_compact_results():
 def test_engine_and_celery_compatibility_surfaces_remain_stable():
     from app.engines import GROMACS_MD_ENGINE
     from app.hydro_redesign_service import save_structure_upload as hydro_upload
-    from app.sequence_inputs import save_structure_upload as common_upload
+    from app.common.sequence_inputs import save_structure_upload as common_upload
     from app.tnp_profile_service import save_structure_upload as tnp_upload
     from worker import tasks
 

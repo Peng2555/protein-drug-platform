@@ -16,7 +16,7 @@ HEAVY = (
 
 def test_kappa_uses_light_cdr_ranges():
     pytest.importorskip("anarci")
-    from app.cdr_annotation import annotate_antibody_chain
+    from app.common.cdr_annotation import annotate_antibody_chain
 
     light = annotate_antibody_chain(KAPPA)
     heavy = annotate_antibody_chain(HEAVY)

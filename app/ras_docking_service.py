@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.engines import RAS_DOCKING_ENGINE
-from app.job_paths import job_output_dir
+from app.common.job_paths import job_output_dir
 from app.models import Job, JobStatus
 from app.queue_service import dispatch_to_gpu
 from worker.tasks import run_ras_docking_job

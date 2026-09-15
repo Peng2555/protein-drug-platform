@@ -12,7 +12,7 @@ from fastapi import HTTPException, UploadFile
 
 from app.config import settings
 from app.engines import AFFINITY_REDESIGN_ENGINE
-from app.job_paths import sanitize_label
+from app.common.job_paths import sanitize_label
 from app.models import Job, JobStatus
 from app.queue_service import dispatch_to_gpu
 from worker.tasks import run_affinity_redesign_job

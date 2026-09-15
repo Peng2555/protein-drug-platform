@@ -12,10 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.engines import TNP_PROFILE_ENGINE
-from app.job_paths import sanitize_label
+from app.common.job_paths import sanitize_label
 from app.models import Batch, Job, JobStatus
 from app.queue_service import dispatch_to_gpu
-from app.sequence_inputs import (
+from app.common.sequence_inputs import (
     parse_fasta_chain_lengths,
     parse_vhh_records as parse_common_vhh_records,
     save_structure_upload,

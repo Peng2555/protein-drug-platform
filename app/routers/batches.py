@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.job_paths import remove_job_outputs
+from app.common.job_paths import remove_job_outputs
 from app.job_service import create_and_queue_job, dispatch_job, sequence_hash
 from app.models import Batch, Job, JobStatus, User
 from app.schemas import (
@@ -33,20 +33,20 @@ from app.schemas import (
     VhhPanelCreate,
     VhhPanelCreateOut,
 )
-from app.csv_decode import (
+from app.common.csv_decode import (
     decode_upload_bytes,
     format_heavy_chain_display,
     parse_heavy_chain_text,
 )
-from app.antibody_only import (
+from app.common.antibody_only import (
     AntibodySpec,
     format_antibody_display,
     parse_antibody_text,
     prepare_antibody_only_jobs,
 )
-from app.batch_common import batch_out
+from app.common.batch_common import batch_out
 from app.fold_samples import list_fold_samples
-from app.vhh_panel import HeavyChainSpec, prepare_panel_jobs
+from app.common.vhh_panel import HeavyChainSpec, prepare_panel_jobs
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))

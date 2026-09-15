@@ -14,7 +14,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.engines import SYNTHESIS_ENGINE
-from app.job_paths import remove_job_outputs
+from app.common.job_paths import remove_job_outputs
 from app.models import Job, User
 from app.schemas import (
     SynthesisCandidateOut,

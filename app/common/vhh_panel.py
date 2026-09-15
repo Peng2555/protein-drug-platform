@@ -9,7 +9,7 @@ from fastapi import HTTPException
 
 from app.config import settings
 
-ROOT = __import__("pathlib").Path(__file__).resolve().parents[1]
+ROOT = __import__("pathlib").Path(__file__).resolve().parents[2]
 import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -52,7 +52,7 @@ def parse_heavy_chain_fasta(text: str) -> list[HeavyChainSpec]:
 
 
 def parse_heavy_chain_csv(text: str) -> list[HeavyChainSpec]:
-    from app.csv_decode import parse_heavy_chain_csv_lenient
+    from app.common.csv_decode import parse_heavy_chain_csv_lenient
 
     parsed = parse_heavy_chain_csv_lenient(text)
     if not parsed:

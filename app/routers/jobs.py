@@ -18,7 +18,7 @@ from app.engines import FOLD_ENGINES
 from app.database import get_db
 from app.deps import get_current_user
 from app.fold_samples import fold_sample_payload, list_fold_samples, resolve_fold_cif
-from app.job_paths import default_job_name, remove_job_outputs
+from app.common.job_paths import default_job_name, remove_job_outputs
 from app.job_service import create_and_queue_job, dispatch_job, fasta_from_seqs, sequence_hash
 from app.models import Job, JobStatus, User
 from app.schemas import JobCreate, JobInterfaceOut, JobListOut, JobOut, JobSequencesOut
@@ -290,7 +290,7 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(
 
 @router.get("/{job_id}/sequences", response_model=JobSequencesOut)
 def get_job_sequences(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    from app.cdr_annotation import annotate_fasta
+    from app.common.cdr_annotation import annotate_fasta
 
     job = db.get(Job, job_id)
     if not job or job.user_id != user.id:

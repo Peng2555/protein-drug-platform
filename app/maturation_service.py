@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.engines import is_fold_engine
-from app.job_paths import job_output_dir
+from app.common.job_paths import job_output_dir
 from app.job_service import fasta_from_seqs, sequence_hash
 from app.md_service import resolve_structure_path
 from app.models import Job, JobStatus

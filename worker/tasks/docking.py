@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.job_paths import job_output_dir
+from app.common.job_paths import job_output_dir
 from worker.task_runtime import (
     Job,
     JobStatus,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from app.cdr_annotation import annotate_fasta
+from app.common.cdr_annotation import annotate_fasta
 from app.config import settings
 from app.models import Batch, Job
 

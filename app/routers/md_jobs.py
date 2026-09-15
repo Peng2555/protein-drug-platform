@@ -15,7 +15,7 @@ from app.config import settings
 from app.engines import GROMACS_MD_ENGINE, is_fold_engine
 from app.database import get_db
 from app.deps import get_current_user
-from app.job_paths import job_output_dir, remove_job_outputs
+from app.common.job_paths import job_output_dir, remove_job_outputs
 from app.md_service import create_and_queue_md_job, resolve_structure_path, save_uploaded_structure
 from app.models import Job, JobStatus, User
 from app.schemas import MdJobCreate, MdJobListOut, MdJobOut

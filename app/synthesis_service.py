@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.engines import SYNTHESIS_ENGINE
-from app.job_paths import job_output_dir
+from app.common.job_paths import job_output_dir
 from app.models import Job, JobStatus
 
 ROOT = Path(__file__).resolve().parents[1]
