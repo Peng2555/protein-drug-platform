@@ -11,6 +11,7 @@ ALGORITHM_SOURCE_DIRS = (
     ROOT / "shared" / "src",
     ROOT / "affinity_redesign" / "src",
     ROOT / "hydro_redesign" / "src",
+    ROOT / "workflows" / "cic_profile" / "src",
     ROOT / "cic_profile" / "src",
     ROOT / "tnp_profile" / "src",
 )

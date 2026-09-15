@@ -15,7 +15,7 @@ for source_root in (
     ROOT / "scripts",
     ROOT / "affinity_redesign" / "src",
     ROOT / "hydro_redesign" / "src",
-    ROOT / "cic_profile" / "src",
+    ROOT / "workflows" / "cic_profile" / "src",
     ROOT / "tnp_profile" / "src",
 ):
     if str(source_root) not in sys.path:
