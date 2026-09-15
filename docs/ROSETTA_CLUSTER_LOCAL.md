@@ -7,7 +7,7 @@ Web / Boltz2 / Celery **仍在本机**。本机已准备好「可开关的集群
 1. SSH：`cluster-cpu` → `bj3212@172.16.6.1`（密钥登录）
 2. 桥接脚本：`scripts/rosetta_cluster_bridge.py`（rsync → sbatch → 轮询 → rsync 回）
 3. 本机一键准备：`bash scripts/rosetta_cluster_setup_local.sh`
-4. 流水线接入：`affinity_redesign/.../rescore.py` 的 `_run_rosetta`
+4. 流水线接入：`workflows/affinity_redesign/.../rescore.py` 的 `_run_rosetta`
 5. `.env` 配置项（`ROSETTA_CLUSTER_ENABLED=false`）
 
 ## 试跑 inputs 路径

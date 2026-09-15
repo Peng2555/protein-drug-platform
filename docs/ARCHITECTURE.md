@@ -9,7 +9,7 @@
 | 平台层 | `app/`、`frontend/src/` | FastAPI API、认证、数据库模型、业务 Service、任务查询与 Vue 页面 |
 | Worker 层 | `worker/`、`app/celery_app.py` | 从 Redis 队列领取任务，更新 PostgreSQL 状态，调用 Runner |
 | Runner 层 | `scripts/*_runner.py` | 组织输入、调用模型或命令行工具、解析结果并写出标准产物 |
-| 算法包层 | `affinity_redesign/`、`workflows/hydro_redesign/`、`workflows/cic_profile/`、`workflows/tnp_profile/` | 可复用的候选生成、评分和分析实现 |
+| 算法包层 | `workflows/affinity_redesign/`、`workflows/hydro_redesign/`、`workflows/cic_profile/`、`workflows/tnp_profile/` | 可复用的候选生成、评分和分析实现 |
 | 外部依赖与运行产物层 | `external/`、本机 conda/工具环境、`run/` 及兼容输出目录 | RAS/TNP 对照代码、Boltz2/IgGM/GROMACS/Rosetta 等工具，以及不进入 git 的任务结果 |
 
 层与层之间保持单向调用：平台层不直接实现计算算法，Worker 负责调度，Runner 负责适配具体工具，算法包负责可测试的领域逻辑。PostgreSQL 保存用户、任务和结果元数据；Redis 同时承担 Celery broker/result backend；结构、轨迹、日志和分析文件保存在文件系统。
@@ -21,7 +21,7 @@
 - 亲和力成熟与合成筛选：IgGM 采样、候选汇总和测序表匹配。
 - 小分子/RAS 三元复合物对接：RDKit、Vina/GNINA 及外部 RAS 流程。
 - 序列与结构设计：ESM-2 可开发性、ProteinMPNN、Rosetta 评价。
-- 亲和力改造：`affinity_redesign/` 中的 PLM、AntiFold、Boltz2/Rosetta 重打分。
+- 亲和力改造：`workflows/affinity_redesign/` 中的 PLM、AntiFold、Boltz2/Rosetta 重打分。
 - 多肽遮蔽：RFdiffusion 与 ProteinMPNN。
 - 抗体分析：亲水性改造、CIC profile、TNP profile。
 

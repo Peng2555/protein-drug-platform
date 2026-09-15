@@ -13,7 +13,7 @@ PYTHONPATH=. python -m pytest -q tests
 亲和力改造算法包有独立测试：
 
 ```bash
-PYTHONPATH=affinity_redesign/src python -m pytest -q affinity_redesign/tests
+PYTHONPATH=workflows/affinity_redesign/src python -m pytest -q workflows/affinity_redesign/tests
 ```
 
 若环境尚未安装 pytest，可在开发环境中安装；pytest 不是平台运行时服务的必要依赖。部分测试会根据本机条件跳过或需要额外算法依赖，不应为了让最小平台环境通过测试而强行混装所有模型环境。

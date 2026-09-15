@@ -65,7 +65,7 @@ npm run build
 | RAS 三元复合物对接 | Python 3.10 的 `ras-cadd` 环境及 RAS 子模块 | `RAS_DOCKING_ROOT`、`RAS_DOCKING_PYTHON` |
 | Rosetta 评价 | PyRosetta 环境，或 Rosetta 二进制/Slurm 集群 | `PYROSETTA_PYTHON`、`ROSETTA_BIN_DIR`、`ROSETTA_CLUSTER_*` |
 | Venus-MAXWELL | 独立 Python 环境和本地 checkpoint | `MAXWELL_PYTHON`、`MAXWELL_CKPT` |
-| 亲和力改造 | ESM/PLM、AntiFold、可选 PyRosetta | 算法位于 `affinity_redesign/`，路径按本机环境配置 |
+| 亲和力改造 | ESM/PLM、AntiFold、可选 PyRosetta | 算法位于 `workflows/affinity_redesign/`，路径按本机环境配置 |
 | 多肽遮蔽 | RFdiffusion、SE(3) 环境、ProteinMPNN | `RFDIFFUSION_ROOT`、`SE3NV_PYTHON`、项目根目录变量 |
 | TNP profile | `external/TNP` 本地对照代码；其原始流程还涉及 Python 3.10、DSSP 等 | TNP 输出根目录及本地依赖路径 |
 

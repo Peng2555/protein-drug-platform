@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     proteinmpnn_model_name: str = "ProteinMPNN_v48_noise_0.2"
     rosetta_eval_out_root: Path = ROOT / "rosetta_eval_outputs"
     affinity_redesign_out_root: Path = ROOT / "affinity_redesign_outputs"
-    # 算法包默认用仓库内 affinity_redesign/；仍可通过环境变量改到外部目录
+    # 算法包默认用仓库内 workflows/affinity_redesign/；仍可通过环境变量改到外部目录
     antibody_redesign_root: Path = ROOT
     masking_peptide_out_root: Path = ROOT / "masking_peptide_outputs"
     hydro_redesign_out_root: Path = ROOT / "run" / "hydro_redesign_outputs"
@@ -118,9 +118,12 @@ settings = Settings()
 
 
 def affinity_redesign_src_dir() -> Path:
-    bundled = ROOT / "affinity_redesign" / "src"
+    bundled = ROOT / "workflows" / "affinity_redesign" / "src"
     if bundled.is_dir():
         return bundled
+    legacy = ROOT / "affinity_redesign" / "src"
+    if legacy.is_dir():
+        return legacy
     return Path(settings.antibody_redesign_root) / "affinity_redesign" / "src"
 
 

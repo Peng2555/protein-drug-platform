@@ -20,11 +20,16 @@ def _ensure_affinity_redesign_path() -> None:
 
         bootstrap_algorithm_paths()
     except Exception:
-        src = Path(__file__).resolve().parents[1] / "affinity_redesign" / "src"
-        if src.is_dir():
-            src_str = str(src)
-            if src_str not in sys.path:
-                sys.path.insert(0, src_str)
+        root = Path(__file__).resolve().parents[1]
+        for src in (
+            root / "workflows" / "affinity_redesign" / "src",
+            root / "affinity_redesign" / "src",
+        ):
+            if src.is_dir():
+                src_str = str(src)
+                if src_str not in sys.path:
+                    sys.path.insert(0, src_str)
+                break
 
 
 @dataclass
@@ -96,8 +101,8 @@ def run_affinity_redesign_job(
             stage="init",
             seconds=time.monotonic() - t0,
             error=(
-                "未找到 affinity_redesign 包；请确认仓库内有 affinity_redesign/src，"
-                "或 pip install -e affinity_redesign"
+                "未找到 affinity_redesign 包；请确认仓库内有 workflows/affinity_redesign/src，"
+                "或 pip install -e workflows/affinity_redesign"
             ),
             results={"import_error": str(exc)},
         )

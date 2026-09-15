@@ -30,7 +30,7 @@ def _ensure_package() -> None:
         src = affinity_redesign_src_dir()
         raise HTTPException(
             503,
-            "affinity_redesign 未安装；仓库应包含 affinity_redesign/src。"
+            "affinity_redesign 未安装；仓库应包含 workflows/affinity_redesign/src。"
             f"若用独立目录，请设置 ANTIBODY_REDESIGN_ROOT，或执行 pip install -e {src.parent}，然后重启 API/worker",
         ) from exc
 
@@ -78,7 +78,7 @@ def _write_round1_overrides(campaign_dir: Path, *, consensus_k: int) -> None:
     """把本次任务的 PLM 共识写入 campaign 级 round1 配置，不改全局默认。"""
     import yaml
 
-    pkg = Path(__file__).resolve().parents[1] / "affinity_redesign"
+    pkg = Path(__file__).resolve().parents[1] / "workflows" / "affinity_redesign"
     default = pkg / "configs" / "round1_default.yaml"
     if default.is_file():
         data = yaml.safe_load(default.read_text(encoding="utf-8")) or {}
