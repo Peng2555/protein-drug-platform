@@ -897,7 +897,9 @@ def run_hydro_redesign_job(self, job_id: str) -> dict:
     db: Session = SessionLocal()
     try:
         job = db.get(Job, job_id)
-        if not job or job.engine != "hydro_redesign":
+        if not job:
+            raise self.retry(countdown=2, max_retries=10)
+        if job.engine != "hydro_redesign":
             return {"error": "not a hydro redesign job"}
         if job.status == JobStatus.cancelled.value:
             return {"status": "cancelled"}

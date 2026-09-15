@@ -31,7 +31,7 @@ const route = useRoute()
 const router = useRouter()
 
 const activeId = computed(() => {
-  const names = [props.taskRouteName, 'tnp-profile-batch']
+  const names = [props.taskRouteName, 'tnp-profile-batch', 'hydro-redesign-batch']
   return names.includes(String(route.name || '')) ? (route.params.id as string) : null
 })
 

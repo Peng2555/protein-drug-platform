@@ -1,13 +1,23 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowRight, Document, UploadFilled } from '@element-plus/icons-vue'
-import { createHydroRedesignJob, uploadHydroRedesignJob } from '@/api/hydroRedesign'
+import {
+  createHydroRedesignBatch,
+  createHydroRedesignJob,
+  uploadHydroRedesignJob,
+} from '@/api/hydroRedesign'
 import { useModuleJobsStore } from '@/stores/moduleJobs'
 
 const EXAMPLE_FASTA = `>H
 QVQLVESGGGLVQAGGSLRLSCAASGFTFSSYAMGWFRQAPGKEREFVAAISWSGGSTYYADSVKGRFTISRDNAKNTVYLQMNSLKPEDTAVYYCAADSSRRYDYWGQGTQVTVSS
+`
+
+const EXAMPLE_BATCH = `>nb1
+QVQLVESGGGLVQAGGSLRLSCAASGFTFSSYAMGWFRQAPGKEREFVAAISWSGGSTYYADSVKGRFTISRDNAKNTVYLQMNSLKPEDTAVYYCAADSSRRYDYWGQGTQVTVSS
+>nb2
+EVQLVESGGGLVQAGGSLRLSCAASGFTFSSYAMGWFRQAPGKEREFVAAISWSGGSTYYADSVKGRFTISRDNAKNTVYLQMNSLKPEDTAVYYCAADSSRRYDYWGQGTQVTVSS
 `
 
 const router = useRouter()
@@ -20,12 +30,24 @@ const pipelineSteps = [
   { id: 'export', label: '导出', desc: 'mutations / wetlab CSV' },
 ]
 
+const mode = ref<'single' | 'batch'>('single')
 const name = ref('')
 const fasta = ref('')
 const structureFile = ref<File | null>(null)
 const allowCdr = ref(false)
 const allowCharged = ref(false)
 const submitting = ref(false)
+
+const fastaPlaceholder = computed(() =>
+  mode.value === 'batch' ? '>nb1\nQVQL...\n>nb2\nEVQL...' : '>H\nQVQLVESGGGLV...',
+)
+const recordCount = computed(() => {
+  const text = fasta.value.trim()
+  if (!text) return 0
+  const headers = text.match(/^>/gm)
+  if (!headers) return text.replace(/\s+/g, '').length >= 20 ? 1 : 0
+  return headers.length
+})
 
 function onUploadChange(arg: { raw?: File }) {
   structureFile.value = arg.raw || null
@@ -36,12 +58,22 @@ function clearUpload() {
 }
 
 function fillExample() {
-  fasta.value = EXAMPLE_FASTA.trim() + '\n'
+  fasta.value = (mode.value === 'batch' ? EXAMPLE_BATCH : EXAMPLE_FASTA).trim() + '\n'
+}
+
+function setMode(next: 'single' | 'batch') {
+  mode.value = next
+  if (next === 'batch') structureFile.value = null
 }
 
 async function submit() {
   const seq = fasta.value.trim()
-  if (seq.replace(/>[^\n]*\n?/g, '').replace(/\s/g, '').length < 20) {
+  if (mode.value === 'batch') {
+    if (recordCount.value < 2) {
+      ElMessage.warning('批量至少两条 VHH，每条记录一个表头')
+      return
+    }
+  } else if (seq.replace(/>[^\n]*\n?/g, '').replace(/\s/g, '').length < 20) {
     ElMessage.warning('请粘贴抗体 FASTA（链 ID 为 H，可选 L）')
     return
   }
@@ -52,6 +84,13 @@ async function submit() {
       fasta: seq,
       allow_cdr: allowCdr.value,
       allow_charged: allowCharged.value,
+    }
+    if (mode.value === 'batch') {
+      const created = await createHydroRedesignBatch(payload)
+      await moduleJobs.refreshHydroRedesign()
+      ElMessage.success(`已提交 ${created.job_ids.length} 条疏水改造`)
+      router.push({ name: 'hydro-redesign-batch', params: { id: created.batch.id } })
+      return
     }
     const job = structureFile.value
       ? await uploadHydroRedesignJob(seq, structureFile.value, payload)
@@ -83,6 +122,7 @@ async function submit() {
       <p class="mp-form__desc">
         用 Boltz2 折出的抗体结构（或上传 PDB/CIF）识别表面疏水斑，再枚举亲水氨基酸替换。
         默认冻结 CDR、Cys、N/C 端各 4 位，并排除新 N-糖基化。突变体不重新折叠，斑分按 WT 该残基疏水贡献近似。
+        批量模式按每条 VHH 独立折叠与改造。
       </p>
     </header>
 
@@ -100,26 +140,42 @@ async function submit() {
     <div class="mp-form__layout">
       <div class="mp-form__main">
         <section class="mp-section">
-          <div class="field">
-            <label class="field__label">任务名称</label>
-            <el-input v-model="name" placeholder="例如 VHH_hydro" maxlength="128" size="large" />
+          <div class="mode-tabs" role="tablist">
+            <button type="button" :class="{ active: mode === 'single' }" @click="setMode('single')">单条</button>
+            <button type="button" :class="{ active: mode === 'batch' }" @click="setMode('batch')">批量</button>
           </div>
 
           <div class="field">
-            <label class="field__label">抗体 FASTA <span class="req">*</span></label>
-            <p class="field__hint">
-              只接受链 ID <code>H</code> 或 <code>H</code>+<code>L</code>。单链无表头时会自动包成 &gt;H。无抗原。
-              <button type="button" class="link-btn" @click="fillExample">填入示例</button>
-            </p>
+            <label class="field__label">任务名称</label>
             <el-input
-              v-model="fasta"
-              type="textarea"
-              :rows="10"
-              placeholder=">H&#10;QVQLVESGGGLV..."
+              v-model="name"
+              :placeholder="mode === 'batch' ? '例如 VHH_hydro_panel' : '例如 VHH_hydro'"
+              maxlength="128"
+              size="large"
             />
           </div>
 
           <div class="field">
+            <label class="field__label">{{ mode === 'batch' ? 'VHH FASTA' : '抗体 FASTA' }} <span class="req">*</span></label>
+            <p class="field__hint">
+              <template v-if="mode === 'single'">
+                只接受链 ID <code>H</code> 或 <code>H</code>+<code>L</code>。单链无表头时会自动包成 &gt;H。无抗原。
+              </template>
+              <template v-else>
+                每条记录一条 VHH，表头作为分子 ID。最多 100 条，各自独立折叠改造。批量不上传结构。
+              </template>
+              <button type="button" class="link-btn" @click="fillExample">填入示例</button>
+              <span v-if="recordCount" class="count">已识别 {{ recordCount }} 条</span>
+            </p>
+            <el-input
+              v-model="fasta"
+              type="textarea"
+              :rows="mode === 'batch' ? 14 : 10"
+              :placeholder="fastaPlaceholder"
+            />
+          </div>
+
+          <div v-if="mode === 'single'" class="field">
             <label class="field__label">已有结构（可选）</label>
             <p class="field__hint">上传抗体 PDB/CIF 则跳过 Boltz2；否则 GPU 折 H 或 H+L（diffusion_samples=3）。</p>
             <div v-if="structureFile" class="upload-done">
@@ -146,7 +202,7 @@ async function submit() {
         <section class="mp-section">
           <h2 class="mp-section__title">突变约束</h2>
           <p class="field__hint" style="margin-bottom: 0.85rem">
-            默认保守：冻结 CDR，只用中性亲水残基。需要更大化学空间时再打开。
+            默认保守：冻结 CDR，只用中性亲水残基。需要更大化学空间时再打开。批量任务统一应用下列设置。
           </p>
           <div class="choice-grid">
             <button type="button" class="choice" :class="{ on: !allowCdr }" @click="allowCdr = false">
@@ -170,7 +226,7 @@ async function submit() {
 
         <div class="actions">
           <el-button type="primary" size="large" class="actions__submit" :loading="submitting" @click="submit">
-            提交改造任务
+            {{ mode === 'batch' ? '提交批量改造' : '提交改造任务' }}
             <el-icon class="actions__arrow"><ArrowRight /></el-icon>
           </el-button>
         </div>
@@ -193,6 +249,10 @@ async function submit() {
             <li><code>wetlab.csv</code>（FR 前 20）</li>
             <li><code>patches.csv</code> / <code>pred.cif</code></li>
           </ul>
+        </div>
+        <div class="info-card">
+          <h3>批量</h3>
+          <p>多条 FASTA 拆成独立任务并行排队，完成后可导出汇总 CSV。</p>
         </div>
       </aside>
     </div>
@@ -339,6 +399,37 @@ async function submit() {
   font-weight: 700;
 }
 
+.mode-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1.1rem;
+  padding: 0.25rem;
+  width: fit-content;
+  border-radius: 10px;
+  background: #f3f4f6;
+
+  button {
+    border: none;
+    background: transparent;
+    padding: 0.35rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+
+    &.active {
+      background: #fff;
+      color: var(--title);
+    }
+  }
+}
+
+.count {
+  margin-left: 0.5rem;
+  color: #0f766e;
+}
+
 .field {
   margin-bottom: 1rem;
 
@@ -473,11 +564,15 @@ async function submit() {
     font-size: 0.88rem;
   }
 
-  ul {
+  ul,
+  p {
     margin: 0;
-    padding-left: 1.1rem;
     line-height: 1.65;
     color: var(--body);
+  }
+
+  ul {
+    padding-left: 1.1rem;
   }
 
   code {

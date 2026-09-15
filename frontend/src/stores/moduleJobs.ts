@@ -8,7 +8,7 @@ import { fetchSynthesisJobs } from '@/api/synthesis'
 import { fetchMaturationJobs } from '@/api/maturation'
 import { fetchAffinityRedesignJobs } from '@/api/affinityRedesign'
 import { fetchMaskingPeptideJobs } from '@/api/maskingPeptide'
-import { fetchHydroRedesignJobs } from '@/api/hydroRedesign'
+import { fetchHydroRedesignBatches, fetchHydroRedesignJobs } from '@/api/hydroRedesign'
 import { fetchCicProfileJobs } from '@/api/cicProfile'
 import { fetchTnpProfileBatches, fetchTnpProfileJobs } from '@/api/tnpProfile'
 import { fetchMdJobs } from '@/api/md'
@@ -74,6 +74,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
   const affinityRedesignJobs = ref<AffinityRedesignJob[]>([])
   const maskingPeptideJobs = ref<MaskingPeptideJob[]>([])
   const hydroRedesignJobs = ref<HydroRedesignJob[]>([])
+  const hydroRedesignBatches = ref<Batch[]>([])
   const cicProfileJobs = ref<CicProfileJob[]>([])
   const tnpProfileJobs = ref<TnpProfileJob[]>([])
   const tnpProfileBatches = ref<Batch[]>([])
@@ -89,7 +90,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     maturation: maturationJobs.value.length,
     affinity_redesign: affinityRedesignJobs.value.length,
     masking_peptide: maskingPeptideJobs.value.length,
-    hydro_redesign: hydroRedesignJobs.value.length,
+    hydro_redesign: hydroRedesignJobs.value.length + hydroRedesignBatches.value.length,
     cic_profile: cicProfileJobs.value.length,
     tnp_profile: tnpProfileJobs.value.length + tnpProfileBatches.value.length,
     synthesis: synthesisJobs.value.length,
@@ -105,7 +106,17 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
       maturation: toNavItems(maturationJobs.value, '成熟'),
       affinity_redesign: toNavItems(affinityRedesignJobs.value, '改造'),
       masking_peptide: toNavItems(maskingPeptideJobs.value, '多肽'),
-      hydro_redesign: toNavItems(hydroRedesignJobs.value, '疏水'),
+      hydro_redesign: [
+        ...toNavItems(hydroRedesignJobs.value, '单条'),
+        ...hydroRedesignBatches.value.map((b) => ({
+          id: b.id,
+          name: b.name,
+          status: b.status,
+          created_at: b.created_at,
+          kindLabel: '批次',
+          routeName: 'hydro-redesign-batch',
+        })),
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       cic_profile: toNavItems(cicProfileJobs.value, 'CIC'),
       tnp_profile: [
         ...toNavItems(tnpProfileJobs.value, '单条'),
@@ -167,8 +178,12 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
   }
 
   async function refreshHydroRedesign() {
-    const data = await fetchHydroRedesignJobs(50)
-    hydroRedesignJobs.value = data.items ?? []
+    const [jobs, batches] = await Promise.all([
+      fetchHydroRedesignJobs(50),
+      fetchHydroRedesignBatches(50),
+    ])
+    hydroRedesignJobs.value = jobs.items ?? []
+    hydroRedesignBatches.value = batches.items ?? []
   }
 
   async function refreshSynthesis() {
@@ -231,6 +246,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     affinityRedesignJobs,
     maskingPeptideJobs,
     hydroRedesignJobs,
+    hydroRedesignBatches,
     cicProfileJobs,
     tnpProfileJobs,
     tnpProfileBatches,

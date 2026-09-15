@@ -1,5 +1,9 @@
 import { api, apiJson } from './client'
 import type {
+  Batch,
+  BatchDetail,
+  BatchJobsListOut,
+  BatchListOut,
   HydroRedesignJob,
   HydroRedesignJobListOut,
   HydroRedesignProgressOut,
@@ -15,6 +19,47 @@ export type HydroRedesignCreateBody = {
 
 export async function fetchHydroRedesignJobs(limit = 50) {
   return apiJson<HydroRedesignJobListOut>(`/api/hydro-redesign-jobs?limit=${limit}`)
+}
+
+export async function fetchHydroRedesignBatches(limit = 50) {
+  return apiJson<BatchListOut>(`/api/hydro-redesign-jobs/batches?limit=${limit}`)
+}
+
+export async function fetchHydroRedesignBatch(id: string) {
+  return apiJson<BatchDetail>(`/api/hydro-redesign-jobs/batches/${id}`)
+}
+
+export async function fetchHydroRedesignBatchJobs(id: string, limit = 200, offset = 0) {
+  return apiJson<BatchJobsListOut>(
+    `/api/hydro-redesign-jobs/batches/${id}/jobs?limit=${limit}&offset=${offset}`,
+  )
+}
+
+export async function createHydroRedesignBatch(body: HydroRedesignCreateBody) {
+  return apiJson<{ batch: Batch; job_ids: string[] }>('/api/hydro-redesign-jobs/batches', {
+    method: 'POST',
+    data: body,
+  })
+}
+
+export async function deleteHydroRedesignBatch(id: string) {
+  await apiJson(`/api/hydro-redesign-jobs/batches/${id}`, { method: 'DELETE' })
+}
+
+export async function downloadHydroRedesignBatchCsv(id: string) {
+  const response = await api.get(`/api/hydro-redesign-jobs/batches/${id}/export.csv`, {
+    responseType: 'blob',
+  })
+  const url = URL.createObjectURL(response.data)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `hydro_batch_${id.slice(0, 8)}.csv`
+  document.body.appendChild(anchor)
+  anchor.click()
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url)
+    anchor.remove()
+  }, 1000)
 }
 
 export async function fetchHydroRedesignJob(id: string) {

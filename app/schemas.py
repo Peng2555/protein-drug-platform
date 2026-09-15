@@ -396,6 +396,13 @@ class HydroRedesignJobCreate(BaseModel):
     allow_charged: bool = False
 
 
+class HydroRedesignBatchCreate(BaseModel):
+    name: str | None = Field(default=None, max_length=128)
+    fasta: str = Field(min_length=20, description="多条 VHH FASTA，每条记录一条重链")
+    allow_cdr: bool = False
+    allow_charged: bool = False
+
+
 class HydroRedesignJobOut(JobOut):
     pass
 
@@ -417,6 +424,11 @@ class HydroRedesignRankedOut(BaseModel):
     patches: list[dict] = Field(default_factory=list)
     residues: list[dict] = Field(default_factory=list)
     summary: dict | None = None
+
+
+class HydroRedesignBatchCreateOut(BaseModel):
+    batch: BatchOut
+    job_ids: list[str]
 
 
 class CicProfileJobCreate(BaseModel):

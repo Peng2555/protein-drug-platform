@@ -231,6 +231,14 @@ const router = createRouter({
             tasks: () => import('@/views/hydro-redesign/HydroRedesignTasksView.vue'),
             task: () => import('@/views/hydro-redesign/HydroRedesignJobDetailView.vue'),
           },
+          [
+            {
+              path: 'batch/:id',
+              name: 'hydro-redesign-batch',
+              component: () => import('@/views/hydro-redesign/HydroRedesignBatchDetailView.vue'),
+              meta: { title: '批量疏水改造' },
+            },
+          ],
         ),
         moduleChildren(
           'cic-profile',
