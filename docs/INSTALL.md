@@ -96,4 +96,4 @@ PY="${PLATFORM_ENV}/bin/python" bash scripts/start_platform.sh
 bash scripts/status_platform.sh
 ```
 
-`app/server.py` 与 `scripts/start_server.sh` 是 legacy 单机原型，不用于生产部署。
+`app/legacy/server.py` 与 `scripts/start_server.sh` 是 legacy 单机原型，不用于生产部署。

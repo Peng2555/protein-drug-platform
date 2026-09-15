@@ -39,7 +39,7 @@
 
 脚本会打印本机和局域网地址。别的电脑请用服务器 IP，不要用 127.0.0.1。
 
-生产 API 入口是 `app/main.py`（`app.main:app`），生产启停入口是 `scripts/start_platform.sh`。`app/server.py` 与 `scripts/start_server.sh` 仅为 legacy 单机原型，不用于生产。
+生产 API 入口是 `app/main.py`（`app.main:app`），生产启停入口是 `scripts/start_platform.sh`。`app/legacy/server.py` 与 `scripts/start_server.sh` 仅为 legacy 单机原型，不用于生产。
 
 首次初始化会有管理员账号 `admin` / `admin123`，请尽快改掉。没有 Docker 时可以只用 SQLite（注释掉 `.env` 里的 `DATABASE_URL`），Celery 仍然需要 Redis。
 
@@ -82,4 +82,4 @@
 
 ## 旧版
 
-`app/server.py` + `scripts/start_server.sh` 是无数据库/Celery 的单机原型，已被当前平台替代；`web/` 是 legacy 静态页面。生产使用 `app/main.py` + `scripts/start_platform.sh`，前端源码位于 `frontend/src/`，`frontend/dist/` 为可重建构建产物。
+`app/legacy/server.py` + `scripts/start_server.sh` 是 legacy 无数据库/Celery 单机原型，已被当前平台替代；`web/` 是 legacy 静态页面。生产使用 `app/main.py` + `scripts/start_platform.sh`，前端源码位于 `frontend/src/`，`frontend/dist/` 为可重建构建产物。

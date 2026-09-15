@@ -16,4 +16,4 @@ export BOLTZ2_OUT_ROOT="${BOLTZ2_OUT_ROOT:-$ROOT/outputs}"
 
 echo "Boltz2 Web: http://127.0.0.1:${PORT}"
 echo "Output dir: $BOLTZ2_OUT_ROOT"
-exec "$PY" -m uvicorn app.server:app --app-dir "$ROOT" --host 0.0.0.0 --port "$PORT"
+exec "$PY" -m uvicorn app.legacy.server:app --app-dir "$ROOT" --host 0.0.0.0 --port "$PORT"

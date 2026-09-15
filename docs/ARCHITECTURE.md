@@ -53,7 +53,7 @@
 
 Legacy 入口仅用于兼容和排障：
 
-- `app/server.py`：无 PostgreSQL/Celery 的单机折叠原型。
+- `app/legacy/server.py`：legacy 无 PostgreSQL/Celery 单机折叠原型。
 - `scripts/start_server.sh`：只启动上述原型。
 - `web/`：旧版静态页面，不再作为新功能开发位置。
 
