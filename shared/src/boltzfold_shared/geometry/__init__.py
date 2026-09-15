@@ -1,4 +1,4 @@
-"""兼容入口：SASA 实现已迁移到 boltzfold_shared。"""
+"""共享结构几何算法。"""
 
 from boltzfold_shared.geometry.sasa import THREE_TO_ONE, load_atoms, res_iter, residue_sasa
 

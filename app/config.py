@@ -125,6 +125,9 @@ def affinity_redesign_src_dir() -> Path:
 
 
 def ensure_affinity_redesign_on_path() -> Path | None:
+    from algorithm_paths import bootstrap_algorithm_paths
+
+    bootstrap_algorithm_paths()
     src = affinity_redesign_src_dir()
     if not src.is_dir():
         return None

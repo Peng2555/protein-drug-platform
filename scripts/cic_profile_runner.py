@@ -12,10 +12,11 @@ from typing import Any, Callable
 
 def _ensure_paths() -> None:
     root = Path(__file__).resolve().parents[1]
-    for extra in (root / "cic_profile" / "src", root / "hydro_redesign" / "src", root / "affinity_redesign" / "src"):
-        s = str(extra)
-        if extra.is_dir() and s not in sys.path:
-            sys.path.insert(0, s)
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from algorithm_paths import bootstrap_algorithm_paths
+
+    bootstrap_algorithm_paths()
 
 
 @dataclass

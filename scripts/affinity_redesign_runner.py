@@ -13,9 +13,12 @@ from typing import Any, Callable
 
 def _ensure_affinity_redesign_path() -> None:
     try:
-        from app.config import ensure_affinity_redesign_on_path
+        root = Path(__file__).resolve().parents[1]
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from algorithm_paths import bootstrap_algorithm_paths
 
-        ensure_affinity_redesign_on_path()
+        bootstrap_algorithm_paths()
     except Exception:
         src = Path(__file__).resolve().parents[1] / "affinity_redesign" / "src"
         if src.is_dir():

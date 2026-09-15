@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from antibody_workflows.fasta import parse_fasta
+from boltzfold_shared.io.fasta import parse_fasta
+from boltzfold_shared.runtime.settings import settings
 from tnp_profile.constants import (
     KABAT_CDR_H1,
     KABAT_CDR_H2,
@@ -53,14 +54,9 @@ def annotate_kabat(sequence: str) -> dict[str, Any]:
         raise RuntimeError("需要 ANARCI 才能做 Kabat 编号") from exc
 
     hmmer = ""
-    try:
-        from affinity_redesign.config import settings as ar_settings
-
-        candidate = Path(ar_settings.hmmer_path)
-        if (candidate / "hmmscan").exists():
-            hmmer = str(candidate)
-    except Exception:
-        pass
+    candidate = Path(settings.hmmer_path)
+    if (candidate / "hmmscan").exists():
+        hmmer = str(candidate)
 
     kwargs: dict[str, Any] = {"scheme": "kabat"}
     if hmmer:

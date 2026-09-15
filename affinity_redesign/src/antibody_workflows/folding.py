@@ -1,12 +1,10 @@
-"""Boltz2 抗体折叠的稳定参数封装。"""
-
-from __future__ import annotations
+"""旧折叠入口的 affinity backend 兼容适配。"""
 
 from pathlib import Path
 
 
 def fold_antibody(fasta: Path, fold_root: Path, job_id: str = "WT") -> Path:
-    """使用三个工作流既有的固定 Boltz2 参数折叠抗体。"""
+    """保留旧 monkeypatch/import 契约；新工作流不再依赖此适配。"""
     from affinity_redesign.tracks.boltz2 import fold_complex
 
     data = fold_complex(
@@ -24,3 +22,5 @@ def fold_antibody(fasta: Path, fold_root: Path, job_id: str = "WT") -> Path:
     if not prediction or not Path(prediction).is_file():
         raise RuntimeError("Boltz2 未产出 pred.pdb/cif")
     return Path(prediction)
+
+__all__ = ["fold_antibody"]

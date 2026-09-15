@@ -9,9 +9,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tnp_profile" / "src"))
-sys.path.insert(0, str(ROOT / "hydro_redesign" / "src"))
-sys.path.insert(0, str(ROOT / "affinity_redesign" / "src"))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from algorithm_paths import bootstrap_algorithm_paths
+
+bootstrap_algorithm_paths()
 
 from tnp_profile.compactness import compactness_rho, compactness_score
 from tnp_profile.flags import TWO_SIDED, cut_from_values
@@ -27,7 +29,7 @@ OUT = ROOT / "tnp_profile_outputs" / "_clinical_ref_score"
 
 def _hmmer() -> str:
     from pathlib import Path as P
-    from affinity_redesign.config import settings
+    from boltzfold_shared.runtime.settings import settings
 
     c = P(settings.hmmer_path)
     return str(c) if (c / "hmmscan").exists() else ""

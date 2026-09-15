@@ -18,7 +18,7 @@ from cic_profile.constants import (
     SURFACE_RSA_HYDRO,
 )
 from cic_profile.protonation import effective_charge
-from hydro_redesign.sasa import res_iter, residue_sasa
+from boltzfold_shared.geometry.sasa import res_iter, residue_sasa
 
 
 def _cb_or_ca(res) -> np.ndarray | None:

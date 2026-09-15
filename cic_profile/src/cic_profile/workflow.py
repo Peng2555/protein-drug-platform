@@ -6,10 +6,11 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
-from antibody_workflows import (
+from boltzfold_shared.antibody.cdr import annotate_antibody_chain, region_for_index
+from boltzfold_shared.antibody.folding import fold_antibody
+from boltzfold_shared.io import (
     copy_structure_input,
     export_structure_files,
-    fold_antibody,
     parse_fasta,
     write_csv,
     write_fasta,
@@ -19,11 +20,6 @@ from cic_profile.patches import cluster_cic_patches
 
 
 def _annotate_regions(sequences: dict[str, str]) -> dict[tuple[str, int], str]:
-    try:
-        from affinity_redesign.common.cdr import annotate_antibody_chain, region_for_index
-    except ImportError:
-        return {(cid, i + 1): "FR" for cid, seq in sequences.items() for i in range(len(seq))}
-
     out: dict[tuple[str, int], str] = {}
     for cid, seq in sequences.items():
         ab = annotate_antibody_chain(seq)

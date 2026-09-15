@@ -8,12 +8,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
-sys.path.insert(0, str(ROOT / "affinity_redesign" / "src"))
-sys.path.insert(0, str(ROOT / "hydro_redesign" / "src"))
-sys.path.insert(0, str(ROOT / "cic_profile" / "src"))
-sys.path.insert(0, str(ROOT / "tnp_profile" / "src"))
-sys.path.insert(0, str(SCRIPTS))
-sys.path.insert(0, str(ROOT))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from algorithm_paths import bootstrap_algorithm_paths
+
+bootstrap_algorithm_paths(include_scripts=True)
 
 from sqlalchemy.orm import Session
 

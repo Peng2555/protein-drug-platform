@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import json
-import sys
 from io import StringIO
 from pathlib import Path
 
@@ -43,10 +42,9 @@ from app.schemas import (
     HydroRedesignRankedOut,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
-_HYDRO_SRC = str(ROOT / "hydro_redesign" / "src")
-if _HYDRO_SRC not in sys.path:
-    sys.path.insert(0, _HYDRO_SRC)
+from algorithm_paths import bootstrap_algorithm_paths
+
+bootstrap_algorithm_paths()
 
 from hydro_redesign.sequences import (  # noqa: E402
     ALL_MUTANT_FASTA,

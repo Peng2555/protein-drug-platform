@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from antibody_workflows.fasta import parse_fasta
+from boltzfold_shared.io.fasta import parse_fasta
 
 ALL_MUTANT_FASTA = "all_mutant_sequences.fasta"
 TOP20_MUTANT_FASTA = "top20_mutant_sequences.fasta"

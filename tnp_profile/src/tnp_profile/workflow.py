@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
-from antibody_workflows import (
+from boltzfold_shared.antibody.folding import fold_antibody
+from boltzfold_shared.io import (
     copy_structure_input,
     export_structure_files,
-    fold_antibody,
     write_csv,
     write_fasta,
 )

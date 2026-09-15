@@ -1,21 +1,5 @@
-"""工作流产物文件 helper。"""
+"""兼容入口：实现已迁移到 boltzfold_shared。"""
 
-from __future__ import annotations
+from boltzfold_shared.io.files import write_csv
 
-import csv
-from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
-
-
-def write_csv(
-    path: Path,
-    rows: Iterable[Mapping[str, Any]],
-    columns: Sequence[str],
-) -> None:
-    """按指定列写 CSV；忽略额外字段，缺失字段写为空字符串。"""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({column: row.get(column, "") for column in columns})
+__all__ = ["write_csv"]

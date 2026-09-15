@@ -29,7 +29,7 @@ def _formal_charge(aa: str) -> float:
 
 
 def _sasa_map(structure_path: Path) -> dict[tuple[str, int], float]:
-    from hydro_redesign.sasa import residue_sasa
+    from boltzfold_shared.geometry.sasa import residue_sasa
 
     out: dict[tuple[str, int], float] = {}
     for row in residue_sasa(structure_path):
