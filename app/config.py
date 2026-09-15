@@ -71,9 +71,9 @@ class Settings(BaseSettings):
     # 算法包默认用仓库内 affinity_redesign/；仍可通过环境变量改到外部目录
     antibody_redesign_root: Path = ROOT
     masking_peptide_out_root: Path = ROOT / "masking_peptide_outputs"
-    hydro_redesign_out_root: Path = ROOT / "hydro_redesign_outputs"
-    cic_profile_out_root: Path = ROOT / "cic_profile_outputs"
-    tnp_profile_out_root: Path = ROOT / "tnp_profile_outputs"
+    hydro_redesign_out_root: Path = ROOT / "run" / "hydro_redesign_outputs"
+    cic_profile_out_root: Path = ROOT / "run" / "cic_profile_outputs"
+    tnp_profile_out_root: Path = ROOT / "run" / "tnp_profile_outputs"
     tnp_profile_max_batch: int = 100
     hydro_redesign_max_batch: int = 100
     masking_peptide_project_root: Path = Path(

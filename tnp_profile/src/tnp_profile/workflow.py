@@ -2,66 +2,23 @@
 
 from __future__ import annotations
 
-import csv
 import json
-import shutil
 from pathlib import Path
 from typing import Any, Callable
 
+from antibody_workflows import (
+    copy_structure_input,
+    export_structure_files,
+    fold_antibody,
+    write_csv,
+    write_fasta,
+)
 from tnp_profile.compactness import compactness_rho, compactness_score
 from tnp_profile.constants import DISCLAIMER
 from tnp_profile.flags import flag_metrics, load_thresholds
 from tnp_profile.numbering import annotate_kabat, parse_fasta
 from tnp_profile.patches import patch_scores
 from tnp_profile.structure import load_residues, pick_chain
-
-
-def _write_fasta(seqs: dict[str, str], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lines = []
-    for cid, seq in seqs.items():
-        lines.append(f">{cid}")
-        lines.append(seq)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def _write_csv(path: Path, rows: list[dict[str, Any]], columns: list[str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
-        w.writeheader()
-        for row in rows:
-            w.writerow({k: row.get(k, "") for k in columns})
-
-
-def _fold_antibody(fasta: Path, fold_root: Path, job_id: str = "WT") -> Path:
-    from affinity_redesign.tracks.boltz2 import fold_complex
-
-    data = fold_complex(
-        fasta,
-        fold_root,
-        job_id,
-        use_msa_server=True,
-        recycling_steps=3,
-        sampling_steps=200,
-        diffusion_samples=3,
-    )
-    if data.get("status") != "ok":
-        raise RuntimeError(data.get("error") or "Boltz2 折抗体失败")
-    pred = data.get("pred_pdb") or data.get("pred_cif")
-    if not pred or not Path(pred).is_file():
-        raise RuntimeError("Boltz2 未产出 pred.pdb/cif")
-    return Path(pred)
-
-
-def _to_cif(src: Path, dest: Path) -> Path:
-    import gemmi
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    st = gemmi.read_structure(str(src))
-    st.make_mmcif_document().write_file(str(dest))
-    return dest
-
 
 def run_workflow(
     work_dir: Path,
@@ -98,36 +55,18 @@ def run_workflow(
         raise ValueError(f"第一版只接受 VHH 重链 H，收到: {', '.join(unknown)}")
     if "H" not in seqs:
         raise ValueError("缺少重链 H")
-    _write_fasta(seqs, inp / "sequences.fasta")
+    write_fasta(seqs, inp / "sequences.fasta")
     sequence = seqs["H"]
 
     stage("fold")
     if structure_path and structure_path.is_file():
-        dest = fold_root / f"input{structure_path.suffix.lower() or '.pdb'}"
-        shutil.copy2(structure_path, dest)
-        src_struct = dest
+        src_struct = copy_structure_input(structure_path, fold_root)
     else:
-        src_struct = _fold_antibody(inp / "sequences.fasta", fold_root, "WT")
+        src_struct = fold_antibody(inp / "sequences.fasta", fold_root, "WT")
 
     cif_path = exports / "pred.cif"
     pdb_path = exports / "pred.pdb"
-    try:
-        _to_cif(src_struct, cif_path)
-    except Exception:
-        shutil.copy2(src_struct, cif_path)
-    if src_struct.suffix.lower() == ".pdb":
-        shutil.copy2(src_struct, pdb_path)
-    else:
-        try:
-            import gemmi
-
-            st = gemmi.read_structure(str(src_struct))
-            if hasattr(st, "write_pdb"):
-                st.write_pdb(str(pdb_path))
-            else:
-                pdb_path.write_text(st.make_pdb_string(), encoding="utf-8")
-        except Exception:
-            pass
+    export_structure_files(src_struct, cif_path, pdb_path)
 
     stage("score")
     annotation = annotate_kabat(sequence)
@@ -186,8 +125,8 @@ def run_workflow(
                 "rsa": 0,
             }
         )
-    _write_csv(score_dir / "residue_features.csv", residue_rows, residue_cols)
-    _write_csv(exports / "residue_features.csv", residue_rows, residue_cols)
+    write_csv(score_dir / "residue_features.csv", residue_rows, residue_cols)
+    write_csv(exports / "residue_features.csv", residue_rows, residue_cols)
 
     patch_rows = [
         {
@@ -200,7 +139,7 @@ def run_workflow(
             ),
         }
     ]
-    _write_csv(
+    write_csv(
         exports / "patches.csv",
         patch_rows,
         ["patch_id", "kind", "n_residues", "score", "residues"],

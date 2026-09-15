@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from antibody_workflows.fasta import parse_fasta
 from tnp_profile.constants import (
     KABAT_CDR_H1,
     KABAT_CDR_H2,
@@ -149,23 +150,3 @@ def annotate_kabat(sequence: str) -> dict[str, Any]:
         "tetrad": tetrad,
         "tetrad_motif": motif,
     }
-
-
-def parse_fasta(text: str) -> dict[str, str]:
-    seqs: dict[str, str] = {}
-    cur: str | None = None
-    buf: list[str] = []
-    for line in text.splitlines():
-        s = line.strip()
-        if not s:
-            continue
-        if s.startswith(">"):
-            if cur is not None:
-                seqs[cur] = "".join(buf).upper().replace(" ", "")
-            cur = s[1:].split()[0]
-            buf = []
-        else:
-            buf.append(s)
-    if cur is not None:
-        seqs[cur] = "".join(buf).upper().replace(" ", "")
-    return seqs

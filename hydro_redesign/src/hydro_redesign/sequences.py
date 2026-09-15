@@ -4,28 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from antibody_workflows.fasta import parse_fasta
+
 ALL_MUTANT_FASTA = "all_mutant_sequences.fasta"
 TOP20_MUTANT_FASTA = "top20_mutant_sequences.fasta"
-
-
-def parse_fasta(text: str) -> dict[str, str]:
-    seqs: dict[str, str] = {}
-    cur: str | None = None
-    buf: list[str] = []
-    for line in text.splitlines():
-        s = line.strip()
-        if not s:
-            continue
-        if s.startswith(">"):
-            if cur is not None:
-                seqs[cur] = "".join(buf).upper().replace(" ", "")
-            cur = s[1:].split()[0]
-            buf = []
-        else:
-            buf.append(s)
-    if cur is not None:
-        seqs[cur] = "".join(buf).upper().replace(" ", "")
-    return seqs
 
 
 def apply_mutation(seqs: dict[str, str], chain: str, pos1: int, wt: str, mut: str) -> dict[str, str]:

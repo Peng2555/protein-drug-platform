@@ -2,52 +2,20 @@
 
 from __future__ import annotations
 
-import csv
 import json
-import shutil
 from pathlib import Path
 from typing import Any, Callable
 
+from antibody_workflows import (
+    copy_structure_input,
+    export_structure_files,
+    fold_antibody,
+    parse_fasta,
+    write_csv,
+    write_fasta,
+)
 from cic_profile.constants import DEFAULT_PH, PATCH_CUTOFF, SURFACE_RSA_CHARGE, SURFACE_RSA_HYDRO
 from cic_profile.patches import cluster_cic_patches
-
-
-def _parse_fasta(text: str) -> dict[str, str]:
-    seqs: dict[str, str] = {}
-    cur: str | None = None
-    buf: list[str] = []
-    for line in text.splitlines():
-        s = line.strip()
-        if not s:
-            continue
-        if s.startswith(">"):
-            if cur is not None:
-                seqs[cur] = "".join(buf).upper().replace(" ", "")
-            cur = s[1:].split()[0]
-            buf = []
-        else:
-            buf.append(s)
-    if cur is not None:
-        seqs[cur] = "".join(buf).upper().replace(" ", "")
-    return seqs
-
-
-def _write_fasta(seqs: dict[str, str], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lines = []
-    for cid, seq in seqs.items():
-        lines.append(f">{cid}")
-        lines.append(seq)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def _write_csv(path: Path, rows: list[dict[str, Any]], columns: list[str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
-        w.writeheader()
-        for row in rows:
-            w.writerow({k: row.get(k, "") for k in columns})
 
 
 def _annotate_regions(sequences: dict[str, str]) -> dict[tuple[str, int], str]:
@@ -62,36 +30,6 @@ def _annotate_regions(sequences: dict[str, str]) -> dict[tuple[str, int], str]:
         for i in range(len(seq)):
             out[(cid, i + 1)] = region_for_index(ab, i) if ab else "FR"
     return out
-
-
-def _fold_antibody(fasta: Path, fold_root: Path, job_id: str = "WT") -> Path:
-    from affinity_redesign.tracks.boltz2 import fold_complex
-
-    data = fold_complex(
-        fasta,
-        fold_root,
-        job_id,
-        use_msa_server=True,
-        recycling_steps=3,
-        sampling_steps=200,
-        diffusion_samples=3,
-    )
-    if data.get("status") != "ok":
-        raise RuntimeError(data.get("error") or "Boltz2 折抗体失败")
-    pred = data.get("pred_pdb") or data.get("pred_cif")
-    if not pred or not Path(pred).is_file():
-        raise RuntimeError("Boltz2 未产出 pred.pdb/cif")
-    return Path(pred)
-
-
-def _to_cif(src: Path, dest: Path) -> Path:
-    import gemmi
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    st = gemmi.read_structure(str(src))
-    st.make_mmcif_document().write_file(str(dest))
-    return dest
-
 
 def run_workflow(
     work_dir: Path,
@@ -118,7 +56,7 @@ def run_workflow(
         if on_stage:
             on_stage(name)
 
-    seqs = _parse_fasta(fasta_text)
+    seqs = parse_fasta(fasta_text)
     if not seqs:
         raise ValueError("FASTA 无效")
     if "H" not in seqs and len(seqs) == 1:
@@ -127,36 +65,18 @@ def run_workflow(
     unknown = [k for k in seqs if k not in {"H", "L"}]
     if unknown:
         raise ValueError(f"第一版只接受抗体链 H / L，收到: {', '.join(unknown)}")
-    _write_fasta(seqs, inp / "sequences.fasta")
+    write_fasta(seqs, inp / "sequences.fasta")
 
     stage("fold")
     src_struct: Path
     if structure_path and structure_path.is_file():
-        dest = fold_root / f"input{structure_path.suffix.lower() or '.pdb'}"
-        shutil.copy2(structure_path, dest)
-        src_struct = dest
+        src_struct = copy_structure_input(structure_path, fold_root)
     else:
-        src_struct = _fold_antibody(inp / "sequences.fasta", fold_root, "WT")
+        src_struct = fold_antibody(inp / "sequences.fasta", fold_root, "WT")
 
     cif_path = exports / "pred.cif"
     pdb_path = exports / "pred.pdb"
-    try:
-        _to_cif(src_struct, cif_path)
-    except Exception:
-        shutil.copy2(src_struct, cif_path)
-    if src_struct.suffix.lower() == ".pdb":
-        shutil.copy2(src_struct, pdb_path)
-    else:
-        try:
-            import gemmi
-
-            st = gemmi.read_structure(str(src_struct))
-            if hasattr(st, "write_pdb"):
-                st.write_pdb(str(pdb_path))
-            else:
-                pdb_path.write_text(st.make_pdb_string(), encoding="utf-8")
-        except Exception:
-            pass
+    export_structure_files(src_struct, cif_path, pdb_path)
 
     stage("patches")
     residues, patches = cluster_cic_patches(src_struct, ph=ph, patch_cut=PATCH_CUTOFF)
@@ -184,8 +104,8 @@ def run_workflow(
         "charge_patch_id",
         "cdr",
     ]
-    _write_csv(patches_dir / "residue_features.csv", residues, residue_cols)
-    _write_csv(exports / "residue_features.csv", residues, residue_cols)
+    write_csv(patches_dir / "residue_features.csv", residues, residue_cols)
+    write_csv(exports / "residue_features.csv", residues, residue_cols)
     patch_rows = [
         {
             **p,
@@ -193,7 +113,7 @@ def run_workflow(
         }
         for p in patches
     ]
-    _write_csv(exports / "patches.csv", patch_rows, ["patch_id", "kind", "n_residues", "score", "residues"])
+    write_csv(exports / "patches.csv", patch_rows, ["patch_id", "kind", "n_residues", "score", "residues"])
     (patches_dir / "patches.json").write_text(
         json.dumps(
             {
