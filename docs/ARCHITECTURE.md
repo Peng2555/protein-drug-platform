@@ -25,7 +25,7 @@
 - 多肽遮蔽：RFdiffusion 与 ProteinMPNN。
 - 抗体分析：亲水性改造、CIC profile、TNP profile。
 
-业务领域逐组采用 `app/modules/<name>/` 纵向布局，当前结构预测、MD、设计、可开发性、Rosetta 评价及首批抗体分析/改造模块已将各自 Router、Service 和领域辅助实现归入同一模块；尚未迁移的 API 路由与 Service 仍保留原布局。Pydantic schema 按领域位于 `app/schemas/`，异步任务按领域定义在 `worker/tasks/`；纯公共辅助模块统一位于 `app/common/`。
+业务领域逐组采用 `app/modules/<name>/` 纵向布局，当前结构预测、MD、成熟、合成、通用/RAS 对接、设计、可开发性、Rosetta 评价及首批抗体分析/改造模块已将各自 Router、Service 和领域辅助实现归入同一模块；尚未迁移的 API 路由与 Service 仍保留原布局。Pydantic schema 按领域位于 `app/schemas/`，异步任务按领域定义在 `worker/tasks/`；纯公共辅助模块统一位于 `app/common/`。
 
 ## 任务数据流
 

@@ -23,7 +23,11 @@ from app.schemas import (
     SynthesisJobOut,
     SynthesisSelectOut,
 )
-from app.synthesis_service import run_and_record_synthesis_job, save_fasta_upload, save_table_upload
+from app.modules.synthesis.service import (
+    run_and_record_synthesis_job,
+    save_fasta_upload,
+    save_table_upload,
+)
 
 router = APIRouter(prefix="/api/synthesis-jobs", tags=["synthesis"])
 

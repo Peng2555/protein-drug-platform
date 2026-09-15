@@ -196,9 +196,9 @@ def test_worker_exports_exactly_thirteen_named_celery_tasks():
     service_tasks = {
         "app.modules.fold.service": "run_fold_job",
         "app.modules.md.service": "run_md_job",
-        "app.maturation_service": "run_maturation_job",
-        "app.ras_docking_service": "run_ras_docking_job",
-        "app.docking_service": "run_small_molecule_docking_job",
+        "app.modules.maturation.service": "run_maturation_job",
+        "app.modules.ras_docking.service": "run_ras_docking_job",
+        "app.modules.docking.service": "run_small_molecule_docking_job",
         "app.modules.developability.service": "run_developability_job",
         "app.modules.design.service": "run_design_job",
         "app.modules.rosetta_eval.service": "run_rosetta_eval_job",

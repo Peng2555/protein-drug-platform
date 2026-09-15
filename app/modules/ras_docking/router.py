@@ -14,7 +14,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.engines import RAS_DOCKING_ENGINE
 from app.models import Job, JobStatus, User
-from app.ras_docking_service import (
+from app.modules.ras_docking.service import (
     create_and_queue_ras_job,
     remove_ras_job_outputs,
     save_candidate_sdf,

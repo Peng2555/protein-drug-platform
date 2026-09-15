@@ -71,6 +71,31 @@ SECOND_ROUTER_SERVICE_EXPORTS = {
     "rosetta_eval": {"_fold_variant", "create_and_queue_rosetta_eval_job", "save_upload"},
 }
 
+THIRD_MODULE_FILES = {
+    name: {"__init__.py", "router.py", "service.py"}
+    for name in ("maturation", "synthesis", "docking", "ras_docking")
+}
+
+THIRD_ROUTER_SERVICE_EXPORTS = {
+    "maturation": {
+        "collect_maturation_logs",
+        "create_and_queue_maturation_job",
+        "prepare_maturation_from_body",
+        "save_uploaded_structure",
+    },
+    "synthesis": {
+        "run_and_record_synthesis_job",
+        "save_fasta_upload",
+        "save_table_upload",
+    },
+    "docking": {"create_and_queue_docking_job"},
+    "ras_docking": {
+        "create_and_queue_ras_job",
+        "remove_ras_job_outputs",
+        "save_candidate_sdf",
+    },
+}
+
 OPENAPI_SHA256 = "4b78bbdb5ef2436d093e7b860bce0455dcca55519f57c649ae459f82e9055538"
 
 
@@ -220,7 +245,58 @@ def test_main_registers_second_group_in_original_order():
     assert positions == sorted(positions)
 
 
-def test_openapi_contract_is_stable_after_second_module_move():
+def test_third_module_group_has_exact_vertical_layout_and_no_old_files():
+    app_dir = Path(__file__).parents[1] / "app"
+    modules_dir = app_dir / "modules"
+    for name, expected_files in THIRD_MODULE_FILES.items():
+        assert {path.name for path in (modules_dir / name).glob("*.py")} == expected_files
+
+    old_files = {
+        *(app_dir / f"{name}_service.py" for name in THIRD_MODULE_FILES),
+        *(app_dir / "routers" / f"{name}_jobs.py" for name in THIRD_MODULE_FILES),
+    }
+    assert not any(path.exists() for path in old_files)
+
+
+def test_third_module_group_has_zero_old_import_references():
+    root = Path(__file__).parents[1]
+    old_modules = (
+        *(f"app.{name}_service" for name in THIRD_MODULE_FILES),
+        *(f"app.routers.{name}_jobs" for name in THIRD_MODULE_FILES),
+    )
+    sources = [
+        path.read_text(encoding="utf-8")
+        for directory in ("app", "worker", "tests")
+        for path in (root / directory).rglob("*.py")
+    ]
+    assert all(old_module not in source for old_module in old_modules for source in sources)
+
+
+def test_third_router_imports_keep_service_object_identity():
+    for name, exports in THIRD_ROUTER_SERVICE_EXPORTS.items():
+        router_module = importlib.import_module(f"app.modules.{name}.router")
+        service_module = importlib.import_module(f"app.modules.{name}.service")
+        for export in exports:
+            assert getattr(router_module, export) is getattr(service_module, export)
+
+
+def test_main_registers_third_group_in_original_order():
+    import app.main as main
+
+    names = ("maturation", "synthesis", "ras_docking", "docking")
+    modules = [importlib.import_module(f"app.modules.{name}.router") for name in names]
+    assert [getattr(main, name) for name in names] == modules
+
+    registered_routers = [
+        route.original_router
+        for route in main.app.routes
+        if hasattr(route, "original_router")
+    ]
+    positions = [registered_routers.index(module.router) for module in modules]
+    assert positions == sorted(positions)
+
+
+def test_openapi_contract_is_stable_after_third_module_move():
     from app.main import app
 
     schema = app.openapi()

@@ -16,7 +16,7 @@ from app.engines import SYNTHESIS_ENGINE
 from app.common.job_paths import job_output_dir
 from app.models import Job, JobStatus
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
 from iggm_shm_matcher import ShmMatchParams, run_iggm_shm_match
 from iggm_synthesis_order import SynthesisOrderParams, build_synthesis_order

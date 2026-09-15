@@ -17,7 +17,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.engines import MATURATION_ENGINE
 from app.common.job_paths import remove_job_outputs
-from app.maturation_service import (
+from app.modules.maturation.service import (
     collect_maturation_logs,
     create_and_queue_maturation_job,
     prepare_maturation_from_body,

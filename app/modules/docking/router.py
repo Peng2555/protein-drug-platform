@@ -16,7 +16,7 @@ from app.deps import get_current_user
 from app.engines import SMALL_MOLECULE_DOCKING_ENGINE
 from app.models import Job, JobStatus, User
 from app.schemas import DockingJobListOut, DockingJobOut
-from app.docking_service import create_and_queue_docking_job
+from app.modules.docking.service import create_and_queue_docking_job
 from docking_runner import _pose_scores
 
 router = APIRouter(prefix="/api/docking-jobs", tags=["docking"])

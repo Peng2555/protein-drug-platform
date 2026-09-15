@@ -19,7 +19,7 @@ from app.models import Job, JobStatus
 from app.queue_service import dispatch_to_gpu
 from app.schemas import IgGMParams, MaturationJobCreate
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
 from boltz_runner import parse_fasta_text, pick_chain_key, sequences_from_structure, validate_boltz_chain_ids
 from iggm_mask_builder import build_maturation_fastas, estimate_maturation_inference
