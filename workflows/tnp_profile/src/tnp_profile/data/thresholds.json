@@ -1,0 +1,84 @@
+{
+  "scheme": "kabat",
+  "structure_engine": "nanobodybuilder2_paper_models",
+  "task_fold_engine": "boltz2",
+  "reference": "tnp_paper_36_vhh",
+  "method": "TNP/TAP: red outside clinical min/max; amber ~5%/95%; integer L/L3 high bound = max+1; PPC/PNC high-side only",
+  "n_sequence": 36,
+  "n_structure": 36,
+  "note": "Kabat 编号，阈值按 TNP/TAP 规则在 36 条临床 VHH 上重切（红=超出临床 min/max，黄≈两端 5%；L/L3 高段外扩 1）。结构项用论文 NanoBodyBuilder2 模型标定，任务结构仍走 Boltz2，分数不可与官网 IMGT 结果直接对比。",
+  "metrics": {
+    "L": {
+      "calibrated": true,
+      "two_sided": true,
+      "integer": true,
+      "min": 24.0,
+      "max": 45.0,
+      "p05": 28.0,
+      "p95": 41.0,
+      "red_lt": 24.0,
+      "red_gt": 46.0,
+      "n": 36
+    },
+    "L3": {
+      "calibrated": true,
+      "two_sided": true,
+      "integer": true,
+      "min": 3.0,
+      "max": 24.0,
+      "p05": 6.0,
+      "p95": 19.0,
+      "red_lt": 3.0,
+      "red_gt": 25.0,
+      "n": 36
+    },
+    "C": {
+      "calibrated": true,
+      "two_sided": true,
+      "integer": false,
+      "min": 0.4161,
+      "max": 1.8633,
+      "p05": 0.73,
+      "p95": 1.61,
+      "red_lt": 0.42,
+      "red_gt": 1.86,
+      "n": 36
+    },
+    "PSH": {
+      "calibrated": true,
+      "two_sided": true,
+      "integer": false,
+      "min": 103.7308,
+      "max": 185.6407,
+      "p05": 110.39,
+      "p95": 164.57,
+      "red_lt": 103.73,
+      "red_gt": 185.64,
+      "n": 36
+    },
+    "PPC": {
+      "calibrated": true,
+      "two_sided": false,
+      "integer": false,
+      "min": 0.0,
+      "max": 0.3473,
+      "p05": 0.0,
+      "p95": 0.31,
+      "red_lt": 0.0,
+      "red_gt": 0.35,
+      "n": 36
+    },
+    "PNC": {
+      "calibrated": true,
+      "two_sided": false,
+      "integer": false,
+      "min": 0.0,
+      "max": 1.3065,
+      "p05": 0.0,
+      "p95": 1.16,
+      "red_lt": 0.0,
+      "red_gt": 1.31,
+      "n": 36
+    }
+  }
+}
