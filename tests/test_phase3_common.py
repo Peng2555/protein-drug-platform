@@ -123,9 +123,9 @@ def test_worker_helpers_handle_naive_time_and_compact_results():
 
 def test_engine_and_celery_compatibility_surfaces_remain_stable():
     from app.engines import GROMACS_MD_ENGINE
-    from app.hydro_redesign_service import save_structure_upload as hydro_upload
+    from app.modules.hydro_redesign.service import save_structure_upload as hydro_upload
     from app.common.sequence_inputs import save_structure_upload as common_upload
-    from app.tnp_profile_service import save_structure_upload as tnp_upload
+    from app.modules.tnp_profile.service import save_structure_upload as tnp_upload
     from worker import tasks
 
     assert GROMACS_MD_ENGINE == "gromacs_md"

@@ -17,7 +17,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.engines import TNP_PROFILE_ENGINE
 from app.common.job_paths import remove_job_outputs
-from app.tnp_profile_service import (
+from app.modules.tnp_profile.service import (
     TNP_BATCH_TYPE,
     create_and_queue_tnp_profile_batch,
     create_and_queue_tnp_profile_job,

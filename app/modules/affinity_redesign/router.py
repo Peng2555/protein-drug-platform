@@ -13,8 +13,11 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.affinity_redesign_service import create_and_queue_affinity_redesign_job, save_structure_upload
-from app.affinity_redesign_progress import (
+from app.modules.affinity_redesign.service import (
+    create_and_queue_affinity_redesign_job,
+    save_structure_upload,
+)
+from app.modules.affinity_redesign.progress import (
     collect_affinity_redesign_progress,
     collect_mutation_records,
     build_mutation_region_table,

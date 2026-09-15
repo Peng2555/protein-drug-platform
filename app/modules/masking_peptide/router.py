@@ -18,7 +18,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.engines import MASKING_PEPTIDE_ENGINE
-from app.masking_peptide_service import (
+from app.modules.masking_peptide.service import (
     create_and_queue_masking_peptide_job,
     prepare_from_body,
     save_structure_upload,

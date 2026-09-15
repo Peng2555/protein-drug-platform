@@ -26,8 +26,8 @@ AFFINITY_REDESIGN_ENGINE = "affinity_redesign"
 
 | 文件 | 做什么 |
 |------|--------|
-| `app/affinity_redesign_service.py` | `create_job`：收 FASTA、可选 PDB、写 work_dir |
-| `app/routers/affinity_redesign_jobs.py` | `POST /api/affinity-redesign-jobs`、`GET` 状态与产物 |
+| `app/modules/affinity_redesign/service.py` | `create_job`：收 FASTA、可选 PDB、写 work_dir |
+| `app/modules/affinity_redesign/router.py` | `POST /api/affinity-redesign-jobs`、`GET` 状态与产物 |
 | `worker/tasks/affinity.py` | `run_affinity_redesign_job` |
 | 前端一页表单 + 一页结果表 | 上传序列 / 可选结构，结果读 CSV |
 

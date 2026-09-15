@@ -18,7 +18,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.engines import HYDRO_REDESIGN_ENGINE
-from app.hydro_redesign_service import (
+from app.modules.hydro_redesign.service import (
     HYDRO_BATCH_TYPE,
     create_and_queue_hydro_redesign_batch,
     create_and_queue_hydro_redesign_job,

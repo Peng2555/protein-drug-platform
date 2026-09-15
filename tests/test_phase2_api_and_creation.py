@@ -148,8 +148,8 @@ def test_hydro_and_tnp_batches_defer_until_explicit_dispatch(
     sqlite_sessions,
     active_user,
 ):
-    from app import hydro_redesign_service as hydro
-    from app import tnp_profile_service as tnp
+    from app.modules.hydro_redesign import service as hydro
+    from app.modules.tnp_profile import service as tnp
 
     monkeypatch.setattr(hydro.settings, "hydro_redesign_out_root", tmp_path / "hydro")
     monkeypatch.setattr(tnp.settings, "tnp_profile_out_root", tmp_path / "tnp")

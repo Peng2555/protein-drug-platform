@@ -180,7 +180,7 @@ def test_psh_pairs_same_class(tmp_path: Path):
 
 def test_parse_vhh_records_multi():
     sys.path.insert(0, str(ROOT))
-    from app.tnp_profile_service import parse_vhh_records
+    from app.modules.tnp_profile.service import parse_vhh_records
 
     seq = "Q" * 80
     rows = parse_vhh_records(f">a\n{seq}\n>b\n{seq}\n")

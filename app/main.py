@@ -16,6 +16,11 @@ from app.config import settings
 from app.database import SessionLocal, engine
 from app.db_migrate import run_migrations
 from app.models import Job, JobStatus
+from app.modules.affinity_redesign import router as affinity_redesign
+from app.modules.cic_profile import router as cic_profile
+from app.modules.hydro_redesign import router as hydro_redesign
+from app.modules.masking_peptide import router as masking_peptide
+from app.modules.tnp_profile import router as tnp_profile
 from app.routers import (
     auth,
     batches,
@@ -28,11 +33,6 @@ from app.routers import (
     developability_jobs,
     design_jobs,
     rosetta_eval_jobs,
-    affinity_redesign_jobs,
-    masking_peptide_jobs,
-    hydro_redesign_jobs,
-    cic_profile_jobs,
-    tnp_profile_jobs,
 )
 from app.schemas import HealthOut
 
@@ -74,11 +74,11 @@ app.include_router(docking_jobs.router)
 app.include_router(developability_jobs.router)
 app.include_router(design_jobs.router)
 app.include_router(rosetta_eval_jobs.router)
-app.include_router(affinity_redesign_jobs.router)
-app.include_router(masking_peptide_jobs.router)
-app.include_router(hydro_redesign_jobs.router)
-app.include_router(cic_profile_jobs.router)
-app.include_router(tnp_profile_jobs.router)
+app.include_router(affinity_redesign.router)
+app.include_router(masking_peptide.router)
+app.include_router(hydro_redesign.router)
+app.include_router(cic_profile.router)
+app.include_router(tnp_profile.router)
 
 
 @app.on_event("startup")

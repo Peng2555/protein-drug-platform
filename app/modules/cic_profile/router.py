@@ -15,7 +15,10 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.engines import CIC_PROFILE_ENGINE
-from app.cic_profile_service import create_and_queue_cic_profile_job, save_structure_upload
+from app.modules.cic_profile.service import (
+    create_and_queue_cic_profile_job,
+    save_structure_upload,
+)
 from app.models import Job, JobStatus, User
 from app.schemas import (
     CicProfileJobCreate,

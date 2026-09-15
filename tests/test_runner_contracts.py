@@ -202,11 +202,11 @@ def test_worker_exports_exactly_thirteen_named_celery_tasks():
         "app.developability_service": "run_developability_job",
         "app.design_service": "run_design_job",
         "app.rosetta_eval_service": "run_rosetta_eval_job",
-        "app.affinity_redesign_service": "run_affinity_redesign_job",
-        "app.masking_peptide_service": "run_masking_peptide_job",
-        "app.hydro_redesign_service": "run_hydro_redesign_job",
-        "app.cic_profile_service": "run_cic_profile_job",
-        "app.tnp_profile_service": "run_tnp_profile_job",
+        "app.modules.affinity_redesign.service": "run_affinity_redesign_job",
+        "app.modules.masking_peptide.service": "run_masking_peptide_job",
+        "app.modules.hydro_redesign.service": "run_hydro_redesign_job",
+        "app.modules.cic_profile.service": "run_cic_profile_job",
+        "app.modules.tnp_profile.service": "run_tnp_profile_job",
     }
     for service_name, task_name in service_tasks.items():
         service = importlib.import_module(service_name)
