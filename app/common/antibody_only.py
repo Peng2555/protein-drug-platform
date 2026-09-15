@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException
 
-from app.config import settings
+from app.core.config import settings
 from app.common.vhh_panel import _sanitize_batch_name, _sanitize_id
 
 ROOT = __import__("pathlib").Path(__file__).resolve().parents[2]

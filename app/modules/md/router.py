@@ -10,14 +10,14 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
-from app.config import settings
-from app.engines import GROMACS_MD_ENGINE, is_fold_engine
-from app.database import get_db
-from app.deps import get_current_user
+from app.core.celery import celery_app
+from app.core.config import settings
+from app.core.engines import GROMACS_MD_ENGINE, is_fold_engine
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.common.job_paths import job_output_dir, remove_job_outputs
 from app.modules.md.service import create_and_queue_md_job, resolve_structure_path, save_uploaded_structure
-from app.models import Job, JobStatus, User
+from app.core.models import Job, JobStatus, User
 from app.schemas import MdJobCreate, MdJobListOut, MdJobOut
 
 router = APIRouter(prefix="/api/md-jobs", tags=["md-jobs"])

@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
-import pkgutil
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,7 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 import app
-import app.routers
+import app.modules
 import app.schemas as schemas
 
 
@@ -140,14 +139,14 @@ def test_model_validators_are_unchanged() -> None:
 
 
 def test_all_router_and_service_modules_import() -> None:
-    router_modules = [
-        info.name for info in pkgutil.iter_modules(
-            app.routers.__path__, prefix="app.routers.",
-        )
-    ]
     app_dir = Path(app.__file__).parent
+    router_modules = [
+        ".".join(path.with_suffix("").relative_to(app_dir.parent).parts)
+        for path in (app_dir / "modules").glob("*/router.py")
+    ]
     service_modules = [
-        f"app.{path.stem}" for path in app_dir.glob("*_service.py")
+        ".".join(path.with_suffix("").relative_to(app_dir.parent).parts)
+        for path in (app_dir / "modules").glob("*/service.py")
     ]
     for module_name in sorted(router_modules + service_modules):
         importlib.import_module(module_name)

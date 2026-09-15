@@ -9,10 +9,10 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.engines import DEFAULT_FOLD_ENGINE, normalize_fold_engine
-from app.models import Job, JobStatus
-from app.queue_service import dispatch_to_gpu
+from app.core.config import settings
+from app.core.engines import DEFAULT_FOLD_ENGINE, normalize_fold_engine
+from app.core.models import Job, JobStatus
+from app.core.queue import dispatch_to_gpu
 from worker.tasks import run_fold_job
 
 

@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from app.models import Job
+from app.core.models import Job
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:

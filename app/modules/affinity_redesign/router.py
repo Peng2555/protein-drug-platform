@@ -23,12 +23,12 @@ from app.modules.affinity_redesign.progress import (
     build_mutation_region_table,
     mutation_region_table_csv,
 )
-from app.celery_app import celery_app
-from app.config import settings
-from app.database import get_db
-from app.deps import get_current_user
-from app.engines import AFFINITY_REDESIGN_ENGINE
-from app.models import Job, JobStatus, User
+from app.core.celery import celery_app
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
+from app.core.engines import AFFINITY_REDESIGN_ENGINE
+from app.core.models import Job, JobStatus, User
 from app.schemas import (
     AffinityRedesignJobCreate,
     AffinityRedesignJobListOut,

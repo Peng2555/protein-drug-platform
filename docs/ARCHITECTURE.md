@@ -7,7 +7,7 @@
 | 层级 | 主要目录 | 职责 |
 |------|----------|------|
 | 平台层 | `app/`、`frontend/src/` | FastAPI API、认证、数据库模型、业务 Service、任务查询与 Vue 页面 |
-| Worker 层 | `worker/`、`app/celery_app.py` | 从 Redis 队列领取任务，更新 PostgreSQL 状态，调用 Runner |
+| Worker 层 | `worker/`、`app/core/celery.py` | 从 Redis 队列领取任务，更新 PostgreSQL 状态，调用 Runner |
 | Runner 层 | `scripts/*_runner.py` | 组织输入、调用模型或命令行工具、解析结果并写出标准产物 |
 | 算法包层 | `workflows/affinity_redesign/`、`workflows/hydro_redesign/`、`workflows/cic_profile/`、`workflows/tnp_profile/` | 可复用的候选生成、评分和分析实现 |
 | 外部依赖与运行产物层 | `external/`、本机 conda/工具环境、`run/` 及兼容输出目录 | RAS/TNP 对照代码、Boltz2/IgGM/GROMACS/Rosetta 等工具，以及不进入 git 的任务结果 |

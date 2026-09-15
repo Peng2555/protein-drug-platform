@@ -6,8 +6,8 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from app.config import settings
-from app.models import Job
+from app.core.config import settings
+from app.core.models import Job
 
 
 def resolve_structure_path(parent: Job) -> Path:

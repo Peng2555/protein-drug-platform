@@ -12,26 +12,11 @@ from sqlalchemy import text
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.database import SessionLocal, engine
-from app.db_migrate import run_migrations
-from app.models import Job, JobStatus
-from app.modules.affinity_redesign import router as affinity_redesign
-from app.modules.cic_profile import router as cic_profile
-from app.modules.docking import router as docking
-from app.modules.design import router as design
-from app.modules.developability import router as developability
-from app.modules.fold import batch_router as fold_batches
-from app.modules.fold import router as fold
-from app.modules.hydro_redesign import router as hydro_redesign
-from app.modules.masking_peptide import router as masking_peptide
-from app.modules.maturation import router as maturation
-from app.modules.md import router as md
-from app.modules.ras_docking import router as ras_docking
-from app.modules.rosetta_eval import router as rosetta_eval
-from app.modules.synthesis import router as synthesis
-from app.modules.tnp_profile import router as tnp_profile
-from app.routers import auth
+from app.core.config import settings
+from app.core.database import SessionLocal, engine
+from app.core.migrations import run_migrations
+from app.core.models import Job, JobStatus
+from app.modules import ROUTERS
 from app.schemas import HealthOut
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,22 +46,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(fold.router)
-app.include_router(fold_batches.router)
-app.include_router(md.router)
-app.include_router(maturation.router)
-app.include_router(synthesis.router)
-app.include_router(ras_docking.router)
-app.include_router(docking.router)
-app.include_router(developability.router)
-app.include_router(design.router)
-app.include_router(rosetta_eval.router)
-app.include_router(affinity_redesign.router)
-app.include_router(masking_peptide.router)
-app.include_router(hydro_redesign.router)
-app.include_router(cic_profile.router)
-app.include_router(tnp_profile.router)
+for router in ROUTERS:
+    app.include_router(router)
 
 
 @app.on_event("startup")

@@ -10,7 +10,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.models import Batch, Job
+from app.core.models import Batch, Job
 
 
 def test_health_is_safe_and_protected_api_requires_auth(
@@ -18,7 +18,7 @@ def test_health_is_safe_and_protected_api_requires_auth(
     sqlite_sessions,
 ):
     import app.main as main
-    from app.database import get_db
+    from app.core.database import get_db
 
     class FakeConnection:
         def __enter__(self):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.engines import GROMACS_MD_ENGINE
+from app.core.engines import GROMACS_MD_ENGINE
 from app.common.job_paths import job_output_dir, write_job_info
 from md_runner import run_md_validation
 from worker.task_runtime import (

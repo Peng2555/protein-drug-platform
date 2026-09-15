@@ -7,7 +7,7 @@ import json
 import re
 from pathlib import Path
 
-from app.models import Job
+from app.core.models import Job
 
 
 def _tail_text(path: Path, max_lines: int = 250) -> tuple[str, bool]:

@@ -11,7 +11,7 @@ import pytest
 from fastapi import HTTPException, UploadFile
 
 from app.common.batch_common import batch_counts, batch_out, batch_status
-from app.models import Batch, Job
+from app.core.models import Batch, Job
 from app.common.sequence_inputs import (
     parse_fasta_chain_lengths,
     parse_vhh_records,
@@ -122,7 +122,7 @@ def test_worker_helpers_handle_naive_time_and_compact_results():
 
 
 def test_engine_and_celery_compatibility_surfaces_remain_stable():
-    from app.engines import GROMACS_MD_ENGINE
+    from app.core.engines import GROMACS_MD_ENGINE
     from app.modules.hydro_redesign.service import save_structure_upload as hydro_upload
     from app.common.sequence_inputs import save_structure_upload as common_upload
     from app.modules.tnp_profile.service import save_structure_upload as tnp_upload

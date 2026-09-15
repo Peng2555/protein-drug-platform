@@ -134,10 +134,11 @@ def test_router_imports_keep_service_object_identity():
 
 def test_main_registers_new_router_modules_in_original_order():
     import app.main as main
+    from app.modules import ROUTERS
 
     names = tuple(MODULE_FILES)
     modules = [importlib.import_module(f"app.modules.{name}.router") for name in names]
-    assert [getattr(main, name) for name in names] == modules
+    assert all(module.router in ROUTERS for module in modules)
 
     registered_routers = [
         route.original_router
@@ -218,6 +219,7 @@ def test_second_router_imports_keep_service_object_identity():
 
 def test_main_registers_second_group_in_original_order():
     import app.main as main
+    from app.modules import ROUTERS
 
     modules = [
         importlib.import_module("app.modules.fold.router"),
@@ -227,14 +229,7 @@ def test_main_registers_second_group_in_original_order():
         importlib.import_module("app.modules.design.router"),
         importlib.import_module("app.modules.rosetta_eval.router"),
     ]
-    assert [
-        main.fold,
-        main.fold_batches,
-        main.md,
-        main.developability,
-        main.design,
-        main.rosetta_eval,
-    ] == modules
+    assert all(module.router in ROUTERS for module in modules)
 
     registered_routers = [
         route.original_router
@@ -282,10 +277,11 @@ def test_third_router_imports_keep_service_object_identity():
 
 def test_main_registers_third_group_in_original_order():
     import app.main as main
+    from app.modules import ROUTERS
 
     names = ("maturation", "synthesis", "ras_docking", "docking")
     modules = [importlib.import_module(f"app.modules.{name}.router") for name in names]
-    assert [getattr(main, name) for name in names] == modules
+    assert all(module.router in ROUTERS for module in modules)
 
     registered_routers = [
         route.original_router

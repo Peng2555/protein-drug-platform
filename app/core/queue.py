@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from celery.canvas import Signature
 
-from app.config import settings
+from app.core.config import settings
 
 
 def gpu_queue_name() -> str:

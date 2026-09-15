@@ -10,11 +10,11 @@ from pathlib import Path
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.engines import HYDRO_REDESIGN_ENGINE
+from app.core.config import settings
+from app.core.engines import HYDRO_REDESIGN_ENGINE
 from app.common.job_paths import sanitize_label
-from app.models import Batch, Job, JobStatus
-from app.queue_service import dispatch_to_gpu
+from app.core.models import Batch, Job, JobStatus
+from app.core.queue import dispatch_to_gpu
 from app.common.sequence_inputs import (
     parse_fasta_chain_lengths,
     parse_vhh_records as parse_common_vhh_records,

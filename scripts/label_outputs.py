@@ -11,10 +11,10 @@ sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import select
 
-from app.config import settings
-from app.database import SessionLocal
+from app.core.config import settings
+from app.core.database import SessionLocal
 from app.common.job_paths import job_output_dir, job_output_dir_name, write_job_info
-from app.models import Job, User
+from app.core.models import Job, User
 
 
 def main() -> None:

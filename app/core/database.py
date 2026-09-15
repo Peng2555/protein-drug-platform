@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from app.config import settings
+from app.core.config import settings
 
 connect_args = {}
 if settings.database_url.startswith("sqlite"):

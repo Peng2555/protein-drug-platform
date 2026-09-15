@@ -13,10 +13,10 @@ from algorithm_paths import bootstrap_algorithm_paths
 
 bootstrap_algorithm_paths(include_scripts=True)
 
-from app.celery_app import celery_app
-from app.config import settings
-from app.database import SessionLocal
-from app.models import Job, JobStatus, User
+from app.core.celery import celery_app
+from app.core.config import settings
+from app.core.database import SessionLocal
+from app.core.models import Job, JobStatus, User
 from worker.task_helpers import (
     compact_profile_results,
     utcnow,

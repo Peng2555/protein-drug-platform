@@ -12,12 +12,12 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
+from app.core.celery import celery_app
 from app.common.batch_common import batch_out
-from app.config import settings
-from app.database import get_db
-from app.deps import get_current_user
-from app.engines import HYDRO_REDESIGN_ENGINE
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
+from app.core.engines import HYDRO_REDESIGN_ENGINE
 from app.modules.hydro_redesign.service import (
     HYDRO_BATCH_TYPE,
     create_and_queue_hydro_redesign_batch,
@@ -27,7 +27,7 @@ from app.modules.hydro_redesign.service import (
     save_structure_upload,
 )
 from app.common.job_paths import remove_job_outputs
-from app.models import Batch, Job, JobStatus, User
+from app.core.models import Batch, Job, JobStatus, User
 from app.schemas import (
     BatchDetailOut,
     BatchJobOut,

@@ -10,12 +10,12 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.database import get_db
-from app.deps import get_current_user
-from app.engines import SYNTHESIS_ENGINE
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
+from app.core.engines import SYNTHESIS_ENGINE
 from app.common.job_paths import remove_job_outputs
-from app.models import Job, User
+from app.core.models import Job, User
 from app.schemas import (
     SynthesisCandidateOut,
     SynthesisCandidatesOut,

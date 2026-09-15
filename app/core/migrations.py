@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy import inspect, text
 
-from app.database import engine
-from app.config import settings
+from app.core.database import engine
+from app.core.config import settings
 
 
 def run_migrations() -> None:
@@ -13,8 +13,8 @@ def run_migrations() -> None:
     dialect = engine.dialect.name
 
     if not insp.has_table("batches"):
-        from app.database import Base
-        from app.models import Batch  # noqa: F401
+        from app.core.database import Base
+        from app.core.models import Batch  # noqa: F401
 
         Batch.__table__.create(bind=engine, checkfirst=True)
 

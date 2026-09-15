@@ -12,7 +12,7 @@ from app.common.job_paths import job_output_dir, job_output_dir_name
 from app.common.sequence_inputs import parse_vhh_records
 from app.common.structure_paths import resolve_structure_path
 from app.common.vhh_panel import HeavyChainSpec, TargetSpec, prepare_panel_jobs
-from app.models import Job
+from app.core.models import Job
 
 
 COMMON_MODULES = (

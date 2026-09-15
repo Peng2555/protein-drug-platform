@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 
 from app.common.cdr_annotation import annotate_fasta
-from app.config import settings
-from app.models import Batch, Job
+from app.core.config import settings
+from app.core.models import Batch, Job
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))

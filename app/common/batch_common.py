@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Batch, Job, JobStatus
+from app.core.models import Batch, Job, JobStatus
 from app.schemas import BatchOut
 
 

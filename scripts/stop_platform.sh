@@ -35,5 +35,5 @@ for pid_file in "$PID_DIR"/celery-md*.pid; do
 done
 stop_pid "Worker (legacy)" "$PID_DIR/celery.pid"
 pkill -f "uvicorn app.main:app" 2>/dev/null || true
-pkill -f "celery -A app.celery_app worker" 2>/dev/null || true
+pkill -f "celery -A app.core.celery worker" 2>/dev/null || true
 echo "Done."

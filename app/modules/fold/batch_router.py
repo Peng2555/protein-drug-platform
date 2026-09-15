@@ -13,12 +13,12 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.database import get_db
-from app.deps import get_current_user
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.common.job_paths import remove_job_outputs
 from app.modules.fold.service import create_and_queue_job, dispatch_job, sequence_hash
-from app.models import Batch, Job, JobStatus, User
+from app.core.models import Batch, Job, JobStatus, User
 from app.schemas import (
     AntibodyOnlyCreate,
     AntibodyParseOut,
@@ -418,7 +418,7 @@ def delete_batch(batch_id: str, db: Session = Depends(get_db), user: User = Depe
         raise HTTPException(404, "Batch not found")
 
     jobs = db.scalars(select(Job).where(Job.batch_id == batch_id)).all()
-    from app.celery_app import celery_app
+    from app.core.celery import celery_app
 
     for job in jobs:
         if job.status in (JobStatus.queued.value, JobStatus.running.value):

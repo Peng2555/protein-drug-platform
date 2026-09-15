@@ -159,7 +159,7 @@ def test_extract_metrics_selects_best_complex_model_and_stable_artifacts(
 
 
 def test_worker_exports_exactly_thirteen_named_celery_tasks():
-    from app.celery_app import celery_app
+    from app.core.celery import celery_app
     from worker import tasks
 
     task_modules = {
@@ -214,7 +214,7 @@ def test_worker_exports_exactly_thirteen_named_celery_tasks():
 
 
 def test_worker_task_package_has_one_bootstrap_and_no_reverse_imports():
-    from app.celery_app import celery_app
+    from app.core.celery import celery_app
 
     worker_sources = [
         ROOT / "worker" / "task_runtime.py",

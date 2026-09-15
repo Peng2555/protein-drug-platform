@@ -9,11 +9,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
-from app.database import get_db
-from app.deps import get_current_user
-from app.engines import ROSETTA_EVAL_ENGINE
-from app.models import Job, JobStatus, User
+from app.core.celery import celery_app
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
+from app.core.engines import ROSETTA_EVAL_ENGINE
+from app.core.models import Job, JobStatus, User
 from app.modules.rosetta_eval.service import (
     _fold_variant,
     create_and_queue_rosetta_eval_job,
@@ -76,7 +76,7 @@ async def create_job_upload(
 ):
     if not mutants:
         raise HTTPException(400, "请上传至少一个突变体结构")
-    from app.config import settings
+    from app.core.config import settings
 
     tmp = settings.rosetta_eval_out_root / "_uploads" / user.id
     wt_path = await save_upload(wt, tmp / f"WT{Path(wt.filename or '.pdb').suffix.lower()}")

@@ -13,8 +13,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from sqlalchemy import select
 
-from app.database import SessionLocal
-from app.models import Job, JobStatus
+from app.core.database import SessionLocal
+from app.core.models import Job, JobStatus
 from pdockq_runner import compute_pdockq_from_boltz_dir
 
 

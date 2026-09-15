@@ -11,11 +11,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
-from app.config import settings
-from app.database import get_db
-from app.deps import get_current_user
-from app.engines import MATURATION_ENGINE
+from app.core.celery import celery_app
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
+from app.core.engines import MATURATION_ENGINE
 from app.common.job_paths import remove_job_outputs
 from app.modules.maturation.service import (
     collect_maturation_logs,
@@ -23,7 +23,7 @@ from app.modules.maturation.service import (
     prepare_maturation_from_body,
     save_uploaded_structure,
 )
-from app.models import Job, JobStatus, User
+from app.core.models import Job, JobStatus, User
 from app.schemas import (
     IgGMParams,
     MaturationJobCreate,

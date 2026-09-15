@@ -12,15 +12,15 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
-from app.config import settings
-from app.engines import FOLD_ENGINES
-from app.database import get_db
-from app.deps import get_current_user
+from app.core.celery import celery_app
+from app.core.config import settings
+from app.core.engines import FOLD_ENGINES
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.modules.fold.samples import fold_sample_payload, list_fold_samples, resolve_fold_cif
 from app.common.job_paths import default_job_name, remove_job_outputs
 from app.modules.fold.service import create_and_queue_job, dispatch_job, fasta_from_seqs, sequence_hash
-from app.models import Job, JobStatus, User
+from app.core.models import Job, JobStatus, User
 from app.schemas import JobCreate, JobInterfaceOut, JobListOut, JobOut, JobSequencesOut
 
 ROOT = Path(__file__).resolve().parents[3]

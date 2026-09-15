@@ -8,12 +8,12 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
-from app.config import settings
-from app.database import get_db
-from app.deps import get_current_user
-from app.engines import RAS_DOCKING_ENGINE
-from app.models import Job, JobStatus, User
+from app.core.celery import celery_app
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
+from app.core.engines import RAS_DOCKING_ENGINE
+from app.core.models import Job, JobStatus, User
 from app.modules.ras_docking.service import (
     create_and_queue_ras_job,
     remove_ras_job_outputs,

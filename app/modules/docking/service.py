@@ -7,11 +7,11 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.engines import SMALL_MOLECULE_DOCKING_ENGINE
+from app.core.config import settings
+from app.core.engines import SMALL_MOLECULE_DOCKING_ENGINE
 from app.common.job_paths import job_output_dir
-from app.models import Job, JobStatus
-from app.queue_service import dispatch_to_gpu
+from app.core.models import Job, JobStatus
+from app.core.queue import dispatch_to_gpu
 from worker.tasks import run_small_molecule_docking_job
 
 LIGAND_FILE_EXTS = {".sdf", ".sd", ".mol", ".mol2", ".pdb", ".pdbqt", ".smi", ".smiles"}

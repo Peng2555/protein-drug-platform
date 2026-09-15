@@ -10,12 +10,12 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
+from app.core.celery import celery_app
 from app.common.batch_common import batch_out
-from app.config import settings
-from app.database import get_db
-from app.deps import get_current_user
-from app.engines import TNP_PROFILE_ENGINE
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
+from app.core.engines import TNP_PROFILE_ENGINE
 from app.common.job_paths import remove_job_outputs
 from app.modules.tnp_profile.service import (
     TNP_BATCH_TYPE,
@@ -25,7 +25,7 @@ from app.modules.tnp_profile.service import (
     parse_vhh_records,
     save_structure_upload,
 )
-from app.models import Batch, Job, JobStatus, User
+from app.core.models import Batch, Job, JobStatus, User
 from app.schemas import (
     BatchDetailOut,
     BatchJobOut,

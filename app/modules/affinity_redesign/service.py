@@ -10,18 +10,18 @@ from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 
-from app.config import settings
-from app.engines import AFFINITY_REDESIGN_ENGINE
+from app.core.config import settings
+from app.core.engines import AFFINITY_REDESIGN_ENGINE
 from app.common.job_paths import sanitize_label
-from app.models import Job, JobStatus
-from app.queue_service import dispatch_to_gpu
+from app.core.models import Job, JobStatus
+from app.core.queue import dispatch_to_gpu
 from worker.tasks import run_affinity_redesign_job
 
 ALLOWED_STRUCT = {".pdb", ".cif", ".mmcif"}
 
 
 def _ensure_package() -> None:
-    from app.config import affinity_redesign_src_dir, ensure_affinity_redesign_on_path
+    from app.core.config import affinity_redesign_src_dir, ensure_affinity_redesign_on_path
 
     ensure_affinity_redesign_on_path()
     try:

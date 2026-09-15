@@ -11,10 +11,10 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.engines import SYNTHESIS_ENGINE
+from app.core.config import settings
+from app.core.engines import SYNTHESIS_ENGINE
 from app.common.job_paths import job_output_dir
-from app.models import Job, JobStatus
+from app.core.models import Job, JobStatus
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))

@@ -68,7 +68,7 @@ start_gpu_workers() {
       echo "  GPU $gpu: already running (PID $(cat "$pid_file"))"
       continue
     fi
-    CUDA_VISIBLE_DEVICES="$gpu" nohup "$PY" -m celery -A app.celery_app worker \
+    CUDA_VISIBLE_DEVICES="$gpu" nohup "$PY" -m celery -A app.core.celery worker \
       --loglevel=info \
       --concurrency=1 \
       -Q "${CELERY_GPU_QUEUE}" \

@@ -10,11 +10,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.celery_app import celery_app
-from app.database import get_db
-from app.deps import get_current_user
-from app.engines import SMALL_MOLECULE_DOCKING_ENGINE
-from app.models import Job, JobStatus, User
+from app.core.celery import celery_app
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
+from app.core.engines import SMALL_MOLECULE_DOCKING_ENGINE
+from app.core.models import Job, JobStatus, User
 from app.schemas import DockingJobListOut, DockingJobOut
 from app.modules.docking.service import create_and_queue_docking_job
 from docking_runner import _pose_scores
