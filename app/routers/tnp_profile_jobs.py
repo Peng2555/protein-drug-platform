@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
+from app.batch_common import batch_out
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
@@ -30,7 +31,6 @@ from app.schemas import (
     BatchJobOut,
     BatchJobsListOut,
     BatchListOut,
-    BatchOut,
     TnpProfileBatchCreate,
     TnpProfileBatchCreateOut,
     TnpProfileJobCreate,
@@ -69,56 +69,6 @@ def _tnp_batch_or_404(db: Session, user_id: str, batch_id: str) -> Batch:
     if not batch or batch.user_id != user_id or batch.batch_type != TNP_BATCH_TYPE:
         raise HTTPException(404, "画像批次不存在")
     return batch
-
-
-def _batch_counts(db: Session, batch_id: str) -> dict[str, int]:
-    rows = db.execute(
-        select(Job.status, func.count()).where(Job.batch_id == batch_id).group_by(Job.status)
-    ).all()
-    counts = {s: c for s, c in rows}
-    return {
-        "done": counts.get(JobStatus.done.value, 0),
-        "running": counts.get(JobStatus.running.value, 0),
-        "queued": counts.get(JobStatus.queued.value, 0),
-        "failed": counts.get(JobStatus.failed.value, 0),
-        "cancelled": counts.get(JobStatus.cancelled.value, 0),
-    }
-
-
-def _batch_status(counts: dict[str, int], total: int) -> str:
-    if counts["running"] or counts["queued"]:
-        return "running" if counts["running"] else "queued"
-    if counts["done"] == total:
-        return "done"
-    if counts["failed"] and counts["done"]:
-        return "partial"
-    if counts["failed"]:
-        return "failed"
-    if counts["cancelled"] == total:
-        return "cancelled"
-    return "done"
-
-
-def _batch_out(batch: Batch, db: Session) -> BatchOut:
-    counts = _batch_counts(db, batch.id)
-    total = batch.heavy_chain_count
-    return BatchOut(
-        id=batch.id,
-        name=batch.name,
-        batch_type=batch.batch_type,
-        target_name=batch.target_name,
-        target_chain_id=batch.target_chain_id,
-        heavy_chain_id=batch.heavy_chain_id,
-        heavy_chain_count=total,
-        use_msa_server=batch.use_msa_server,
-        created_at=batch.created_at,
-        status=_batch_status(counts, total),
-        done_count=counts["done"],
-        running_count=counts["running"],
-        queued_count=counts["queued"],
-        failed_count=counts["failed"],
-        cancelled_count=counts["cancelled"],
-    )
 
 
 @router.post("", response_model=TnpProfileJobOut, status_code=status.HTTP_201_CREATED)
@@ -189,7 +139,7 @@ def create_batch(
     dispatch_tnp_profile_jobs(jobs)
     db.commit()
     db.refresh(batch)
-    return TnpProfileBatchCreateOut(batch=_batch_out(batch, db), job_ids=[j.id for j in jobs])
+    return TnpProfileBatchCreateOut(batch=batch_out(batch, db), job_ids=[j.id for j in jobs])
 
 
 @router.get("", response_model=TnpProfileJobListOut)
@@ -219,13 +169,13 @@ def list_batches(
     rows = db.scalars(
         select(Batch).where(*condition).order_by(Batch.created_at.desc()).limit(limit).offset(offset)
     ).all()
-    return BatchListOut(items=[_batch_out(b, db) for b in rows], total=total)
+    return BatchListOut(items=[batch_out(b, db) for b in rows], total=total)
 
 
 @router.get("/batches/{batch_id}", response_model=BatchDetailOut)
 def get_batch(batch_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     batch = _tnp_batch_or_404(db, user.id, batch_id)
-    out = _batch_out(batch, db)
+    out = batch_out(batch, db)
     return BatchDetailOut(**out.model_dump(), target_sequence=batch.target_sequence or "")
 
 

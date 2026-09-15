@@ -7,7 +7,7 @@ import re
 import uuid
 from pathlib import Path
 
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -15,105 +15,29 @@ from app.engines import HYDRO_REDESIGN_ENGINE
 from app.job_paths import sanitize_label
 from app.models import Batch, Job, JobStatus
 from app.queue_service import dispatch_to_gpu
+from app.sequence_inputs import (
+    parse_fasta_chain_lengths,
+    parse_vhh_records as parse_common_vhh_records,
+    save_structure_upload,
+)
 from worker.tasks import run_hydro_redesign_job
 
-ALLOWED_STRUCT = {".pdb", ".cif", ".mmcif"}
 HYDRO_BATCH_TYPE = "hydro_redesign"
-_AA = re.compile(r"[^A-Za-z]")
 
 
 def parse_vhh_records(fasta_text: str) -> list[tuple[str, str]]:
     """多条 FASTA：每条记录一条 VHH（批量）。无表头则视为单条 H。"""
-    text = (fasta_text or "").replace("\r", "").strip()
-    if not text:
-        raise HTTPException(400, "FASTA 无效：未解析到任何链")
-    records: list[tuple[str, str]] = []
-    if ">" not in text:
-        seq = _AA.sub("", text).upper()
-        if len(seq) < 70:
-            raise HTTPException(400, "FASTA 序列过短，需要完整 VHH 可变区")
-        return [("H", seq)]
-    current = "seq1"
-    buf: list[str] = []
-    seen: dict[str, int] = {}
-    started = False
-    for line in text.split("\n"):
-        s = line.strip()
-        if not s:
-            continue
-        if s.startswith(">"):
-            if buf:
-                seq = _AA.sub("", "".join(buf)).upper()
-                if seq:
-                    records.append((current, seq))
-            started = True
-            raw = s[1:].split()[0] or "seq"
-            n = seen.get(raw, 0) + 1
-            seen[raw] = n
-            current = raw if n == 1 else f"{raw}_{n}"
-            buf = []
-        else:
-            buf.append(s)
-    if buf:
-        seq = _AA.sub("", "".join(buf)).upper()
-        if seq:
-            records.append((current, seq))
-    if not started and records:
-        records = [("H", records[0][1])]
-    if not records:
-        raise HTTPException(400, "FASTA 无效：未解析到任何链")
-    too_short = [hid for hid, seq in records if len(seq) < 70]
-    if too_short:
-        raise HTTPException(400, f"序列过短（需完整 VHH）：{', '.join(too_short[:8])}")
-    return records
+    return parse_common_vhh_records(fasta_text)
 
 
 def parse_fasta_chains(fasta_text: str) -> dict[str, int]:
-    chains: dict[str, int] = {}
-    current: str | None = None
-    buf: list[str] = []
-    for line in fasta_text.replace("\r", "").split("\n"):
-        s = line.strip()
-        if not s:
-            continue
-        if s.startswith(">"):
-            if current is not None:
-                chains[current] = len("".join(buf))
-            current = s[1:].split()[0] or "seq"
-            buf = []
-        else:
-            buf.append(re.sub(r"\s+", "", s))
-    if current is not None:
-        chains[current] = len("".join(buf))
-    if not chains:
-        raise HTTPException(400, "FASTA 无效：未解析到任何链")
-    if "H" not in chains and len(chains) == 1:
-        cid = next(iter(chains))
-        chains = {"H": chains[cid]}
-    extra = [k for k in chains if k not in {"H", "L"}]
-    if extra:
-        raise HTTPException(
-            400,
-            f"单条任务只接受抗体链 H / L。多条 VHH 请用批量。收到 {', '.join(extra)}",
-        )
-    if sum(chains.values()) < 20:
-        raise HTTPException(400, "FASTA 序列过短")
-    return chains
-
-
-async def save_structure_upload(upload: UploadFile, dest: Path) -> Path:
-    suffix = Path(upload.filename or "ab.pdb").suffix.lower()
-    if suffix not in ALLOWED_STRUCT:
-        raise HTTPException(400, "结构需为 .pdb / .cif / .mmcif")
-    if suffix == ".mmcif":
-        suffix = ".cif"
-        dest = dest.with_suffix(".cif")
-    content = await upload.read()
-    if len(content) < 80:
-        raise HTTPException(400, "上传的结构文件太小或为空")
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(content)
-    return dest
+    return parse_fasta_chain_lengths(
+        fasta_text,
+        allowed_chain_ids={"H", "L"},
+        extra_chains_error_template="单条任务只接受抗体链 H / L。多条 VHH 请用批量。收到 {ids}",
+        min_total_length=20,
+        too_short_error="FASTA 序列过短",
+    )
 
 
 def create_and_queue_hydro_redesign_job(

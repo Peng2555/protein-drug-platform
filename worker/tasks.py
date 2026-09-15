@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,8 +20,10 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.config import settings
 from app.database import SessionLocal
+from app.engines import GROMACS_MD_ENGINE
 from app.job_paths import job_output_dir, write_job_info
 from app.models import Job, JobStatus, User
+from app.structure_paths import resolve_structure_path
 from boltz_runner import fold_sequences as boltz_fold_sequences, parse_fasta_text
 from md_runner import run_md_validation
 from ras_docking_runner import run_ras_docking
@@ -35,6 +36,11 @@ from masking_peptide_runner import run_masking_peptide_job as run_masking_peptid
 from hydro_redesign_runner import run_hydro_redesign_job as run_hydro_redesign_pipeline
 from cic_profile_runner import run_cic_profile_job as run_cic_profile_pipeline
 from tnp_profile_runner import run_tnp_profile_job as run_tnp_profile_pipeline
+from worker.task_helpers import (
+    compact_profile_results,
+    utcnow as _utcnow,
+    wall_seconds as _wall_seconds,
+)
 
 
 def _needs_pdockq(job: Job) -> bool:
@@ -81,25 +87,6 @@ def _ensure_pdockq(work_dir: Path, job: Job) -> None:
             metrics_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     except Exception:
         pass
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _aware_utc(dt: datetime | None) -> datetime | None:
-    if dt is None:
-        return None
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
-
-
-def _wall_seconds(started: datetime | None, finished: datetime | None) -> float | None:
-    a, b = _aware_utc(started), _aware_utc(finished)
-    if a is None or b is None:
-        return None
-    return max(0.0, (b - a).total_seconds())
 
 
 def _run_structure_fold(job: Job, seqs: dict[str, str], work_dir: Path):
@@ -312,7 +299,7 @@ def run_md_job(self, job_id: str) -> dict:
         job = db.get(Job, job_id)
         if not job:
             return {"error": "job not found"}
-        if job.engine != "gromacs_md":
+        if job.engine != GROMACS_MD_ENGINE:
             return {"error": "not an MD job"}
         if job.status == JobStatus.cancelled.value:
             return {"status": "cancelled"}
@@ -434,8 +421,6 @@ def run_maturation_job(self, job_id: str) -> dict:
         elif params.get("structure_source") == "fold_job" and job.parent_job_id:
             parent = db.get(Job, job.parent_job_id)
             if parent:
-                from app.md_service import resolve_structure_path
-
                 structure_path = resolve_structure_path(parent)
 
         job.status = JobStatus.running.value
@@ -775,6 +760,16 @@ def run_rosetta_eval_job(self, job_id: str) -> dict:
             job.error_message = None
         else:
             job.status = JobStatus.failed.value
+            job.error_message = (result.error or "Rosetta evaluation failed")[:8000]
+        db.commit()
+        return {"job_id": job_id, "status": job.status}
+    except Exception as exc:
+        job = db.get(Job, job_id)
+        if job:
+            job.status = JobStatus.failed.value
+            job.error_message = str(exc)[:8000]
+            job.finished_at = _utcnow()
+            db.commit()
         raise
     finally:
         db.close()
@@ -990,12 +985,7 @@ def run_cic_profile_job(self, job_id: str) -> dict:
         wall = _wall_seconds(job.started_at, job.finished_at)
         job.runtime_seconds = wall if wall is not None else result.seconds
         job.stage = result.stage
-        payload = result.results or {}
-        job.results_json = {
-            "summary": payload.get("summary"),
-            "pred_cif": payload.get("pred_cif"),
-            "n_patches": len(payload.get("patches") or []),
-        }
+        job.results_json = compact_profile_results(result.results, include_patch_count=True)
         if result.status == "ok":
             job.status = JobStatus.done.value
             job.error_message = None
@@ -1057,12 +1047,7 @@ def run_tnp_profile_job(self, job_id: str) -> dict:
         wall = _wall_seconds(job.started_at, job.finished_at)
         job.runtime_seconds = wall if wall is not None else result.seconds
         job.stage = result.stage
-        payload = result.results or {}
-        job.results_json = {
-            "summary": payload.get("summary"),
-            "metrics": payload.get("metrics"),
-            "pred_cif": payload.get("pred_cif"),
-        }
+        job.results_json = compact_profile_results(result.results, include_metrics=True)
         if result.status == "ok":
             job.status = JobStatus.done.value
             job.error_message = None

@@ -27,7 +27,6 @@ from app.schemas import (
     BatchJobOut,
     BatchJobsListOut,
     BatchListOut,
-    BatchOut,
     HeavyCsvParseOut,
     HeavyCsvParseRow,
     HeavyCsvParseB64,
@@ -45,6 +44,7 @@ from app.antibody_only import (
     parse_antibody_text,
     prepare_antibody_only_jobs,
 )
+from app.batch_common import batch_out
 from app.fold_samples import list_fold_samples
 from app.vhh_panel import HeavyChainSpec, prepare_panel_jobs
 
@@ -95,58 +95,6 @@ def parse_heavy_csv_b64(body: HeavyCsvParseB64):
     except Exception as exc:
         raise HTTPException(400, "文件内容无效") from exc
     return _parse_heavy_csv_bytes(raw, body.filename)
-
-
-def _batch_counts(db: Session, batch_id: str) -> dict[str, int]:
-    rows = db.execute(
-        select(Job.status, func.count())
-        .where(Job.batch_id == batch_id)
-        .group_by(Job.status)
-    ).all()
-    counts = {s: c for s, c in rows}
-    return {
-        "done": counts.get(JobStatus.done.value, 0),
-        "running": counts.get(JobStatus.running.value, 0),
-        "queued": counts.get(JobStatus.queued.value, 0),
-        "failed": counts.get(JobStatus.failed.value, 0),
-        "cancelled": counts.get(JobStatus.cancelled.value, 0),
-    }
-
-
-def _batch_status(counts: dict[str, int], total: int) -> str:
-    if counts["running"] or counts["queued"]:
-        return "running" if counts["running"] else "queued"
-    if counts["done"] == total:
-        return "done"
-    if counts["failed"] and counts["done"]:
-        return "partial"
-    if counts["failed"]:
-        return "failed"
-    if counts["cancelled"] == total:
-        return "cancelled"
-    return "done"
-
-
-def _batch_out(batch: Batch, db: Session) -> BatchOut:
-    counts = _batch_counts(db, batch.id)
-    total = batch.heavy_chain_count
-    return BatchOut(
-        id=batch.id,
-        name=batch.name,
-        batch_type=batch.batch_type,
-        target_name=batch.target_name,
-        target_chain_id=batch.target_chain_id,
-        heavy_chain_id=batch.heavy_chain_id,
-        heavy_chain_count=total,
-        use_msa_server=batch.use_msa_server,
-        created_at=batch.created_at,
-        status=_batch_status(counts, total),
-        done_count=counts["done"],
-        running_count=counts["running"],
-        queued_count=counts["queued"],
-        failed_count=counts["failed"],
-        cancelled_count=counts["cancelled"],
-    )
 
 
 @router.post("/vhh-panel", response_model=VhhPanelCreateOut, status_code=status.HTTP_201_CREATED)
@@ -220,7 +168,7 @@ def create_vhh_panel(body: VhhPanelCreate, db: Session = Depends(get_db), user: 
     db.commit()
     db.refresh(batch)
     return VhhPanelCreateOut(
-        batch=_batch_out(batch, db),
+        batch=batch_out(batch, db),
         job_ids=job_ids,
         skipped_duplicates=skipped,
     )
@@ -304,7 +252,7 @@ def create_antibody_only(body: AntibodyOnlyCreate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(batch)
     return VhhPanelCreateOut(
-        batch=_batch_out(batch, db),
+        batch=batch_out(batch, db),
         job_ids=job_ids,
         skipped_duplicates=skipped,
     )
@@ -368,7 +316,7 @@ def list_batches(
         .limit(limit)
         .offset(offset)
     ).all()
-    return BatchListOut(items=[_batch_out(b, db) for b in rows], total=total)
+    return BatchListOut(items=[batch_out(b, db) for b in rows], total=total)
 
 
 @router.get("/{batch_id}", response_model=BatchDetailOut)
@@ -377,7 +325,7 @@ def get_batch(batch_id: str, db: Session = Depends(get_db), user: User = Depends
     if not batch or batch.user_id != user.id:
         raise HTTPException(404, "Batch not found")
 
-    base = _batch_out(batch, db)
+    base = batch_out(batch, db)
     return BatchDetailOut(
         **base.model_dump(),
         target_sequence=batch.target_sequence,

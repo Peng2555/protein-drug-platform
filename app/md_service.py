@@ -11,31 +11,16 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.engines import GROMACS_MD_ENGINE
 from app.job_paths import job_output_dir
 from app.models import Job, JobStatus
 from app.queue_service import dispatch_to_gpu
+from app.structure_paths import resolve_structure_path
 from worker.tasks import run_md_job
 
 
 def md_sequence_hash(source: str) -> str:
     return hashlib.sha256(source.encode()).hexdigest()
-
-
-def resolve_structure_path(parent: Job) -> Path:
-    if parent.structure_path:
-        path = Path(parent.structure_path)
-        if path.is_file():
-            return path
-    if parent.work_dir:
-        for name in ("pred.cif", "pred.pdb"):
-            candidate = Path(parent.work_dir) / name
-            if candidate.is_file():
-                return candidate
-    for name in ("pred.cif", "pred.pdb"):
-        legacy = settings.boltz2_out_root / parent.id / name
-        if legacy.is_file():
-            return legacy
-    raise HTTPException(400, "Parent job has no structure file")
 
 
 def create_and_queue_md_job(
@@ -54,7 +39,7 @@ def create_and_queue_md_job(
 ) -> Job:
     from app.job_service import _check_user_queue_cap
 
-    _check_user_queue_cap(db, user_id, "gromacs_md")
+    _check_user_queue_cap(db, user_id, GROMACS_MD_ENGINE)
 
     prod_ns = production_ns if production_ns is not None else settings.md_production_ns
     n_rep = replicas if replicas is not None else settings.md_replicas
@@ -64,7 +49,7 @@ def create_and_queue_md_job(
         user_id=user_id,
         parent_job_id=parent_job_id,
         name=name,
-        engine="gromacs_md",
+        engine=GROMACS_MD_ENGINE,
         status=JobStatus.queued.value,
         stage="queued",
         fasta_text=fasta_text,

@@ -15,6 +15,7 @@ MASKING_PEPTIDE_ENGINE = "masking_peptide"
 HYDRO_REDESIGN_ENGINE = "hydro_redesign"
 CIC_PROFILE_ENGINE = "cic_profile"
 TNP_PROFILE_ENGINE = "tnp_profile"
+GROMACS_MD_ENGINE = "gromacs_md"
 DEFAULT_FOLD_ENGINE = "boltz2"
 
 

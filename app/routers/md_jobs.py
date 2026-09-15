@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
 from app.config import settings
-from app.engines import is_fold_engine
+from app.engines import GROMACS_MD_ENGINE, is_fold_engine
 from app.database import get_db
 from app.deps import get_current_user
 from app.job_paths import job_output_dir, remove_job_outputs
@@ -125,11 +125,11 @@ def list_md_jobs(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    q = select(Job).where(Job.user_id == user.id, Job.engine == "gromacs_md")
+    q = select(Job).where(Job.user_id == user.id, Job.engine == GROMACS_MD_ENGINE)
     count_q = (
         select(func.count())
         .select_from(Job)
-        .where(Job.user_id == user.id, Job.engine == "gromacs_md")
+        .where(Job.user_id == user.id, Job.engine == GROMACS_MD_ENGINE)
     )
     total = db.scalar(count_q) or 0
     rows = db.scalars(q.order_by(Job.created_at.desc()).limit(limit).offset(offset)).all()
@@ -139,7 +139,7 @@ def list_md_jobs(
 @router.get("/{job_id}", response_model=MdJobOut)
 def get_md_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     job = db.get(Job, job_id)
-    if not job or job.user_id != user.id or job.engine != "gromacs_md":
+    if not job or job.user_id != user.id or job.engine != GROMACS_MD_ENGINE:
         raise HTTPException(404, "MD job not found")
     return _md_job_out(job)
 
@@ -147,7 +147,7 @@ def get_md_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_md_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     job = db.get(Job, job_id)
-    if not job or job.user_id != user.id or job.engine != "gromacs_md":
+    if not job or job.user_id != user.id or job.engine != GROMACS_MD_ENGINE:
         raise HTTPException(404, "MD job not found")
 
     if job.status in (JobStatus.queued.value, JobStatus.running.value):
@@ -171,7 +171,7 @@ def delete_md_job(job_id: str, db: Session = Depends(get_db), user: User = Depen
 @router.get("/{job_id}/summary")
 def get_md_summary(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     job = db.get(Job, job_id)
-    if not job or job.user_id != user.id or job.engine != "gromacs_md":
+    if not job or job.user_id != user.id or job.engine != GROMACS_MD_ENGINE:
         raise HTTPException(404, "MD job not found")
     if job.results_json:
         return job.results_json
@@ -185,7 +185,7 @@ def get_md_summary(job_id: str, db: Session = Depends(get_db), user: User = Depe
 @router.get("/{job_id}/structure")
 def download_md_structure(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     job = db.get(Job, job_id)
-    if not job or job.user_id != user.id or job.engine != "gromacs_md":
+    if not job or job.user_id != user.id or job.engine != GROMACS_MD_ENGINE:
         raise HTTPException(404, "MD job not found")
     if job.status != JobStatus.done.value:
         raise HTTPException(409, f"Job status: {job.status}")
