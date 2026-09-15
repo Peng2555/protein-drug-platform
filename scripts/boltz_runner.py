@@ -398,21 +398,42 @@ def extract_metrics(out_dir: Path, seconds: float | None = None, num_chains: int
     """汇总多 sample：官方 ipTM 为中位数；pred.cif 复制 ipTM 最高的那一个。
 
     单体无界面：不把 Boltz 的 iptm=0 当成有效 ipTM，代表结构改按 pTM 选取。
+    若仅有 PDB 输出，先写 pred.pdb，再尽量转成 pred.cif。
     """
     samples = discover_boltz_samples(out_dir)
-    cif_samples = [s for s in samples if s.get("cif")]
-    if not cif_samples:
+    struct_samples = [s for s in samples if s.get("cif") or s.get("pdb")]
+    if not struct_samples:
         cif_files = sorted(out_dir.rglob("*_model_0.cif"))
-        if not cif_files:
-            raise FileNotFoundError(f"No *_model_*.cif under {out_dir}")
-        cif_samples = [{"index": 0, "cif": str(cif_files[0]), "iptm": None}]
-        samples = cif_samples
+        pdb_files = sorted(out_dir.rglob("*_model_0.pdb"))
+        if cif_files:
+            struct_samples = [{"index": 0, "cif": str(cif_files[0]), "iptm": None}]
+        elif pdb_files:
+            struct_samples = [{"index": 0, "pdb": str(pdb_files[0]), "iptm": None}]
+        else:
+            raise FileNotFoundError(f"No *_model_*.cif/pdb under {out_dir}")
+        samples = struct_samples
 
     monomer = _is_monomer_fold(num_chains, samples)
-    best = _select_best_sample(cif_samples, monomer=monomer)
-    pred_src = Path(best["cif"])
-    pred_dst = out_dir / "pred.cif"
-    shutil.copy2(pred_src, pred_dst)
+    best = _select_best_sample(struct_samples, monomer=monomer)
+    pred_cif = out_dir / "pred.cif"
+    pred_pdb = out_dir / "pred.pdb"
+    source_struct: Path
+    if best.get("cif"):
+        source_struct = Path(best["cif"])
+        shutil.copy2(source_struct, pred_cif)
+        if not pred_pdb.is_file():
+            try:
+                cif_to_pdb(pred_cif, pred_pdb)
+            except Exception:
+                pass
+    else:
+        source_struct = Path(best["pdb"])
+        shutil.copy2(source_struct, pred_pdb)
+        try:
+            pdb_to_cif(pred_pdb, pred_cif)
+        except Exception:
+            if pred_cif.is_file():
+                pred_cif.unlink(missing_ok=True)
 
     if monomer:
         iptm_median = None
@@ -430,8 +451,9 @@ def extract_metrics(out_dir: Path, seconds: float | None = None, num_chains: int
         ptm_value = best.get("ptm")
 
     metrics = {
-        "pred_cif": str(pred_dst),
-        "source_cif": str(pred_src),
+        "pred_cif": str(pred_cif) if pred_cif.is_file() else None,
+        "pred_pdb": str(pred_pdb) if pred_pdb.is_file() else None,
+        "source_cif": str(source_struct),
         "seconds": seconds,
         "n_samples": len(samples),
         "selected_model": best.get("index"),
@@ -514,6 +536,17 @@ def cif_to_pdb(cif_path: Path, pdb_path: Path) -> None:
             "CIF→PDB conversion requires biotite or gemmi; "
             "install biotite in boltz2 env or ensure boltz (gemmi) is available"
         ) from exc
+
+
+def pdb_to_cif(pdb_path: Path, cif_path: Path) -> None:
+    """Convert PDB to mmCIF so the platform viewer / downstream tools can use pred.cif."""
+    pdb_path = Path(pdb_path)
+    cif_path = Path(cif_path)
+    cif_path.parent.mkdir(parents=True, exist_ok=True)
+    import gemmi
+
+    structure = gemmi.read_structure(str(pdb_path))
+    structure.make_mmcif_document().write_file(str(cif_path))
 
 
 def sequences_from_structure(structure_path: Path | str) -> dict[str, str]:
@@ -801,36 +834,14 @@ def fold_sequences(
             result_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
             return result
 
-        if not cif_hits and pdb_hits:
-            # Normalize pdb output into pred.pdb; metrics may be limited
-            pred_pdb = job_dir / "pred.pdb"
-            shutil.copy2(pdb_hits[0], pred_pdb)
-            result = FoldResult(
-                job_id=job_id,
-                status="ok",
-                fasta=str(fasta_path or fasta_out),
-                num_chains=len(seqs),
-                total_length=total_len,
-                chains=chains_len,
-                pred_cif=None,
-                pred_pdb=str(pred_pdb),
-                iptm=None,
-                ptm=None,
-                confidence_score=None,
-                complex_plddt=None,
-                seconds=elapsed,
-            )
-            result_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
-            return result
-
         metrics = extract_metrics(job_dir, seconds=elapsed, num_chains=len(seqs))
-        pred_cif = Path(metrics["pred_cif"])
-        pred_pdb_path: str | None = None
-        if write_pdb and pred_cif.exists():
+        pred_cif_s = metrics.get("pred_cif")
+        pred_pdb_s = metrics.get("pred_pdb")
+        if write_pdb and pred_cif_s and Path(pred_cif_s).is_file() and not (pred_pdb_s and Path(pred_pdb_s).is_file()):
             try:
                 pdb_path = job_dir / "pred.pdb"
-                cif_to_pdb(pred_cif, pdb_path)
-                pred_pdb_path = str(pdb_path)
+                cif_to_pdb(Path(pred_cif_s), pdb_path)
+                pred_pdb_s = str(pdb_path)
             except ImportError:
                 pass
 
@@ -841,8 +852,8 @@ def fold_sequences(
             num_chains=len(seqs),
             total_length=total_len,
             chains=chains_len,
-            pred_cif=str(pred_cif),
-            pred_pdb=pred_pdb_path,
+            pred_cif=pred_cif_s,
+            pred_pdb=pred_pdb_s,
             iptm=metrics.get("iptm"),
             ptm=metrics.get("ptm"),
             confidence_score=metrics.get("confidence_score"),

@@ -44,7 +44,7 @@ def list_fold_samples(job: Job) -> list[dict]:
     discovered = discover_boltz_samples(work)
     rows: list[dict] = []
     for item in discovered:
-        cif = item.get("cif")
+        cif = item.get("cif") or item.get("pdb")
         if not cif or not Path(cif).is_file():
             continue
         idx = int(item["index"])
@@ -86,6 +86,19 @@ def list_fold_samples(job: Job) -> list[dict]:
                 "cif": str(pred),
             }
         ]
+    pred_pdb = work / "pred.pdb"
+    if pred_pdb.is_file():
+        return [
+            {
+                "index": 0,
+                "iptm": job.iptm,
+                "ptm": job.ptm,
+                "confidence_score": job.confidence_score,
+                "complex_plddt": job.complex_plddt,
+                "is_selected": True,
+                "cif": str(pred_pdb),
+            }
+        ]
     return []
 
 
@@ -113,8 +126,11 @@ def resolve_fold_cif(job: Job, model: int | None = None) -> Path | None:
             p = Path(job.structure_path)
             if p.is_file():
                 return p
-        if work and (work / "pred.cif").is_file():
-            return work / "pred.cif"
+        if work:
+            for name in ("pred.cif", "pred.pdb"):
+                p = work / name
+                if p.is_file():
+                    return p
         return None
     for row in list_fold_samples(job):
         if int(row["index"]) == int(model):

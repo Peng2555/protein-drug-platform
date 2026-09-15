@@ -104,12 +104,13 @@ const scoreCards = computed((): FoldScoreCard[] => {
       (iptmOk && j.ptm != null ? 0.8 * j.iptm! + 0.2 * j.ptm : j.ptm ?? null)
   const nSamp = Number(j.results_json?.n_samples)
   const cards: FoldScoreCard[] = []
-  if (monomer || !iptmOk) {
+  // 多链但缺少 ipTM：按复合物卡片展示，不要误报「单体无界面」
+  if (monomer) {
     cards.push({
       key: 'ptm',
       label: 'pTM',
       value: j.ptm != null ? j.ptm.toFixed(3) : '—',
-      hint: monomer ? '单体整体拓扑置信度（无界面，不适用 ipTM）' : '整体拓扑置信度',
+      hint: '单体整体拓扑置信度（无界面，不适用 ipTM）',
       tone: 'primary',
       level: metricLevel(j.ptm, 'iptm'),
     })

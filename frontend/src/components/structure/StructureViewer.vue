@@ -8,7 +8,7 @@ import {
   bindMolstarResiduePick,
   createMolstarViewer,
   destroyMolstarViewer,
-  loadMolstarCif,
+  loadMolstarStructure,
   resizeMolstarViewer,
   syncMolstarSelection,
   type MolstarViewer,
@@ -127,7 +127,7 @@ async function mountStructure(jobId: string, text: string): Promise<void> {
 
   const v = await createMolstarViewer(viewerEl.value)
   viewer.value = v
-  await loadMolstarCif(v, text)
+  await loadMolstarStructure(v, text)
   pickUnsub = bindMolstarResiduePick(v, (chainId, resi, event) => {
     selectionStore.selectSequenceResidue(chainId, resi, event)
     emit('residue-click', { chainId, resi, event: event as MouseEvent })

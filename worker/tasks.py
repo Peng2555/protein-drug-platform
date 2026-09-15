@@ -197,7 +197,7 @@ def run_fold_job(self, job_id: str) -> dict:
             job.complex_plddt = result.complex_plddt
             job.pdockq = result.pdockq
             job.pdockq2 = result.pdockq2
-            job.structure_path = result.pred_cif
+            job.structure_path = result.pred_cif or result.pred_pdb
             job.error_message = None
             _ensure_pdockq(work_dir, job)
 

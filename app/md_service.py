@@ -27,12 +27,14 @@ def resolve_structure_path(parent: Job) -> Path:
         if path.is_file():
             return path
     if parent.work_dir:
-        candidate = Path(parent.work_dir) / "pred.cif"
-        if candidate.is_file():
-            return candidate
-    legacy = settings.boltz2_out_root / parent.id / "pred.cif"
-    if legacy.is_file():
-        return legacy
+        for name in ("pred.cif", "pred.pdb"):
+            candidate = Path(parent.work_dir) / name
+            if candidate.is_file():
+                return candidate
+    for name in ("pred.cif", "pred.pdb"):
+        legacy = settings.boltz2_out_root / parent.id / name
+        if legacy.is_file():
+            return legacy
     raise HTTPException(400, "Parent job has no structure file")
 
 

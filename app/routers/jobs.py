@@ -340,18 +340,26 @@ def download_structure(
         else:
             cif = settings.boltz2_out_root / job.id / "pred.cif"
         if not cif.is_file() and job.work_dir:
-            cif = Path(job.work_dir) / "pred.cif"
+            for name in ("pred.cif", "pred.pdb"):
+                cand = Path(job.work_dir) / name
+                if cand.is_file():
+                    cif = cand
+                    break
         if not cif.is_file():
-            legacy = settings.boltz2_out_root / job.id / "pred.cif"
-            if legacy.is_file():
-                cif = legacy
+            for name in ("pred.cif", "pred.pdb"):
+                legacy = settings.boltz2_out_root / job.id / name
+                if legacy.is_file():
+                    cif = legacy
+                    break
     if cif is None or not cif.is_file():
         raise HTTPException(404, "Structure file not found")
     suffix = f"_model_{model}" if model is not None else ""
+    ext = cif.suffix.lower() or ".cif"
+    media = "chemical/x-pdb" if ext == ".pdb" else "chemical/x-mmcif"
     return FileResponse(
         cif,
-        filename=f"{job.name or job.id}{suffix}.cif",
-        media_type="chemical/x-mmcif",
+        filename=f"{job.name or job.id}{suffix}{ext}",
+        media_type=media,
     )
 
 

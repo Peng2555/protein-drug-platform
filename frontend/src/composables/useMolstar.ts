@@ -186,7 +186,24 @@ export function resizeMolstarViewer(viewer: MolstarViewer | null): void {
 }
 
 export async function loadMolstarCif(viewer: MolstarViewer, cifText: string): Promise<void> {
-  await viewer.loadStructureFromData(cifText, 'mmcif', { dataLabel: 'structure' })
+  await loadMolstarStructure(viewer, cifText, 'mmcif')
+}
+
+export function detectStructureFormat(text: string): 'mmcif' | 'pdb' {
+  const head = text.slice(0, 4096).trimStart().toLowerCase()
+  if (head.startsWith('data_') || head.includes('_atom_site.') || head.includes('loop_')) {
+    return 'mmcif'
+  }
+  return 'pdb'
+}
+
+export async function loadMolstarStructure(
+  viewer: MolstarViewer,
+  text: string,
+  format?: 'mmcif' | 'pdb',
+): Promise<void> {
+  const fmt = format ?? detectStructureFormat(text)
+  await viewer.loadStructureFromData(text, fmt, { dataLabel: 'structure' })
   viewer.plugin.canvas3d?.requestCameraReset()
 }
 
