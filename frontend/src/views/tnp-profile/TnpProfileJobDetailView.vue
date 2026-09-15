@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import HydroPatchViewer from '@/components/hydro/HydroPatchViewer.vue'
@@ -11,6 +11,7 @@ import {
   fetchTnpProfileRanked,
 } from '@/api/tnpProfile'
 import type { TnpProfileJob } from '@/api/types'
+import { usePolling } from '@/composables/usePolling'
 import { TNP_PROFILE_STAGE_LABELS, statusLabel } from '@/utils/constants'
 import { parseHydroPatches, parseHydroResidues } from '@/utils/hydroPatches'
 
@@ -34,7 +35,6 @@ const summary = ref<Record<string, unknown> | null>(null)
 const cifText = ref<string | null>(null)
 const selectedPatchId = ref<string | null>(null)
 const selectedResidue = ref<{ chainId: string; resi: number } | null>(null)
-let timer: ReturnType<typeof setInterval> | null = null
 
 const params = computed(() => job.value?.params_json || {})
 const residuesAll = computed(() => parseHydroResidues(residueRows.value))
@@ -108,13 +108,11 @@ async function load() {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
   }
 }
-function poll() {
-  if (timer) clearInterval(timer)
-  if (job.value && ['queued', 'running'].includes(job.value.status)) {
-    timer = setInterval(() => void load(), 5000)
-  }
-}
-watch(() => job.value?.status, poll)
+const pollingEnabled = computed(() =>
+  Boolean(job.value && ['queued', 'running'].includes(job.value.status)),
+)
+const { refresh } = usePolling(load, pollingEnabled)
+
 watch(
   () => route.params.id,
   async () => {
@@ -124,16 +122,9 @@ watch(
     cifText.value = null
     selectedPatchId.value = null
     selectedResidue.value = null
-    await load()
+    await refresh()
   },
 )
-onMounted(async () => {
-  await load()
-  poll()
-})
-onUnmounted(() => {
-  if (timer) clearInterval(timer)
-})
 async function download(name: string) {
   if (!job.value) return
   try {

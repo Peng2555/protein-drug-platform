@@ -1,4 +1,5 @@
 import { api, apiJson } from './client'
+import { downloadBlob } from '@/utils/download'
 import type { CicProfileJob, CicProfileJobListOut, CicProfileProgressOut, CicProfileRankedOut } from './types'
 
 export type CicProfileCreateBody = {
@@ -48,16 +49,7 @@ export async function downloadCicProfileFile(id: string, filename: string) {
   const response = await api.get(`/api/cic-profile-jobs/${id}/files/${encodeURIComponent(filename)}`, {
     responseType: 'blob',
   })
-  const url = URL.createObjectURL(response.data)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  document.body.appendChild(anchor)
-  anchor.click()
-  window.setTimeout(() => {
-    URL.revokeObjectURL(url)
-    anchor.remove()
-  }, 1000)
+  downloadBlob(response.data, filename)
 }
 
 export async function fetchCicProfileCif(id: string): Promise<string | null> {

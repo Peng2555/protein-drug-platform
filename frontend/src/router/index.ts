@@ -1,9 +1,9 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { moduleDefinitionFromSegment } from '@/config/moduleRegistry'
 
 function moduleChildren(
   base: string,
-  labels: { module: string; new: string; tasks: string; task: string },
   views: {
     workspace: () => Promise<unknown>
     new: () => Promise<unknown>
@@ -12,6 +12,8 @@ function moduleChildren(
   },
   extraChildren: RouteRecordRaw[] = [],
 ): RouteRecordRaw {
+  const labels = moduleDefinitionFromSegment(base)?.routeTitles
+  if (!labels) throw new Error(`Unknown module route segment: ${base}`)
   return {
     path: base,
     component: views.workspace,
@@ -130,12 +132,6 @@ const router = createRouter({
         moduleChildren(
           'design',
           {
-            module: '序列设计',
-            new: '新建设计',
-            tasks: '全部任务',
-            task: '设计详情',
-          },
-          {
             workspace: () => import('@/views/design/DesignWorkspaceView.vue'),
             new: () => import('@/views/design/DesignNewView.vue'),
             tasks: () => import('@/views/design/DesignTasksView.vue'),
@@ -144,12 +140,6 @@ const router = createRouter({
         ),
         moduleChildren(
           'rosetta',
-          {
-            module: '结构评价',
-            new: '新建评价',
-            tasks: '全部任务',
-            task: '评价详情',
-          },
           {
             workspace: () => import('@/views/rosetta/RosettaWorkspaceView.vue'),
             new: () => import('@/views/rosetta/RosettaNewView.vue'),
@@ -160,12 +150,6 @@ const router = createRouter({
         moduleChildren(
           'developability',
           {
-            module: '序列改造',
-            new: '新建改造',
-            tasks: '全部任务',
-            task: '改造详情',
-          },
-          {
             workspace: () => import('@/views/developability/DevelopabilityWorkspaceView.vue'),
             new: () => import('@/views/developability/DevelopabilityNewView.vue'),
             tasks: () => import('@/views/developability/DevelopabilityTasksView.vue'),
@@ -174,12 +158,6 @@ const router = createRouter({
         ),
         moduleChildren(
           'maturation',
-          {
-            module: '亲和力成熟',
-            new: '新建成熟',
-            tasks: '全部任务',
-            task: '成熟详情',
-          },
           {
             workspace: () => import('@/views/maturation/MaturationWorkspaceView.vue'),
             new: () => import('@/views/maturation/MaturationNewView.vue'),
@@ -190,12 +168,6 @@ const router = createRouter({
         moduleChildren(
           'affinity-redesign',
           {
-            module: '亲和力改造',
-            new: '新建改造',
-            tasks: '全部任务',
-            task: '改造详情',
-          },
-          {
             workspace: () => import('@/views/affinity-redesign/AffinityRedesignWorkspaceView.vue'),
             new: () => import('@/views/affinity-redesign/AffinityRedesignNewView.vue'),
             tasks: () => import('@/views/affinity-redesign/AffinityRedesignTasksView.vue'),
@@ -205,12 +177,6 @@ const router = createRouter({
         moduleChildren(
           'masking-peptide',
           {
-            module: '多肽遮蔽设计',
-            new: '新建设计',
-            tasks: '全部任务',
-            task: '设计详情',
-          },
-          {
             workspace: () => import('@/views/masking-peptide/MaskingPeptideWorkspaceView.vue'),
             new: () => import('@/views/masking-peptide/MaskingPeptideNewView.vue'),
             tasks: () => import('@/views/masking-peptide/MaskingPeptideTasksView.vue'),
@@ -219,12 +185,6 @@ const router = createRouter({
         ),
         moduleChildren(
           'hydro-redesign',
-          {
-            module: '疏水性改造',
-            new: '新建改造',
-            tasks: '全部任务',
-            task: '改造详情',
-          },
           {
             workspace: () => import('@/views/hydro-redesign/HydroRedesignWorkspaceView.vue'),
             new: () => import('@/views/hydro-redesign/HydroRedesignNewView.vue'),
@@ -243,12 +203,6 @@ const router = createRouter({
         moduleChildren(
           'cic-profile',
           {
-            module: 'CIC 表面斑',
-            new: '新建分析',
-            tasks: '全部任务',
-            task: '分析详情',
-          },
-          {
             workspace: () => import('@/views/cic-profile/CicProfileWorkspaceView.vue'),
             new: () => import('@/views/cic-profile/CicProfileNewView.vue'),
             tasks: () => import('@/views/cic-profile/CicProfileTasksView.vue'),
@@ -257,12 +211,6 @@ const router = createRouter({
         ),
         moduleChildren(
           'tnp-profile',
-          {
-            module: 'VHH 可开发性画像',
-            new: '新建画像',
-            tasks: '全部任务',
-            task: '画像详情',
-          },
           {
             workspace: () => import('@/views/tnp-profile/TnpProfileWorkspaceView.vue'),
             new: () => import('@/views/tnp-profile/TnpProfileNewView.vue'),
@@ -281,12 +229,6 @@ const router = createRouter({
         moduleChildren(
           'synthesis',
           {
-            module: '合成候选',
-            new: '新建筛选',
-            tasks: '全部任务',
-            task: '筛选结果',
-          },
-          {
             workspace: () => import('@/views/synthesis/SynthesisWorkspaceView.vue'),
             new: () => import('@/views/synthesis/SynthesisNewView.vue'),
             tasks: () => import('@/views/synthesis/SynthesisTasksView.vue'),
@@ -301,12 +243,6 @@ const router = createRouter({
         moduleChildren(
           'docking',
           {
-            module: '分子对接',
-            new: '新建对接',
-            tasks: '全部任务',
-            task: '对接详情',
-          },
-          {
             workspace: () => import('@/views/docking/DockingWorkspaceView.vue'),
             new: () => import('@/views/docking/DockingNewView.vue'),
             tasks: () => import('@/views/docking/DockingTasksView.vue'),
@@ -315,12 +251,6 @@ const router = createRouter({
         ),
         moduleChildren(
           'md',
-          {
-            module: 'MD 验证',
-            new: '新建 MD',
-            tasks: '全部任务',
-            task: 'MD 详情',
-          },
           {
             workspace: () => import('@/views/md/MdWorkspaceView.vue'),
             new: () => import('@/views/md/MdNewView.vue'),

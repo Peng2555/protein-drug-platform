@@ -12,6 +12,7 @@ import { fetchHydroRedesignBatches, fetchHydroRedesignJobs } from '@/api/hydroRe
 import { fetchCicProfileJobs } from '@/api/cicProfile'
 import { fetchTnpProfileBatches, fetchTnpProfileJobs } from '@/api/tnpProfile'
 import { fetchMdJobs } from '@/api/md'
+import { moduleDefinition, type ModuleJobKind } from '@/config/moduleRegistry'
 import type {
   AffinityRedesignJob,
   Batch,
@@ -28,19 +29,7 @@ import type {
   SynthesisJob,
 } from '@/api/types'
 
-export type ModuleJobKind =
-  | 'md'
-  | 'docking'
-  | 'developability'
-  | 'maturation'
-  | 'affinity_redesign'
-  | 'masking_peptide'
-  | 'hydro_redesign'
-  | 'cic_profile'
-  | 'tnp_profile'
-  | 'synthesis'
-  | 'design'
-  | 'rosetta'
+export type { ModuleJobKind } from '@/config/moduleRegistry'
 
 export type ModuleNavItem = {
   id: string
@@ -114,7 +103,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
           status: b.status,
           created_at: b.created_at,
           kindLabel: '批次',
-          routeName: 'hydro-redesign-batch',
+          routeName: moduleDefinition('hydro_redesign').batchRouteName,
         })),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       cic_profile: toNavItems(cicProfileJobs.value, 'CIC'),
@@ -126,7 +115,7 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
           status: b.status,
           created_at: b.created_at,
           kindLabel: '批次',
-          routeName: 'tnp-profile-batch',
+          routeName: moduleDefinition('tnp_profile').batchRouteName,
         })),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       synthesis: toNavItems(synthesisJobs.value, '合成'),

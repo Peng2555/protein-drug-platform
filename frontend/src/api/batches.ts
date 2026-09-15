@@ -1,4 +1,5 @@
 import { api, apiJson } from './client'
+import { downloadBlob } from '@/utils/download'
 import type {
   AntibodyRowPayload,
   BatchDetail,
@@ -85,12 +86,7 @@ export async function exportBatchCsv(batchId: string, batchName: string) {
     )
   }
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${batchName.replace(/[^\w.-]+/g, '_')}_results.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, `${batchName.replace(/[^\w.-]+/g, '_')}_results.csv`)
 }
 
 export async function downloadBatchStructures(batchId: string, batchName: string) {
@@ -98,10 +94,5 @@ export async function downloadBatchStructures(batchId: string, batchName: string
     responseType: 'blob',
     timeout: 600_000,
   })
-  const url = URL.createObjectURL(resp.data)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${batchName.replace(/[^\w.-]+/g, '_')}_structures.zip`
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(resp.data, `${batchName.replace(/[^\w.-]+/g, '_')}_structures.zip`)
 }

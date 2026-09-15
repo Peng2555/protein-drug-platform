@@ -1,4 +1,5 @@
 import { api, apiJson } from './client'
+import { downloadBlob } from '@/utils/download'
 import type {
   Batch,
   BatchDetail,
@@ -50,16 +51,7 @@ export async function downloadHydroRedesignBatchCsv(id: string) {
   const response = await api.get(`/api/hydro-redesign-jobs/batches/${id}/export.csv`, {
     responseType: 'blob',
   })
-  const url = URL.createObjectURL(response.data)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `hydro_batch_${id.slice(0, 8)}.csv`
-  document.body.appendChild(anchor)
-  anchor.click()
-  window.setTimeout(() => {
-    URL.revokeObjectURL(url)
-    anchor.remove()
-  }, 1000)
+  downloadBlob(response.data, `hydro_batch_${id.slice(0, 8)}.csv`)
 }
 
 export async function fetchHydroRedesignJob(id: string) {
@@ -101,17 +93,7 @@ export async function downloadHydroRedesignFile(id: string, filename: string) {
     `/api/hydro-redesign-jobs/${id}/files/${encodeURIComponent(filename)}`,
     { responseType: 'blob' },
   )
-  const url = URL.createObjectURL(response.data)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.style.display = 'none'
-  document.body.appendChild(anchor)
-  anchor.click()
-  window.setTimeout(() => {
-    URL.revokeObjectURL(url)
-    anchor.remove()
-  }, 1000)
+  downloadBlob(response.data, filename)
 }
 
 export async function fetchHydroRedesignCif(id: string): Promise<string | null> {

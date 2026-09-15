@@ -33,6 +33,11 @@ import { useFoldTasksStore } from '@/stores/foldTasks'
 import { useModuleJobsStore, type ModuleJobKind, type ModuleNavItem } from '@/stores/moduleJobs'
 import type { Batch, Job } from '@/api/types'
 import {
+  MODULE_REGISTRY,
+  moduleDefinition,
+  type ModuleIconKey,
+} from '@/config/moduleRegistry'
+import {
   NAV_GROUPS,
   PLATFORM_NAME,
   PLATFORM_NAME_EN,
@@ -53,21 +58,12 @@ const foldStore = useFoldTasksStore()
 const moduleJobs = useModuleJobsStore()
 const collapsed = ref(false)
 
-const expanded = reactive<Record<string, boolean>>({
-  fold: true,
-  design: false,
-  rosetta: false,
-  developability: false,
-  maturation: false,
-  affinity_redesign: false,
-  masking_peptide: false,
-  hydro_redesign: false,
-  cic_profile: false,
-  tnp_profile: false,
-  synthesis: false,
-  docking: false,
-  md: false,
-})
+const expanded = reactive<Record<string, boolean>>(
+  Object.fromEntries(MODULE_REGISTRY.filter((module) => module.id !== 'home').map((module) => [
+    module.id,
+    module.id === 'fold',
+  ])),
+)
 
 const activeModule = computed(() => moduleIdFromPath(route.path))
 const isLanding = computed(() => route.name === 'home' || route.name === 'use-case')
@@ -84,7 +80,7 @@ const currentNav = computed(() => {
 })
 const onFold = computed(() => activeModule.value === 'fold')
 
-const iconMap = {
+const iconMap: Record<ModuleIconKey, typeof HomeFilled> = {
   home: HomeFilled,
   fold: Cpu,
   design: Brush,
@@ -99,23 +95,11 @@ const iconMap = {
   synthesis: Histogram,
   docking: Aim,
   md: Timer,
-} as const
+}
 
-const expandableIds: ModuleId[] = [
-  'fold',
-  'design',
-  'rosetta',
-  'developability',
-  'maturation',
-  'affinity_redesign',
-  'masking_peptide',
-  'hydro_redesign',
-  'cic_profile',
-  'tnp_profile',
-  'synthesis',
-  'docking',
-  'md',
-]
+const expandableIds: ModuleId[] = MODULE_REGISTRY
+  .filter((module) => module.id !== 'home')
+  .map((module) => module.id)
 
 const badgeMap = computed(() => ({
   home: 0,
@@ -397,7 +381,7 @@ onMounted(() => {
               v-show="!collapsed"
               :module-id="item.id"
               :label="item.label"
-              :icon="iconMap[item.id]"
+              :icon="iconMap[moduleDefinition(item.id).iconKey]"
               :badge="badgeMap[item.id]"
               :expanded="!!expanded[item.id]"
               :recent-items="recentFor(item.id)"
@@ -415,7 +399,9 @@ onMounted(() => {
               :title="item.label"
               @click="toggleModule(item.id)"
             >
-              <el-icon class="nav-icon" :size="18"><component :is="iconMap[item.id]" /></el-icon>
+              <el-icon class="nav-icon" :size="18">
+                <component :is="iconMap[moduleDefinition(item.id).iconKey]" />
+              </el-icon>
             </button>
           </template>
         </section>

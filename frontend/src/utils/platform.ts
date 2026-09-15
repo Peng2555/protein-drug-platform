@@ -1,23 +1,16 @@
+import {
+  MODULE_BY_ID,
+  moduleDefinition,
+  moduleDefinitionFromPath,
+  type ModuleId,
+} from '@/config/moduleRegistry'
+
 export const PLATFORM_NAME = '蛋白质-药物计算平台'
 export const PLATFORM_NAME_EN = 'Protein–Drug Computing Platform'
 export const PLATFORM_ORG = '百奥赛图 Biocytogen'
 export const PLATFORM_TAGLINE = '从靶点到治疗药物 · Your Partner from Targets to Therapeutics'
 
-export type ModuleId =
-  | 'home'
-  | 'fold'
-  | 'design'
-  | 'rosetta'
-  | 'developability'
-  | 'maturation'
-  | 'affinity_redesign'
-  | 'masking_peptide'
-  | 'hydro_redesign'
-  | 'cic_profile'
-  | 'tnp_profile'
-  | 'synthesis'
-  | 'docking'
-  | 'md'
+export type { ModuleId } from '@/config/moduleRegistry'
 
 export interface NavItem {
   id: ModuleId
@@ -33,10 +26,15 @@ export interface NavGroup {
 }
 
 export const HOME_NAV: NavItem = {
-  id: 'home',
-  path: '/home',
-  label: '首页',
-  hint: '平台概览与模块入口',
+  id: MODULE_BY_ID.home.id,
+  path: `/${MODULE_BY_ID.home.segment}`,
+  label: MODULE_BY_ID.home.label,
+  hint: MODULE_BY_ID.home.hint,
+}
+
+function navItem(id: ModuleId): NavItem {
+  const module = moduleDefinition(id)
+  return { id, path: `/${module.segment}`, label: module.label, hint: module.hint }
 }
 
 /** 侧栏分组对齐专业计算平台导航结构。 */
@@ -49,57 +47,30 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     id: 'structure',
     label: '结构计算',
-    items: [
-      { id: 'fold', path: '/fold', label: '结构预测', hint: 'Boltz2 / ESMFold2 复合物折叠' },
-    ],
+    items: [navItem('fold')],
   },
   {
     id: 'sequence',
     label: '序列与抗体',
     items: [
-      { id: 'design', path: '/design', label: '序列设计', hint: 'ProteinMPNN 骨架约束序列设计' },
-      { id: 'rosetta', path: '/rosetta', label: '结构评价', hint: 'Rosetta Relax 与界面 ΔΔG 排序' },
-      { id: 'developability', path: '/developability', label: '序列改造', hint: 'ESM-2 与 MAXWELL 并列打分' },
-      { id: 'maturation', path: '/maturation', label: '亲和力成熟', hint: 'IgGM CDR 变体采样' },
-      {
-        id: 'affinity_redesign',
-        path: '/affinity-redesign',
-        label: '亲和力改造',
-        hint: 'round1 → Boltz2 → Rosetta 端到端流水线',
-      },
-      {
-        id: 'masking_peptide',
-        path: '/masking-peptide',
-        label: '多肽遮蔽设计',
-        hint: 'RFdiffusion + MPNN 环肽设计（CD98）',
-      },
-      {
-        id: 'hydro_redesign',
-        path: '/hydro-redesign',
-        label: '疏水性改造',
-        hint: '表面疏水斑 × 亲水突变（无抗原）',
-      },
-      {
-        id: 'cic_profile',
-        path: '/cic-profile',
-        label: 'CIC 表面斑',
-        hint: '实验 pH 下正电 / 负电 / 疏水斑（诊断）',
-      },
-      {
-        id: 'tnp_profile',
-        path: '/tnp-profile',
-        label: 'VHH 可开发性画像',
-        hint: 'Boltz2 · Kabat 六项画像',
-      },
-      { id: 'synthesis', path: '/synthesis', label: '合成候选', hint: '测序表与突变表交叉筛选' },
+      navItem('design'),
+      navItem('rosetta'),
+      navItem('developability'),
+      navItem('maturation'),
+      navItem('affinity_redesign'),
+      navItem('masking_peptide'),
+      navItem('hydro_redesign'),
+      navItem('cic_profile'),
+      navItem('tnp_profile'),
+      navItem('synthesis'),
     ],
   },
   {
     id: 'ligand',
     label: '小分子药物筛选',
     items: [
-      { id: 'docking', path: '/docking', label: '分子对接', hint: '口袋检测引导的盲对接（Vina）' },
-      { id: 'md', path: '/md', label: 'MD 验证', hint: 'GROMACS 显式溶剂模拟' },
+      navItem('docking'),
+      navItem('md'),
     ],
   },
 ]
@@ -107,31 +78,12 @@ export const NAV_GROUPS: NavGroup[] = [
 export const ALL_NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items)
 
 export function moduleIdFromPath(path: string): ModuleId {
-  if (path === '/' || path.startsWith('/home')) return 'home'
-  if (path.startsWith('/affinity-redesign')) return 'affinity_redesign'
-  if (path.startsWith('/masking-peptide')) return 'masking_peptide'
-  if (path.startsWith('/hydro-redesign')) return 'hydro_redesign'
-  if (path.startsWith('/cic-profile')) return 'cic_profile'
-  if (path.startsWith('/tnp-profile')) return 'tnp_profile'
-  if (path.startsWith('/md')) return 'md'
-  if (path.startsWith('/maturation')) return 'maturation'
-  if (path.startsWith('/synthesis')) return 'synthesis'
-  if (path.startsWith('/design')) return 'design'
-  if (path.startsWith('/rosetta')) return 'rosetta'
-  if (path.startsWith('/developability')) return 'developability'
-  if (path.startsWith('/docking') || path.startsWith('/ras-docking')) return 'docking'
-  if (path.startsWith('/fold')) return 'fold'
-  return 'home'
+  return moduleDefinitionFromPath(path).id
 }
 
 /** Vue Router 路由名前缀（与 moduleChildren 的 path 一致） */
 export function moduleRoutePrefix(id: ModuleId): string {
-  if (id === 'affinity_redesign') return 'affinity-redesign'
-  if (id === 'masking_peptide') return 'masking-peptide'
-  if (id === 'hydro_redesign') return 'hydro-redesign'
-  if (id === 'cic_profile') return 'cic-profile'
-  if (id === 'tnp_profile') return 'tnp-profile'
-  return id
+  return moduleDefinition(id).routePrefix
 }
 
 export function moduleNewRouteName(id: ModuleId): string {

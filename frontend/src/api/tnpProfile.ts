@@ -1,4 +1,5 @@
 import { api, apiJson } from './client'
+import { downloadBlob } from '@/utils/download'
 import type {
   Batch,
   BatchDetail,
@@ -48,16 +49,7 @@ export async function downloadTnpProfileBatchCsv(id: string) {
   const response = await api.get(`/api/tnp-profile-jobs/batches/${id}/export.csv`, {
     responseType: 'blob',
   })
-  const url = URL.createObjectURL(response.data)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `tnp_batch_${id.slice(0, 8)}.csv`
-  document.body.appendChild(anchor)
-  anchor.click()
-  window.setTimeout(() => {
-    URL.revokeObjectURL(url)
-    anchor.remove()
-  }, 1000)
+  downloadBlob(response.data, `tnp_batch_${id.slice(0, 8)}.csv`)
 }
 
 export async function fetchTnpProfileJob(id: string) {
@@ -96,16 +88,7 @@ export async function downloadTnpProfileFile(id: string, filename: string) {
   const response = await api.get(`/api/tnp-profile-jobs/${id}/files/${encodeURIComponent(filename)}`, {
     responseType: 'blob',
   })
-  const url = URL.createObjectURL(response.data)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  document.body.appendChild(anchor)
-  anchor.click()
-  window.setTimeout(() => {
-    URL.revokeObjectURL(url)
-    anchor.remove()
-  }, 1000)
+  downloadBlob(response.data, filename)
 }
 
 export async function fetchTnpProfileCif(id: string): Promise<string | null> {

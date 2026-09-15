@@ -2,7 +2,10 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, ArrowRight, Document, UploadFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import FastaRecordCount from '@/components/forms/FastaRecordCount.vue'
+import StructureUpload from '@/components/forms/StructureUpload.vue'
+import SubmissionModeTabs, { type SubmissionMode } from '@/components/forms/SubmissionModeTabs.vue'
 import { createTnpProfileBatch, createTnpProfileJob, uploadTnpProfileJob } from '@/api/tnpProfile'
 import { useModuleJobsStore } from '@/stores/moduleJobs'
 
@@ -25,7 +28,7 @@ const pipelineSteps = [
   { id: 'view', label: '画像', desc: '交通灯与 CDR 附近' },
 ]
 
-const mode = ref<'single' | 'batch'>('single')
+const mode = ref<SubmissionMode>('single')
 const name = ref('')
 const fasta = ref('')
 const structureFile = ref<File | null>(null)
@@ -42,19 +45,11 @@ const recordCount = computed(() => {
   return headers.length
 })
 
-function onUploadChange(arg: { raw?: File }) {
-  structureFile.value = arg.raw || null
-}
-
-function clearUpload() {
-  structureFile.value = null
-}
-
 function fillExample() {
   fasta.value = (mode.value === 'batch' ? EXAMPLE_BATCH : EXAMPLE_FASTA).trim() + '\n'
 }
 
-function setMode(next: 'single' | 'batch') {
+function setMode(next: SubmissionMode) {
   mode.value = next
   if (next === 'batch') structureFile.value = null
 }
@@ -126,10 +121,7 @@ async function submit() {
     <div class="mp-form__layout">
       <div class="mp-form__main">
         <section class="mp-section">
-          <div class="mode-tabs" role="tablist">
-            <button type="button" :class="{ active: mode === 'single' }" @click="setMode('single')">单条</button>
-            <button type="button" :class="{ active: mode === 'batch' }" @click="setMode('batch')">批量</button>
-          </div>
+          <SubmissionModeTabs :model-value="mode" @update:model-value="setMode" />
           <div class="field">
             <label class="field__label">任务名称</label>
             <el-input v-model="name" :placeholder="mode === 'batch' ? '例如 VHH_panel' : '例如 VHH_profile'" maxlength="128" size="large" />
@@ -140,7 +132,7 @@ async function submit() {
               <template v-if="mode === 'single'">只接受一条重链。无表头时自动包成 <code>H</code>。</template>
               <template v-else>每条记录一条 VHH，表头作为分子 ID。最多 100 条，各自独立折叠计分。</template>
               <button type="button" class="link-btn" @click="fillExample">填入示例</button>
-              <span v-if="recordCount" class="count">已识别 {{ recordCount }} 条</span>
+              <FastaRecordCount :count="recordCount" />
             </p>
             <el-input
               v-model="fasta"
@@ -152,24 +144,7 @@ async function submit() {
           <div v-if="mode === 'single'" class="field">
             <label class="field__label">已有结构（可选）</label>
             <p class="field__hint">上传 PDB/CIF 则跳过 Boltz2。残基序号需与 FASTA 一致。批量任务请不要上传结构。</p>
-            <div v-if="structureFile" class="upload-done">
-              <el-icon><Document /></el-icon>
-              <span>{{ structureFile.name }}</span>
-              <button type="button" class="link-btn" @click="clearUpload">移除</button>
-            </div>
-            <el-upload
-              v-else
-              drag
-              class="upload-zone"
-              :auto-upload="false"
-              :limit="1"
-              :show-file-list="false"
-              accept=".pdb,.cif,.mmcif"
-              @change="onUploadChange"
-            >
-              <el-icon class="upload-zone__icon"><UploadFilled /></el-icon>
-              <p class="upload-zone__title">拖拽或点击上传 VHH 结构</p>
-            </el-upload>
+            <StructureUpload v-model="structureFile" title="拖拽或点击上传 VHH 结构" />
           </div>
         </section>
         <div class="actions">
@@ -313,33 +288,6 @@ async function submit() {
   border: 1px solid var(--border);
   background: #fff;
 }
-.mode-tabs {
-  display: flex;
-  gap: 0.35rem;
-  margin-bottom: 1.1rem;
-  padding: 0.25rem;
-  width: fit-content;
-  border-radius: 10px;
-  background: #f3f4f6;
-  button {
-    border: none;
-    background: transparent;
-    padding: 0.35rem 0.9rem;
-    border-radius: 8px;
-    font-size: 0.84rem;
-    font-weight: 600;
-    color: var(--muted);
-    cursor: pointer;
-    &.active {
-      background: #fff;
-      color: var(--title);
-    }
-  }
-}
-.count {
-  margin-left: 0.5rem;
-  color: #1d4ed8;
-}
 .field {
   margin-bottom: 1rem;
   &__label {
@@ -357,31 +305,6 @@ async function submit() {
 }
 .req {
   color: #dc2626;
-}
-.upload-done {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  background: var(--bg-soft);
-  border: 1px solid var(--border);
-  font-size: 0.85rem;
-}
-.upload-zone {
-  width: 100%;
-  :deep(.el-upload-dragger) {
-    padding: 1.5rem;
-    border-radius: 12px;
-  }
-}
-.upload-zone__icon {
-  font-size: 2rem;
-  color: #2563eb;
-}
-.upload-zone__title {
-  margin: 0.5rem 0 0;
-  font-size: 0.88rem;
 }
 .link-btn {
   margin-left: 0.35rem;

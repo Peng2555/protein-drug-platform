@@ -20,6 +20,7 @@ const props = defineProps<{
     routeName?: string
   }>
   loading?: boolean
+  activeRouteNames?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -31,7 +32,11 @@ const route = useRoute()
 const router = useRouter()
 
 const activeId = computed(() => {
-  const names = [props.taskRouteName, 'tnp-profile-batch', 'hydro-redesign-batch']
+  const names = [
+    props.taskRouteName,
+    ...(props.activeRouteNames ?? []),
+    ...props.jobs.map((job) => job.routeName).filter((name): name is string => Boolean(name)),
+  ]
   return names.includes(String(route.name || '')) ? (route.params.id as string) : null
 })
 
