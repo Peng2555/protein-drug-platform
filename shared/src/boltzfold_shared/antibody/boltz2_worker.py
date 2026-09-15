@@ -11,12 +11,12 @@ from boltzfold_shared.runtime.settings import settings
 
 
 def _load_runner():
-    scripts = str(settings.boltz2_root / "scripts")
-    if scripts not in sys.path:
-        sys.path.insert(0, scripts)
-    import boltz_runner
+    root = str(settings.boltz2_root)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from integrations import boltz2
 
-    return boltz_runner
+    return boltz2
 
 
 def fold_one(

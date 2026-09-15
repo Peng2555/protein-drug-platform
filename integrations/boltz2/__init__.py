@@ -1,49 +1,37 @@
-#!/usr/bin/env python3
-"""Compatibility shim for the root-level :mod:`integrations.boltz2` package."""
+"""Stable public API for the Boltz2 integration."""
 
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from integrations.boltz2 import (
-    BOLTZ_BIN,
+from .input import (
     BOLTZ_MAX_CHAIN_ID_LEN,
-    DEFAULT_OUT_ROOT,
-    FoldResult,
     VALID_AA,
-    _boltz_run_error,
     _format_chain_ids,
-    _is_monomer_fold,
-    _median,
-    _model_index,
-    _n_pair_chains,
-    _select_best_sample,
     _yaml_quote,
-    boltz_env,
     build_boltz_yaml_text,
     chains_meta_from_components,
-    cif_to_pdb,
-    discover_boltz_samples,
-    extract_metrics,
-    fold_fasta,
-    fold_sequences,
     job_id_from_seqs,
     parse_fasta_text,
-    pdb_to_cif,
-    pick_chain_key,
     polymer_seqs_from_components,
     read_fasta,
-    run_boltz_predict,
-    sequences_from_structure,
     validate_boltz_chain_ids,
     validate_seq,
     write_boltz_complex_yaml,
     write_boltz_yaml,
     write_fasta,
 )
+from .process import BOLTZ_BIN, _boltz_run_error, boltz_env, run_boltz_predict
+from .results import (
+    _is_monomer_fold,
+    _median,
+    _model_index,
+    _n_pair_chains,
+    _select_best_sample,
+    cif_to_pdb,
+    discover_boltz_samples,
+    extract_metrics,
+    pdb_to_cif,
+    pick_chain_key,
+    sequences_from_structure,
+)
+from .service import DEFAULT_OUT_ROOT, FoldResult, fold_fasta, fold_sequences
 
 __all__ = [
     "BOLTZ_BIN",
