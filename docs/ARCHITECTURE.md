@@ -25,7 +25,7 @@
 - 多肽遮蔽：RFdiffusion 与 ProteinMPNN。
 - 抗体分析：亲水性改造、CIC profile、TNP profile。
 
-对应 API 路由位于 `app/routers/`，业务参数校验和任务创建主要位于 `app/*_service.py`，异步任务按领域定义在 `worker/tasks/`。
+对应 API 路由位于 `app/routers/`，Pydantic schema 按领域位于 `app/schemas/`，业务参数校验和任务创建主要位于 `app/*_service.py`，异步任务按领域定义在 `worker/tasks/`。
 
 ## 任务数据流
 
