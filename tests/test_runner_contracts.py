@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import inspect
 import json
 import sys
@@ -158,29 +159,74 @@ def test_extract_metrics_selects_best_complex_model_and_stable_artifacts(
 
 
 def test_worker_exports_exactly_thirteen_named_celery_tasks():
+    from app.celery_app import celery_app
     from worker import tasks
 
-    task_names = [
-        "run_fold_job",
-        "run_md_job",
-        "run_maturation_job",
-        "run_ras_docking_job",
-        "run_small_molecule_docking_job",
-        "run_developability_job",
-        "run_design_job",
-        "run_rosetta_eval_job",
-        "run_affinity_redesign_job",
-        "run_masking_peptide_job",
-        "run_hydro_redesign_job",
-        "run_cic_profile_job",
-        "run_tnp_profile_job",
-    ]
-    assert len(task_names) == 13
+    task_modules = {
+        "run_fold_job": "fold",
+        "run_md_job": "md",
+        "run_maturation_job": "maturation",
+        "run_ras_docking_job": "docking",
+        "run_small_molecule_docking_job": "docking",
+        "run_developability_job": "developability",
+        "run_design_job": "design",
+        "run_rosetta_eval_job": "rosetta",
+        "run_affinity_redesign_job": "affinity",
+        "run_masking_peptide_job": "masking",
+        "run_hydro_redesign_job": "hydro",
+        "run_cic_profile_job": "profile",
+        "run_tnp_profile_job": "profile",
+    }
+    task_names = set(task_modules)
     assert {
         name
         for name, value in vars(tasks).items()
         if name.startswith("run_") and getattr(value, "name", "").startswith("worker.tasks.run_")
-    } == set(task_names)
-    for name in task_names:
+    } == task_names
+    assert {
+        name for name in celery_app.tasks if name.startswith("worker.tasks.run_")
+    } == {f"worker.tasks.{name}" for name in task_names}
+
+    for name, module_name in task_modules.items():
         task = getattr(tasks, name)
         assert task.name == f"worker.tasks.{name}"
+        definition_module = importlib.import_module(f"worker.tasks.{module_name}")
+        assert task is getattr(definition_module, name)
+
+    service_tasks = {
+        "app.job_service": "run_fold_job",
+        "app.md_service": "run_md_job",
+        "app.maturation_service": "run_maturation_job",
+        "app.ras_docking_service": "run_ras_docking_job",
+        "app.docking_service": "run_small_molecule_docking_job",
+        "app.developability_service": "run_developability_job",
+        "app.design_service": "run_design_job",
+        "app.rosetta_eval_service": "run_rosetta_eval_job",
+        "app.affinity_redesign_service": "run_affinity_redesign_job",
+        "app.masking_peptide_service": "run_masking_peptide_job",
+        "app.hydro_redesign_service": "run_hydro_redesign_job",
+        "app.cic_profile_service": "run_cic_profile_job",
+        "app.tnp_profile_service": "run_tnp_profile_job",
+    }
+    for service_name, task_name in service_tasks.items():
+        service = importlib.import_module(service_name)
+        assert getattr(service, task_name) is getattr(tasks, task_name)
+
+
+def test_worker_task_package_has_one_bootstrap_and_no_reverse_imports():
+    from app.celery_app import celery_app
+
+    worker_sources = [
+        ROOT / "worker" / "task_runtime.py",
+        *sorted((ROOT / "worker" / "tasks").glob("*.py")),
+    ]
+    assert sum(
+        "bootstrap_algorithm_paths(" in path.read_text(encoding="utf-8")
+        for path in worker_sources
+    ) == 1
+    for path in worker_sources:
+        if path.name != "__init__.py":
+            source = path.read_text(encoding="utf-8")
+            assert "from worker.tasks" not in source
+            assert "import worker.tasks" not in source
+    assert celery_app.conf.include == ["worker.tasks"]

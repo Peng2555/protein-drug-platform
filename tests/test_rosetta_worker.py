@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 def test_rosetta_worker_success_commits_done_and_returns(monkeypatch, tmp_path):
     from worker import tasks
+    from worker.tasks import rosetta
 
     job = SimpleNamespace(
         id="rosetta-job-1",
@@ -38,7 +39,7 @@ def test_rosetta_worker_success_commits_done_and_returns(monkeypatch, tmp_path):
             self.closed = True
 
     session = FakeSession()
-    monkeypatch.setattr(tasks, "SessionLocal", lambda: session)
+    monkeypatch.setattr(rosetta, "SessionLocal", lambda: session)
 
     def fake_runner(*, work_dir, params, on_stage):
         assert work_dir == tmp_path / "rosetta-work"
@@ -52,7 +53,7 @@ def test_rosetta_worker_success_commits_done_and_returns(monkeypatch, tmp_path):
             error=None,
         )
 
-    monkeypatch.setattr(tasks, "run_rosetta_eval_pipeline", fake_runner)
+    monkeypatch.setattr(rosetta, "run_rosetta_eval_pipeline", fake_runner)
 
     result = tasks.run_rosetta_eval_job.run(job.id)
 

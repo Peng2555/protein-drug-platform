@@ -25,7 +25,7 @@
 - 多肽遮蔽：RFdiffusion 与 ProteinMPNN。
 - 抗体分析：亲水性改造、CIC profile、TNP profile。
 
-对应 API 路由位于 `app/routers/`，业务参数校验和任务创建主要位于 `app/*_service.py`，异步任务统一定义在 `worker/tasks.py`。
+对应 API 路由位于 `app/routers/`，业务参数校验和任务创建主要位于 `app/*_service.py`，异步任务按领域定义在 `worker/tasks/`。
 
 ## 任务数据流
 
@@ -34,14 +34,14 @@
   → FastAPI Router（鉴权、参数校验）
   → Service（创建输出目录和 PostgreSQL 任务记录）
   → Celery / Redis（投递到 GPU 队列）
-  → worker/tasks.py（领取任务、更新 running/done/failed）
+  → worker/tasks/（领取任务、更新 running/done/failed）
   → scripts/*_runner.py（调用算法包或外部工具）
   → 输出目录（结构、指标、日志、轨迹等）
   → PostgreSQL（状态与结果索引）
   → API / Vue（轮询、展示、下载）
 ```
 
-结构预测和 MD 当前共用可配置的 GPU 队列，每个 GPU Worker 的并发数为 1。其他业务也通过 `worker/tasks.py` 进入相应 Runner；具体输出根目录由 `.env` 中的变量控制。
+结构预测和 MD 当前共用可配置的 GPU 队列，每个 GPU Worker 的并发数为 1。其他业务也通过 `worker/tasks/` 进入相应 Runner；具体输出根目录由 `.env` 中的变量控制。
 
 ## 生产与 legacy 入口
 

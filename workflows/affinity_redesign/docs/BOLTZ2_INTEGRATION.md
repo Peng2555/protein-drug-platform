@@ -28,7 +28,7 @@ AFFINITY_REDESIGN_ENGINE = "affinity_redesign"
 |------|--------|
 | `app/affinity_redesign_service.py` | `create_job`：收 FASTA、可选 PDB、写 work_dir |
 | `app/routers/affinity_redesign_jobs.py` | `POST /api/affinity-redesign-jobs`、`GET` 状态与产物 |
-| `worker/tasks.py` | `run_affinity_redesign_job` |
+| `worker/tasks/affinity.py` | `run_affinity_redesign_job` |
 | 前端一页表单 + 一页结果表 | 上传序列 / 可选结构，结果读 CSV |
 
 `work_dir` 直接用 campaign 目录结构（与 `runs/{slug}__{id}/` 相同）。
