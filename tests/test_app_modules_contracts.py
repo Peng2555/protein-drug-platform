@@ -1,8 +1,10 @@
-"""首批业务模块纵向布局、导入与 Router 注册契约。"""
+"""业务模块纵向布局、导入与 Router 注册契约。"""
 
 from __future__ import annotations
 
+import hashlib
 import importlib
+import json
 from pathlib import Path
 
 MODULE_FILES = {
@@ -42,6 +44,34 @@ ROUTER_SERVICE_EXPORTS = {
         "save_structure_upload",
     },
 }
+
+SECOND_MODULE_FILES = {
+    "fold": {
+        "__init__.py",
+        "router.py",
+        "batch_router.py",
+        "service.py",
+        "samples.py",
+        "interface.py",
+    },
+    "md": {"__init__.py", "router.py", "service.py"},
+    "design": {"__init__.py", "router.py", "service.py"},
+    "developability": {"__init__.py", "router.py", "service.py"},
+    "rosetta_eval": {"__init__.py", "router.py", "service.py"},
+}
+
+SECOND_ROUTER_SERVICE_EXPORTS = {
+    "fold": {"create_and_queue_job", "dispatch_job", "fasta_from_seqs", "sequence_hash"},
+    "md": {"create_and_queue_md_job", "resolve_structure_path", "save_uploaded_structure"},
+    "design": {"create_and_queue_design_job", "save_uploaded_structure"},
+    "developability": {
+        "create_and_queue_developability_job",
+        "save_uploaded_structure",
+    },
+    "rosetta_eval": {"_fold_variant", "create_and_queue_rosetta_eval_job", "save_upload"},
+}
+
+OPENAPI_SHA256 = "4b78bbdb5ef2436d093e7b860bce0455dcca55519f57c649ae459f82e9055538"
 
 
 def test_first_module_group_has_exact_vertical_layout():
@@ -91,3 +121,114 @@ def test_main_registers_new_router_modules_in_original_order():
     ]
     positions = [registered_routers.index(module.router) for module in modules]
     assert positions == sorted(positions)
+
+
+def test_second_module_group_has_exact_vertical_layout_and_no_old_files():
+    app_dir = Path(__file__).parents[1] / "app"
+    modules_dir = app_dir / "modules"
+    for name, expected_files in SECOND_MODULE_FILES.items():
+        assert {path.name for path in (modules_dir / name).glob("*.py")} == expected_files
+
+    old_files = {
+        app_dir / "job_service.py",
+        app_dir / "fold_samples.py",
+        app_dir / "interface_service.py",
+        app_dir / "md_service.py",
+        app_dir / "design_service.py",
+        app_dir / "developability_service.py",
+        app_dir / "rosetta_eval_service.py",
+        *(app_dir / "routers" / name for name in (
+            "jobs.py",
+            "batches.py",
+            "md_jobs.py",
+            "design_jobs.py",
+            "developability_jobs.py",
+            "rosetta_eval_jobs.py",
+        )),
+    }
+    assert not any(path.exists() for path in old_files)
+
+
+def test_second_module_group_has_zero_old_import_references():
+    root = Path(__file__).parents[1]
+    old_modules = (
+        *(f"app.{name}_service" for name in (
+            "job",
+            "interface",
+            "md",
+            "design",
+            "developability",
+            "rosetta_eval",
+        )),
+        "app." + "fold_samples",
+        *(f"app.routers.{name}" for name in (
+            "jobs",
+            "batches",
+            "md_jobs",
+            "design_jobs",
+            "developability_jobs",
+            "rosetta_eval_jobs",
+        )),
+    )
+    sources = [
+        path.read_text(encoding="utf-8")
+        for directory in ("app", "worker", "tests")
+        for path in (root / directory).rglob("*.py")
+    ]
+    assert all(old_module not in source for old_module in old_modules for source in sources)
+
+
+def test_second_router_imports_keep_service_object_identity():
+    for name, exports in SECOND_ROUTER_SERVICE_EXPORTS.items():
+        router_module = importlib.import_module(f"app.modules.{name}.router")
+        service_module = importlib.import_module(f"app.modules.{name}.service")
+        for export in exports:
+            assert getattr(router_module, export) is getattr(service_module, export)
+
+    batch_router = importlib.import_module("app.modules.fold.batch_router")
+    fold_service = importlib.import_module("app.modules.fold.service")
+    for export in ("create_and_queue_job", "dispatch_job", "sequence_hash"):
+        assert getattr(batch_router, export) is getattr(fold_service, export)
+
+
+def test_main_registers_second_group_in_original_order():
+    import app.main as main
+
+    modules = [
+        importlib.import_module("app.modules.fold.router"),
+        importlib.import_module("app.modules.fold.batch_router"),
+        importlib.import_module("app.modules.md.router"),
+        importlib.import_module("app.modules.developability.router"),
+        importlib.import_module("app.modules.design.router"),
+        importlib.import_module("app.modules.rosetta_eval.router"),
+    ]
+    assert [
+        main.fold,
+        main.fold_batches,
+        main.md,
+        main.developability,
+        main.design,
+        main.rosetta_eval,
+    ] == modules
+
+    registered_routers = [
+        route.original_router
+        for route in main.app.routes
+        if hasattr(route, "original_router")
+    ]
+    positions = [registered_routers.index(module.router) for module in modules]
+    assert positions == sorted(positions)
+
+
+def test_openapi_contract_is_stable_after_second_module_move():
+    from app.main import app
+
+    schema = app.openapi()
+    payload = json.dumps(
+        schema,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    assert len(schema["paths"]) == 97
+    assert hashlib.sha256(payload.encode()).hexdigest() == OPENAPI_SHA256

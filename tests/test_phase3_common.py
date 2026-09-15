@@ -101,14 +101,14 @@ def test_batch_common_counts_status_and_response(sqlite_sessions, active_user):
         assert output.done_count == output.failed_count == output.cancelled_count == 1
 
 
-def test_structure_path_resolution_and_md_compatibility(tmp_path: Path):
-    from app.md_service import resolve_structure_path as compatibility_export
+def test_structure_path_resolution_and_md_export(tmp_path: Path):
+    from app.modules.md.service import resolve_structure_path as md_export
 
     structure = tmp_path / "pred.cif"
     structure.write_text("data_test", encoding="utf-8")
     parent = Job(id="parent", structure_path=str(structure))
     assert resolve_structure_path(parent) == structure
-    assert compatibility_export(parent) == structure
+    assert md_export(parent) == structure
 
 
 def test_worker_helpers_handle_naive_time_and_compact_results():

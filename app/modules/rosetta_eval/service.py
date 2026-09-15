@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.engines import ROSETTA_EVAL_ENGINE, is_fold_engine
 from app.common.job_paths import job_output_dir
-from app.md_service import resolve_structure_path
+from app.modules.md.service import resolve_structure_path
 from app.models import Job, JobStatus
 from app.queue_service import dispatch_to_gpu
 from worker.tasks import run_rosetta_eval_job
@@ -91,7 +91,7 @@ def create_and_queue_rosetta_eval_job(
     try:
         import sys
 
-        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
         from rosetta_eval_runner import resolve_eval_backend
 
         resolve_eval_backend(settings.rosetta_bin_dir or None, settings.pyrosetta_python or None)

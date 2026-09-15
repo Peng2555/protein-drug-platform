@@ -36,8 +36,8 @@ def test_common_modules_import_only_from_new_package():
 def test_callers_retain_common_helper_identity():
     from app.common.cdr_annotation import annotate_fasta
     from app.common.sequence_inputs import save_structure_upload
-    from app.interface_service import annotate_fasta as interface_annotate_fasta
-    from app.md_service import resolve_structure_path as md_resolve_structure_path
+    from app.modules.fold.interface import annotate_fasta as interface_annotate_fasta
+    from app.modules.md.service import resolve_structure_path as md_resolve_structure_path
     from app.modules.tnp_profile.service import save_structure_upload as tnp_save_structure_upload
 
     assert interface_annotate_fasta is annotate_fasta

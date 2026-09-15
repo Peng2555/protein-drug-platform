@@ -37,7 +37,7 @@ def create_and_queue_md_job(
     antigen_chain: str = "A",
     binder_chain: str = "H",
 ) -> Job:
-    from app.job_service import _check_user_queue_cap
+    from app.modules.fold.service import _check_user_queue_cap
 
     _check_user_queue_cap(db, user_id, GROMACS_MD_ENGINE)
 

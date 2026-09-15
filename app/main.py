@@ -18,21 +18,21 @@ from app.db_migrate import run_migrations
 from app.models import Job, JobStatus
 from app.modules.affinity_redesign import router as affinity_redesign
 from app.modules.cic_profile import router as cic_profile
+from app.modules.design import router as design
+from app.modules.developability import router as developability
+from app.modules.fold import batch_router as fold_batches
+from app.modules.fold import router as fold
 from app.modules.hydro_redesign import router as hydro_redesign
 from app.modules.masking_peptide import router as masking_peptide
+from app.modules.md import router as md
+from app.modules.rosetta_eval import router as rosetta_eval
 from app.modules.tnp_profile import router as tnp_profile
 from app.routers import (
     auth,
-    batches,
-    jobs,
-    md_jobs,
     maturation_jobs,
     synthesis_jobs,
     ras_docking_jobs,
     docking_jobs,
-    developability_jobs,
-    design_jobs,
-    rosetta_eval_jobs,
 )
 from app.schemas import HealthOut
 
@@ -64,16 +64,16 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
-app.include_router(jobs.router)
-app.include_router(batches.router)
-app.include_router(md_jobs.router)
+app.include_router(fold.router)
+app.include_router(fold_batches.router)
+app.include_router(md.router)
 app.include_router(maturation_jobs.router)
 app.include_router(synthesis_jobs.router)
 app.include_router(ras_docking_jobs.router)
 app.include_router(docking_jobs.router)
-app.include_router(developability_jobs.router)
-app.include_router(design_jobs.router)
-app.include_router(rosetta_eval_jobs.router)
+app.include_router(developability.router)
+app.include_router(design.router)
+app.include_router(rosetta_eval.router)
 app.include_router(affinity_redesign.router)
 app.include_router(masking_peptide.router)
 app.include_router(hydro_redesign.router)

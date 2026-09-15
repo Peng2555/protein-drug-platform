@@ -13,7 +13,7 @@ from app.celery_app import celery_app
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.design_service import create_and_queue_design_job, save_uploaded_structure
+from app.modules.design.service import create_and_queue_design_job, save_uploaded_structure
 from app.engines import DESIGN_ENGINE
 from app.models import Job, JobStatus, User
 from app.schemas import DesignJobCreate, DesignJobListOut, DesignJobOut

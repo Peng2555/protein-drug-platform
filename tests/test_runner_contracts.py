@@ -194,14 +194,14 @@ def test_worker_exports_exactly_thirteen_named_celery_tasks():
         assert task is getattr(definition_module, name)
 
     service_tasks = {
-        "app.job_service": "run_fold_job",
-        "app.md_service": "run_md_job",
+        "app.modules.fold.service": "run_fold_job",
+        "app.modules.md.service": "run_md_job",
         "app.maturation_service": "run_maturation_job",
         "app.ras_docking_service": "run_ras_docking_job",
         "app.docking_service": "run_small_molecule_docking_job",
-        "app.developability_service": "run_developability_job",
-        "app.design_service": "run_design_job",
-        "app.rosetta_eval_service": "run_rosetta_eval_job",
+        "app.modules.developability.service": "run_developability_job",
+        "app.modules.design.service": "run_design_job",
+        "app.modules.rosetta_eval.service": "run_rosetta_eval_job",
         "app.modules.affinity_redesign.service": "run_affinity_redesign_job",
         "app.modules.masking_peptide.service": "run_masking_peptide_job",
         "app.modules.hydro_redesign.service": "run_hydro_redesign_job",

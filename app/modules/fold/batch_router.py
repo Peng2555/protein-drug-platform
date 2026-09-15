@@ -17,7 +17,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.common.job_paths import remove_job_outputs
-from app.job_service import create_and_queue_job, dispatch_job, sequence_hash
+from app.modules.fold.service import create_and_queue_job, dispatch_job, sequence_hash
 from app.models import Batch, Job, JobStatus, User
 from app.schemas import (
     AntibodyOnlyCreate,
@@ -45,10 +45,10 @@ from app.common.antibody_only import (
     prepare_antibody_only_jobs,
 )
 from app.common.batch_common import batch_out
-from app.fold_samples import list_fold_samples
+from app.modules.fold.samples import list_fold_samples
 from app.common.vhh_panel import HeavyChainSpec, prepare_panel_jobs
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
 from boltz_runner import parse_fasta_text, validate_boltz_chain_ids
 

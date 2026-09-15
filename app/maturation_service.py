@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.engines import is_fold_engine
 from app.common.job_paths import job_output_dir
-from app.job_service import fasta_from_seqs, sequence_hash
-from app.md_service import resolve_structure_path
+from app.modules.fold.service import fasta_from_seqs, sequence_hash
+from app.modules.md.service import resolve_structure_path
 from app.models import Job, JobStatus
 from app.queue_service import dispatch_to_gpu
 from app.schemas import IgGMParams, MaturationJobCreate
@@ -362,7 +362,7 @@ def create_and_queue_maturation_job(
     structure_path: Path | None = None,
     fold_job_id: str | None = None,
 ) -> Job:
-    from app.job_service import _check_user_queue_cap
+    from app.modules.fold.service import _check_user_queue_cap
 
     _check_user_queue_cap(db, user_id, "iggm_maturation")
 

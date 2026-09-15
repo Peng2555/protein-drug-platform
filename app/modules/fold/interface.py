@@ -9,7 +9,7 @@ from app.common.cdr_annotation import annotate_fasta
 from app.config import settings
 from app.models import Batch, Job
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
 from pdockq_runner import analyze_interfaces_from_dir  # noqa: E402
 from interface_interactions import analyze_interactions_from_cif, find_model_cif  # noqa: E402

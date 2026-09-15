@@ -13,7 +13,7 @@ from app.celery_app import celery_app
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.developability_service import create_and_queue_developability_job, save_uploaded_structure
+from app.modules.developability.service import create_and_queue_developability_job, save_uploaded_structure
 from app.engines import DEVELOPABILITY_ENGINE
 from app.models import Job, JobStatus, User
 from app.schemas import (

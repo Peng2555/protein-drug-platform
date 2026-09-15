@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.engines import MASKING_PEPTIDE_ENGINE, is_fold_engine
 from app.common.job_paths import job_output_dir, sanitize_label
-from app.md_service import resolve_structure_path
+from app.modules.md.service import resolve_structure_path
 from app.models import Job, JobStatus
 from app.queue_service import dispatch_to_gpu
 from worker.tasks import run_masking_peptide_job

@@ -14,7 +14,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.engines import ROSETTA_EVAL_ENGINE
 from app.models import Job, JobStatus, User
-from app.rosetta_eval_service import (
+from app.modules.rosetta_eval.service import (
     _fold_variant,
     create_and_queue_rosetta_eval_job,
     save_upload,

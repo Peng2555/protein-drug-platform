@@ -104,7 +104,7 @@ def test_regular_job_router_commits_before_dispatch(
     sqlite_sessions,
     active_user,
 ):
-    from app.routers import jobs as jobs_router
+    from app.modules.fold import router as jobs_router
     from app.schemas import JobCreate
 
     dispatched: list[str] = []
