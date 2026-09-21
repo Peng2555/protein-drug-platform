@@ -45,6 +45,11 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [HOME_NAV],
   },
   {
+    id: 'research',
+    label: '研发项目',
+    items: [navItem('antibody_projects')],
+  },
+  {
     id: 'structure',
     label: '结构计算',
     items: [navItem('fold')],

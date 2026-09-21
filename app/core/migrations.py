@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import inspect, text
 
 from app.core.database import engine
@@ -9,6 +13,20 @@ from app.core.config import settings
 
 
 def run_migrations() -> None:
+    """升级数据库，同时兼容接入 Alembic 之前的旧数据库。"""
+    initial_tables = set(inspect(engine).get_table_names())
+    if {"users", "jobs"}.issubset(initial_tables):
+        _run_legacy_column_migrations()
+
+    root = Path(__file__).resolve().parents[2]
+    alembic_config = Config(str(root / "alembic.ini"))
+    command.upgrade(alembic_config, "head")
+
+    # 极旧数据库可能缺少历史列；保留这一段兼容补丁，确认全部环境升级后再移除。
+    _run_legacy_column_migrations()
+
+
+def _run_legacy_column_migrations() -> None:
     insp = inspect(engine)
     dialect = engine.dialect.name
 

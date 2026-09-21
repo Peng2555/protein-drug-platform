@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import HydroPatchViewer from '@/components/hydro/HydroPatchViewer.vue'
+import SequenceStrip from '@/components/sequence/SequenceStrip.vue'
 import {
   downloadCicProfileFile,
   fetchCicProfileCif,
@@ -10,7 +11,8 @@ import {
   fetchCicProfileProgress,
   fetchCicProfileRanked,
 } from '@/api/cicProfile'
-import type { CicProfileJob } from '@/api/types'
+import { fetchJobSequences } from '@/api/sequences'
+import type { ChainSequence, CicProfileJob } from '@/api/types'
 import { usePolling } from '@/composables/usePolling'
 import { CIC_PROFILE_STAGE_LABELS, statusLabel } from '@/utils/constants'
 import { parseCicPatches, parseCicResidues, patchKindLabel, type CicPatchKind, type CicResidue } from '@/utils/cicPatches'
@@ -26,6 +28,7 @@ const patchRows = ref<Record<string, unknown>[]>([])
 const residueRows = ref<Record<string, unknown>[]>([])
 const summary = ref<Record<string, unknown> | null>(null)
 const cifText = ref<string | null>(null)
+const sequences = ref<ChainSequence[]>([])
 const kindFilter = ref<'all' | CicPatchKind>('all')
 const selectedPatchId = ref<string | null>(null)
 const selectedResidue = ref<{ chainId: string; resi: number } | null>(null)
@@ -107,6 +110,11 @@ async function load() {
   const id = route.params.id as string
   try {
     job.value = await fetchCicProfileJob(id)
+    try {
+      sequences.value = (await fetchJobSequences(id)).chains
+    } catch {
+      sequences.value = []
+    }
     const prog = await fetchCicProfileProgress(id)
     stage.value = prog.stage || job.value.stage || 'queued'
     if (job.value.status === 'done') {
@@ -132,6 +140,7 @@ watch(
     residueRows.value = []
     summary.value = null
     cifText.value = null
+    sequences.value = []
     selectedPatchId.value = null
     selectedResidue.value = null
     await refresh()
@@ -189,14 +198,21 @@ function onResidueRow(row: CicResidue) {
     <template v-if="job.status === 'done'">
       <section class="stage">
         <div class="stage__view">
-          <HydroPatchViewer
-            :cif-text="cifText"
-            :residues="residues"
-            :patches="patches"
-            :selected-patch-id="selectedPatchId"
-            :selected-residue="selectedResidue"
-            patch-color-label="表面斑"
-            @select-patch="selectPatch"
+          <div class="stage__structure">
+            <HydroPatchViewer
+              :cif-text="cifText"
+              :residues="residues"
+              :patches="patches"
+              :selected-patch-id="selectedPatchId"
+              :selected-residue="selectedResidue"
+              patch-color-label="表面斑"
+              @select-patch="selectPatch"
+              @residue-click="(p) => pickResidue(p.chainId, p.resi)"
+            />
+          </div>
+          <SequenceStrip
+            v-if="sequences.length"
+            :chains="sequences"
             @residue-click="(p) => pickResidue(p.chainId, p.resi)"
           />
         </div>
@@ -405,6 +421,19 @@ function onResidueRow(row: CicResidue) {
 }
 .stage__view {
   height: 640px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+}
+.stage__structure {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  :deep(.hydro-viewer) {
+    height: 100%;
+    min-height: 0;
+  }
 }
 .rail {
   max-height: 640px;

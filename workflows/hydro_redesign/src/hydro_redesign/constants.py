@@ -1,8 +1,36 @@
-"""疏水改造第一版的固定参数与氨基酸表。"""
+"""疏水改造：SAP 找斑所用的固定参数与氨基酸表。"""
 
 from __future__ import annotations
 
-# Kyte–Doolittle
+# Black & Mould 1991 疏水性，Phe=1、Arg=0。
+# SAP 使用减去 Gly 后的相对值（Chennamsetty et al., PNAS 2009）。
+BLACK_MOULD: dict[str, float] = {
+    "A": 0.616,
+    "R": 0.000,
+    "N": 0.236,
+    "D": 0.028,
+    "C": 0.680,
+    "Q": 0.251,
+    "E": 0.043,
+    "G": 0.501,
+    "H": 0.165,
+    "I": 0.943,
+    "L": 0.943,
+    "K": 0.283,
+    "M": 0.738,
+    "F": 1.000,
+    "P": 0.711,
+    "S": 0.359,
+    "T": 0.450,
+    "W": 0.878,
+    "Y": 0.880,
+    "V": 0.825,
+}
+BLACK_MOULD_GLY0: dict[str, float] = {
+    aa: round(value - BLACK_MOULD["G"], 6) for aa, value in BLACK_MOULD.items()
+}
+
+# Kyte–Doolittle：仅用于突变亲水差值，不参与找斑。
 KYTE_DOOLITTLE: dict[str, float] = {
     "A": 1.8,
     "R": -4.5,
@@ -26,7 +54,7 @@ KYTE_DOOLITTLE: dict[str, float] = {
     "V": 4.2,
 }
 
-HYDROPHOBIC = frozenset("FILMWVY")
+HYDROPHOBIC = frozenset(aa for aa, phi in BLACK_MOULD_GLY0.items() if phi > 0)
 HYDROPHILIC_DEFAULT = tuple("STNQA")
 HYDROPHILIC_CHARGED = tuple("DEKR")
 
@@ -66,9 +94,15 @@ VDW_RADII = {
 
 PROBE_RADIUS = 1.4
 SURFACE_RSA = 0.25
-PATCH_CUTOFF = 8.0
+SAP_RADIUS = 5.0
+# 可改造斑：自身疏水且表面暴露；0.15 是文献着色线，对本标尺过低。
+SAP_PATCH_CUTOFF = 0.5
+# 斑连通只用侧链，避免主链 5 Å 把整条链焊在一起。
+PATCH_LINK_RADIUS = 6.0
+PATCH_CUTOFF = PATCH_LINK_RADIUS
 KD_SCALE = 4.5  # ILE
 N_SPHERE = 92
 FREEZE_NTERM = 4
 FREEZE_CTERM = 4
 WETLAB_TOP_N = 20
+HYDROPHOBICITY_SCALE = "SAP atom-level / Black–Mould (Gly=0), R=5 Å"

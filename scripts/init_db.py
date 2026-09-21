@@ -13,14 +13,13 @@ from sqlalchemy import select
 
 from app.core.security import hash_password
 from app.core.config import settings
-from app.core.database import Base, SessionLocal, engine
+from app.core.database import SessionLocal
 from app.core.migrations import run_migrations
 from app.core.models import User
 
 
 def main() -> None:
     print(f"Database: {settings.database_url}")
-    Base.metadata.create_all(bind=engine)
     run_migrations()
 
     db = SessionLocal()

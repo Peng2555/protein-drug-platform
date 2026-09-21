@@ -1,6 +1,7 @@
 """Business modules and their ordered FastAPI router registry."""
 
 from app.modules.affinity_redesign.router import router as affinity_router
+from app.modules.antibody_projects.router import router as antibody_projects_router
 from app.modules.auth.router import router as auth_router
 from app.modules.cic_profile.router import router as cic_router
 from app.modules.developability.router import router as developability_router
@@ -19,6 +20,7 @@ from app.modules.tnp_profile.router import router as tnp_router
 
 ROUTERS = (
     auth_router,
+    antibody_projects_router,
     fold_router,
     fold_batch_router,
     md_router,

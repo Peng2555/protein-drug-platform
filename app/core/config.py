@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     hydro_redesign_out_root: Path = ROOT / "run" / "hydro_redesign_outputs"
     cic_profile_out_root: Path = ROOT / "run" / "cic_profile_outputs"
     tnp_profile_out_root: Path = ROOT / "run" / "tnp_profile_outputs"
+    antibody_projects_out_root: Path = ROOT / "run" / "antibody_projects"
+    antibody_project_max_upload_mb: int = 200
     tnp_profile_max_batch: int = 100
     hydro_redesign_max_batch: int = 100
     masking_peptide_project_root: Path = Path(
@@ -154,6 +156,7 @@ settings.masking_peptide_out_root.mkdir(parents=True, exist_ok=True)
 settings.hydro_redesign_out_root.mkdir(parents=True, exist_ok=True)
 settings.cic_profile_out_root.mkdir(parents=True, exist_ok=True)
 settings.tnp_profile_out_root.mkdir(parents=True, exist_ok=True)
+settings.antibody_projects_out_root.mkdir(parents=True, exist_ok=True)
 (ROOT / "data").mkdir(parents=True, exist_ok=True)
 
 # Propagate cache env vars for boltz subprocess

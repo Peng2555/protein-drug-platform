@@ -22,6 +22,8 @@ export type HydroResidue = {
   region: string
   rsa: number
   sasa: number
+  sap: number
+  sap_std: number
   hydro_sasa: number
   patch_id: string | null
   hydrophobic: boolean
@@ -73,7 +75,9 @@ export function parseHydroResidues(rows: Record<string, unknown>[]): HydroResidu
       region: String(row.region || 'FR'),
       rsa: asNum(row.rsa),
       sasa: asNum(row.sasa),
-      hydro_sasa: asNum(row.hydro_sasa),
+      sap: asNum(row.sap ?? row.hydro_sasa),
+      sap_std: asNum(row.sap_std),
+      hydro_sasa: asNum(row.hydro_sasa ?? row.sap),
       patch_id: patchRaw && patchRaw !== 'None' && patchRaw !== 'null' ? patchRaw : null,
       hydrophobic: asBool(row.hydrophobic),
       surface: asBool(row.surface),
@@ -113,7 +117,7 @@ export function parseHydroPatches(
   return [...groups.entries()].map(([patch_id, list], i) => ({
     patch_id,
     n_residues: list.length,
-    score: list.reduce((s, r) => s + r.hydro_sasa, 0),
+    score: list.reduce((s, r) => s + (r.sap || r.hydro_sasa), 0),
     residues: list.map((r) => `${r.chain}:${r.aa}${r.position}`),
     color: HYDRO_PATCH_PALETTE[i % HYDRO_PATCH_PALETTE.length],
   }))

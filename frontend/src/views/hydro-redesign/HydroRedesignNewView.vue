@@ -28,7 +28,7 @@ const moduleJobs = useModuleJobsStore()
 
 const pipelineSteps = [
   { id: 'fold', label: '折抗体', desc: 'Boltz2 仅折 H / H+L' },
-  { id: 'patches', label: '算斑', desc: '表面疏水 + 8 Å 聚类' },
+  { id: 'patches', label: '算斑', desc: '表面疏水斑，SAP ≥ 0.5' },
   { id: 'enumerate', label: '枚举', desc: 'STNQA 亲水突变打分' },
   { id: 'export', label: '导出', desc: 'mutations / wetlab CSV' },
 ]
@@ -169,7 +169,7 @@ async function submit() {
 
           <div v-if="mode === 'single'" class="field">
             <label class="field__label">已有结构（可选）</label>
-            <p class="field__hint">上传抗体 PDB/CIF 则跳过 Boltz2；否则 GPU 折 H 或 H+L（diffusion_samples=3）。</p>
+            <p class="field__hint">上传抗体 PDB/CIF 则跳过 Boltz2；否则 GPU 折 H 或 H+L（diffusion_samples=3，并对各模型 SAP 取平均）。</p>
             <StructureUpload
               v-model="structureFile"
               title="拖拽或点击上传抗体结构"
@@ -215,9 +215,10 @@ async function submit() {
         <div class="info-card info-card--accent">
           <h3>打分约定</h3>
           <ul>
-            <li>相对 SASA ≥ 0.25 为表面</li>
-            <li>疏水残基 FILMWVY，Cβ 8 Å 聚斑</li>
-            <li>排序：先 Δ斑分，再亲水分</li>
+            <li>原子级 SAP 只负责打分（5 Å，Black–Mould）</li>
+            <li>可改造斑：表面暴露、自身疏水、SAP ≥ 0.5</li>
+            <li>侧链 6 Å 聚类，不用主链把整条链焊在一起</li>
+            <li>Boltz2 多样本时对 SAP 平均</li>
             <li>详情页会给出最终可突变位点数（冻 CDR / 端 4 位之后）</li>
           </ul>
         </div>

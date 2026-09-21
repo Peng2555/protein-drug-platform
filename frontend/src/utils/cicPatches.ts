@@ -52,6 +52,8 @@ export function parseCicResidues(rows: Record<string, unknown>[]): CicResidue[] 
       region: String(row.region || 'FR'),
       rsa: asNum(row.rsa),
       sasa: asNum(row.sasa),
+      sap: asNum(row.sap ?? row.hydro_sasa),
+      sap_std: asNum(row.sap_std),
       hydro_sasa: asNum(row.hydro_sasa),
       patch_id: asId(row.patch_id),
       hydrophobic: asBool(row.hydrophobic),

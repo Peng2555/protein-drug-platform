@@ -31,6 +31,9 @@ class SPAStaticFiles(StaticFiles):
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:
+            # 未注册的 API 必须保留 404，不能把 index.html 冒充成 JSON。
+            if path.lstrip("/").startswith("api/"):
+                raise
             if exc.status_code == 404 and path not in ("", "/"):
                 return await super().get_response("index.html", scope)
             raise

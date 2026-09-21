@@ -263,12 +263,16 @@ const mutationTable = computed(() => {
         <strong>{{ params.allow_charged ? 'STNQA + DEKR' : 'STNQA' }}</strong>
       </div>
       <div>
+        <span>疏水尺度</span>
+        <strong>{{ summary?.hydrophobicity_scale ?? 'SAP' }}</strong>
+      </div>
+      <div>
         <span>疏水斑</span>
         <strong>{{ summary?.n_patches ?? patches.length }}</strong>
       </div>
       <div>
-        <span>表面疏水</span>
-        <strong>{{ summary?.n_surface_hydro ?? '—' }}</strong>
+        <span>高 SAP 残基</span>
+        <strong>{{ summary?.n_high_sap ?? summary?.n_surface_hydro ?? '—' }}</strong>
       </div>
       <div>
         <span>可突变位点</span>
@@ -300,8 +304,8 @@ const mutationTable = computed(() => {
         <aside class="rail">
           <div class="rail__head">
             <div>
-              <h2>表面疏水斑</h2>
-              <p>点残基只描这一处；点斑才描整块。</p>
+              <h2>可改造疏水斑</h2>
+              <p>表面 + 自身疏水 + SAP≥0.5；点残基只描这一处，点斑才描整块。</p>
             </div>
             <button type="button" class="ghost" @click="selectPatch(null)">全部</button>
           </div>
@@ -398,8 +402,11 @@ const mutationTable = computed(() => {
           <el-table-column label="RSA" width="88">
             <template #default="{ row }">{{ fmt(row.rsa) }}</template>
           </el-table-column>
-          <el-table-column label="hydro_sasa" width="110">
-            <template #default="{ row }">{{ fmt(row.hydro_sasa) }}</template>
+          <el-table-column label="SAP" width="88">
+            <template #default="{ row }">{{ fmt(row.sap ?? row.hydro_sasa) }}</template>
+          </el-table-column>
+          <el-table-column label="σ" width="72">
+            <template #default="{ row }">{{ fmt(row.sap_std) }}</template>
           </el-table-column>
           <el-table-column label="突变" width="100">
             <template #default="{ row }">
@@ -410,8 +417,9 @@ const mutationTable = computed(() => {
           </el-table-column>
         </el-table>
         <p v-if="tableTab === 'patches'" class="hint">
-          「可突变」与上方位点数同一口径：只计真正写入 mutations.csv 的位点。
-          CDR、N/C 端 4 位、Cys 标为冻结；其余未枚举（例如亲水分不够）。
+          「可突变」只计写入 mutations.csv 的位点。
+          可改造斑：表面暴露、自身疏水、SAP ≥ 0.5，侧链 6 Å 聚类。CDR 默认冻结。
+          CDR、N/C 端 4 位、Cys 标为冻结。
         </p>
 
         <el-table
@@ -432,8 +440,8 @@ const mutationTable = computed(() => {
               {{ row.patch_id }}
             </template>
           </el-table-column>
-          <el-table-column label="Δ斑分" width="96">
-            <template #default="{ row }">{{ fmt(row.delta_patch) }}</template>
+          <el-table-column label="SAP" width="96">
+            <template #default="{ row }">{{ fmt(row.delta_patch ?? row.sap) }}</template>
           </el-table-column>
           <el-table-column label="亲水分" width="96">
             <template #default="{ row }">{{ fmt(row.hydro_delta) }}</template>
@@ -576,7 +584,7 @@ const mutationTable = computed(() => {
 
 .kpi {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 0.65rem;
 
   @media (max-width: 1100px) {

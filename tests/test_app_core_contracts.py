@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 ROUTER_MODULES = (
     "app.modules.auth.router",
+    "app.modules.antibody_projects.router",
     "app.modules.fold.router",
     "app.modules.fold.batch_router",
     "app.modules.md.router",

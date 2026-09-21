@@ -11,6 +11,10 @@ const props = defineProps<{
   chains: ChainSequence[]
 }>()
 
+const emit = defineEmits<{
+  'residue-click': [payload: { chainId: string; resi: number }]
+}>()
+
 const selectionStore = useSelectionStore()
 const { selectedSeqResidues } = storeToRefs(selectionStore)
 
@@ -40,6 +44,7 @@ function cdrClass(ch: ChainSequence, index: number) {
 
 function onResidueClick(chainId: string, resi: number, event: MouseEvent) {
   selectionStore.selectSequenceResidue(chainId, resi, event)
+  emit('residue-click', { chainId, resi })
 }
 
 function clearSelection() {

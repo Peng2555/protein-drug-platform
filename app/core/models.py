@@ -104,3 +104,7 @@ class Job(Base):
 
     user: Mapped["User"] = relationship(back_populates="jobs")
     batch: Mapped["Batch | None"] = relationship(back_populates="jobs")
+
+
+# 在统一 metadata 中注册抗体项目表。业务模型单独存放，避免本文件继续膨胀。
+from app.modules.antibody_projects import models as antibody_project_models  # noqa: E402,F401

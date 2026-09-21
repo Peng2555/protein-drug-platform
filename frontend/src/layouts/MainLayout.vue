@@ -10,6 +10,7 @@ import {
   DArrowLeft,
   DArrowRight,
   EditPen,
+  FolderOpened,
   Grid,
   Histogram,
   HomeFilled,
@@ -59,10 +60,11 @@ const moduleJobs = useModuleJobsStore()
 const collapsed = ref(false)
 
 const expanded = reactive<Record<string, boolean>>(
-  Object.fromEntries(MODULE_REGISTRY.filter((module) => module.id !== 'home').map((module) => [
-    module.id,
-    module.id === 'fold',
-  ])),
+  Object.fromEntries(
+    MODULE_REGISTRY
+      .filter((module) => module.id === 'fold' || module.jobKind !== null)
+      .map((module) => [module.id, module.id === 'fold']),
+  ),
 )
 
 const activeModule = computed(() => moduleIdFromPath(route.path))
@@ -82,6 +84,7 @@ const onFold = computed(() => activeModule.value === 'fold')
 
 const iconMap: Record<ModuleIconKey, typeof HomeFilled> = {
   home: HomeFilled,
+  antibody_projects: FolderOpened,
   fold: Cpu,
   design: Brush,
   rosetta: DataAnalysis,
@@ -98,11 +101,12 @@ const iconMap: Record<ModuleIconKey, typeof HomeFilled> = {
 }
 
 const expandableIds: ModuleId[] = MODULE_REGISTRY
-  .filter((module) => module.id !== 'home')
+  .filter((module) => module.id === 'fold' || module.jobKind !== null)
   .map((module) => module.id)
 
 const badgeMap = computed(() => ({
   home: 0,
+  antibody_projects: 0,
   fold: foldStore.foldTaskCount,
   design: moduleJobs.counts.design,
   rosetta: moduleJobs.counts.rosetta,
@@ -280,6 +284,20 @@ onMounted(() => {
           >
             <el-icon class="nav-icon" :size="18"><SetUp /></el-icon>
             <span v-show="!collapsed" class="nav-label">工作流</span>
+          </button>
+        </section>
+
+        <section class="nav-group">
+          <p v-show="!collapsed" class="nav-group-label">研发项目</p>
+          <button
+            type="button"
+            class="nav-item"
+            :class="{ active: activeModule === 'antibody_projects' }"
+            title="抗体改造项目"
+            @click="router.push({ name: 'antibody-projects' })"
+          >
+            <el-icon class="nav-icon" :size="18"><FolderOpened /></el-icon>
+            <span v-show="!collapsed" class="nav-label">抗体改造项目</span>
           </button>
         </section>
 
@@ -914,6 +932,7 @@ onMounted(() => {
 
 .app-content {
   flex: 1;
+  min-width: 0;
   padding: 1.15rem 1.35rem 1.6rem;
 }
 

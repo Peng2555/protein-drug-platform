@@ -124,6 +124,7 @@ def test_hydro_workflow_stage_and_artifact_names(tmp_path: Path, monkeypatch: py
 
     assert stages == ["fold", "patches", "enumerate", "done"]
     assert result["summary"]["n_residues"] == 1
+    assert result["summary"]["hydrophobicity_scale"] == "SAP atom-level / Black–Mould (Gly=0), R=5 Å"
     assert (tmp_path / "hydro" / "exports" / "pred.cif").is_file()
     assert (tmp_path / "hydro" / "exports" / "summary.json").is_file()
     assert (tmp_path / "hydro" / "exports" / ALL_MUTANT_FASTA).is_file()

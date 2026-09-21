@@ -14,9 +14,16 @@ from boltzfold_shared.io import (
     write_csv,
     write_fasta,
 )
-from hydro_redesign.constants import SURFACE_RSA
+from hydro_redesign.constants import (
+    HYDROPHOBICITY_SCALE,
+    PATCH_LINK_RADIUS,
+    SAP_PATCH_CUTOFF,
+    SAP_RADIUS,
+    SURFACE_RSA,
+)
 from hydro_redesign.enumerate import enumerate_mutations
 from hydro_redesign.patches import cluster_patches
+from hydro_redesign.sap import discover_ensemble_structures
 from hydro_redesign.sequences import (
     ALL_MUTANT_FASTA,
     TOP20_MUTANT_FASTA,
@@ -88,7 +95,15 @@ def run_workflow(
     export_structure_files(src_struct, cif_path, pdb_path)
 
     stage("patches")
-    residues, patches = cluster_patches(src_struct, rsa_cut=SURFACE_RSA)
+    ensemble = discover_ensemble_structures(fold_root, src_struct)
+    residues, patches = cluster_patches(
+        src_struct,
+        rsa_cut=SURFACE_RSA,
+        patch_cut=PATCH_LINK_RADIUS,
+        sap_cut=SAP_PATCH_CUTOFF,
+        sap_radius=SAP_RADIUS,
+        ensemble=ensemble,
+    )
     regions = _annotate_regions(seqs)
     for row in residues:
         row["region"] = regions.get((row["chain"], int(row["position"])), "FR")
@@ -96,10 +111,23 @@ def run_workflow(
     write_csv(
         patches_dir / "residue_sasa.csv",
         residues,
-        ["chain", "position", "aa", "region", "sasa", "rsa", "hydrophobic", "surface", "hydro_sasa", "patch_id"],
+        ["chain", "position", "aa", "region", "sasa", "rsa", "sc_sasa", "sc_rsa", "phi", "sap", "sap_std", "hydrophobic", "surface", "hydro_sasa", "patch_id"],
     )
     (patches_dir / "patches.json").write_text(
-        json.dumps({"patches": patches, "rsa_cut": SURFACE_RSA}, ensure_ascii=False, indent=2),
+        json.dumps(
+            {
+                "patches": patches,
+                "rsa_cut": SURFACE_RSA,
+                "sap_radius": SAP_RADIUS,
+                "sap_cut": SAP_PATCH_CUTOFF,
+                "patch_link_radius": PATCH_LINK_RADIUS,
+                "patch_rule": "surface + phi>0 + SAP>=cut, sidechain link",
+                "hydrophobicity_scale": HYDROPHOBICITY_SCALE,
+                "n_structures": len(ensemble),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     write_csv(
@@ -111,7 +139,7 @@ def run_workflow(
             }
             for p in patches
         ],
-        ["patch_id", "n_residues", "score", "residues"],
+        ["patch_id", "n_residues", "score", "mean_sap", "residues"],
     )
 
     stage("enumerate")
@@ -133,6 +161,7 @@ def run_workflow(
         "patch_id",
         "rsa",
         "sasa",
+        "sap",
         "hydro_sasa",
         "hydro_delta",
         "delta_patch",
@@ -156,13 +185,19 @@ def run_workflow(
     summary = {
         "n_residues": len(residues),
         "n_patches": len(patches),
-        "n_surface_hydro": sum(1 for r in residues if r.get("hydrophobic") and r.get("surface") and r.get("patch_id")),
+        "n_surface_hydro": sum(1 for r in residues if r.get("patch_id")),
+        "n_high_sap": sum(1 for r in residues if float(r.get("sap") or 0.0) >= SAP_PATCH_CUTOFF),
         "n_mutable_sites": len(mutable_sites),
         "n_mutations": len(mutations),
         "n_wetlab": len(wetlab),
         "n_skipped_cdr": skipped_cdr,
         "allow_cdr": allow_cdr,
         "allow_charged": allow_charged,
+        "hydrophobicity_scale": HYDROPHOBICITY_SCALE,
+        "sap_radius": SAP_RADIUS,
+        "sap_cut": SAP_PATCH_CUTOFF,
+        "patch_link_radius": PATCH_LINK_RADIUS,
+        "n_structures": len(ensemble),
         "structure": str(src_struct),
         "pred_cif": str(cif_path) if cif_path.is_file() else None,
     }

@@ -27,6 +27,7 @@ def _pdb_extended(seq: str, chain: str = "H") -> str:
             "T": "THR",
             "N": "ASN",
             "Q": "GLN",
+            "K": "LYS",
             "G": "GLY",
         }.get(aa, "ALA")
         atoms = [
@@ -63,6 +64,11 @@ def test_cluster_and_enumerate(tmp_path: Path):
     assert hydro_surf, "线性疏水段应被标为表面斑"
     assert patches
     assert all(p["n_residues"] >= 1 for p in patches)
+    assert all("sap" in r for r in residues)
+    ile = next(r for r in residues if r["aa"] == "I" and r["position"] == 9)
+    assert ile["sap"] >= 0.5
+    assert ile["patch_id"]
+    assert all(r["aa"] == "I" for r in residues if r.get("patch_id"))
 
     sequences = {"H": seq}
     regions = {( "H", i + 1): "FR" for i in range(len(seq))}
@@ -77,6 +83,96 @@ def test_cluster_and_enumerate(tmp_path: Path):
     wet = [m for m in muts if m["wetlab"]]
     assert wet
     assert wet[0]["rank"] == 1
+
+
+def test_sap_scale_and_hydrophilic_cancellation(tmp_path: Path):
+    pytest.importorskip("gemmi")
+    from hydro_redesign.constants import BLACK_MOULD_GLY0
+    from hydro_redesign.patches import cluster_patches
+
+    assert BLACK_MOULD_GLY0["G"] == 0.0
+    assert BLACK_MOULD_GLY0["W"] > 0
+    assert BLACK_MOULD_GLY0["Y"] > 0
+    assert BLACK_MOULD_GLY0["K"] < 0
+
+    ile_pdb = tmp_path / "ile.pdb"
+    lys_pdb = tmp_path / "lys.pdb"
+    ser_pdb = tmp_path / "ser.pdb"
+    ile_pdb.write_text(_pdb_extended("IIIIIII"), encoding="utf-8")
+    lys_pdb.write_text(_pdb_extended("IIIKIII"), encoding="utf-8")
+    ser_pdb.write_text(_pdb_extended("SSSSSSS"), encoding="utf-8")
+
+    ile_res, ile_patches = cluster_patches(ile_pdb)
+    lys_res, _ = cluster_patches(lys_pdb)
+    ser_res, ser_patches = cluster_patches(ser_pdb)
+
+    ile_mid = next(r for r in ile_res if r["position"] == 4)
+    lys_mid = next(r for r in lys_res if r["position"] == 4)
+    assert ile_mid["aa"] == "I"
+    assert lys_mid["aa"] == "K"
+    assert ile_mid["sap"] > lys_mid["sap"]
+    assert ile_patches
+    assert not ser_patches
+    assert all(float(r["sap"]) < 0.15 for r in ser_res)
+
+
+def test_engineerable_patch_skips_gly_and_requires_surface(tmp_path: Path):
+    pytest.importorskip("gemmi")
+    from hydro_redesign.patches import cluster_patches
+
+    pdb = tmp_path / "mix.pdb"
+    pdb.write_text(_pdb_extended("IIIGIII"), encoding="utf-8")
+    residues, patches = cluster_patches(pdb)
+    gly = next(r for r in residues if r["aa"] == "G")
+    assert gly["phi"] == 0
+    assert gly["patch_id"] is None
+    assert patches
+    assert all(r["aa"] == "I" for r in residues if r.get("patch_id"))
+
+
+def test_sap_ensemble_average(tmp_path: Path):
+    pytest.importorskip("gemmi")
+    from hydro_redesign.patches import cluster_patches
+    from hydro_redesign.sap import discover_ensemble_structures
+
+    seq = "SSSSIIIIIIIIISSS"
+    fold_root = tmp_path / "fold"
+    fold_root.mkdir()
+    model0 = fold_root / "pred_model_0.pdb"
+    model1 = fold_root / "pred_model_1.pdb"
+    # 文件名以 pred 开头会被跳过，改用 Boltz 风格
+    model0 = fold_root / "job_model_0.pdb"
+    model1 = fold_root / "job_model_1.pdb"
+    model0.write_text(_pdb_extended(seq), encoding="utf-8")
+    model1.write_text(_pdb_extended(seq), encoding="utf-8")
+    selected = tmp_path / "selected.pdb"
+    selected.write_text(_pdb_extended(seq), encoding="utf-8")
+
+    found = discover_ensemble_structures(fold_root, selected)
+    assert len(found) == 2
+    residues, patches = cluster_patches(selected, ensemble=found)
+    assert patches
+    assert all(int(r.get("sap_n") or 0) == 2 for r in residues)
+    assert all(float(r.get("sap_std") or 0) == 0 for r in residues)
+
+
+def test_atom_sap_uses_five_angstrom_neighborhood(tmp_path: Path):
+    pytest.importorskip("gemmi")
+    from hydro_redesign.sap import apply_atom_sap, hydrophobicity
+    from boltzfold_shared.geometry.sasa import atom_sasa
+
+    pdb = tmp_path / "ile.pdb"
+    pdb.write_text(_pdb_extended("II"), encoding="utf-8")
+    atoms = atom_sasa(pdb)
+    apply_atom_sap(atoms, radius=5.0)
+    xyz = [a["xyz"] for a in atoms]
+    for i, atom in enumerate(atoms):
+        expected = 0.0
+        for j, other in enumerate(atoms):
+            dist = float(((xyz[i] - xyz[j]) ** 2).sum() ** 0.5)
+            if dist <= 5.0:
+                expected += float(other["rsa"]) * hydrophobicity(str(other["aa"]))
+        assert atom["sap"] == round(expected, 4)
 
 
 def test_build_mutant_sequences_fasta():

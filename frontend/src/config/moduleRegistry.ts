@@ -1,5 +1,6 @@
 export type ModuleId =
   | 'home'
+  | 'antibody_projects'
   | 'fold'
   | 'design'
   | 'rosetta'
@@ -14,10 +15,11 @@ export type ModuleId =
   | 'docking'
   | 'md'
 
-export type ModuleJobKind = Exclude<ModuleId, 'home' | 'fold'>
+export type ModuleJobKind = Exclude<ModuleId, 'home' | 'fold' | 'antibody_projects'>
 
 export type ModuleIconKey =
   | 'home'
+  | 'antibody_projects'
   | 'fold'
   | 'design'
   | 'rosetta'
@@ -59,6 +61,21 @@ export const MODULE_REGISTRY = [
     iconKey: 'home',
     jobKind: null,
     routeTitles: { module: '首页', new: '首页', tasks: '首页', task: '首页' },
+  },
+  {
+    id: 'antibody_projects',
+    segment: 'antibody-projects',
+    routePrefix: 'antibody-projects',
+    label: '抗体改造项目',
+    hint: '管理候选抗体、版本谱系与实验记录',
+    iconKey: 'antibody_projects',
+    jobKind: null,
+    routeTitles: {
+      module: '抗体改造项目',
+      new: '新建项目',
+      tasks: '项目列表',
+      task: '项目详情',
+    },
   },
   {
     id: 'fold',

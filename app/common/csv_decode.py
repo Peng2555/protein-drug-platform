@@ -11,6 +11,8 @@ from xml.etree import ElementTree as ET
 from fastapi import HTTPException
 
 _XLSX_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_REL_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+_PKG_REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 _AA = set("ACDEFGHIKLMNPQRSTVWY")
 
 
@@ -80,24 +82,88 @@ def _col_to_index(col: str) -> int:
     return idx - 1
 
 
-def _xlsx_to_csv_text(data: bytes) -> str:
-    try:
-        zf = zipfile.ZipFile(io.BytesIO(data))
-    except zipfile.BadZipFile as exc:
-        raise HTTPException(400, "文件不是有效的 Excel 工作簿") from exc
+def _cell_text(cell: ET.Element, shared: list[str]) -> str:
+    cell_type = cell.get("t")
+    if cell_type == "inlineStr":
+        inline = cell.find(f"{_XLSX_NS}is")
+        if inline is None:
+            return ""
+        return "".join(node.text or "" for node in inline.iter(f"{_XLSX_NS}t"))
+    value_node = cell.find(f"{_XLSX_NS}v")
+    if value_node is None or value_node.text is None:
+        return ""
+    if cell_type == "s":
+        index = int(value_node.text)
+        return shared[index] if 0 <= index < len(shared) else ""
+    return value_node.text
 
+
+def _xlsx_shared_strings(zf: zipfile.ZipFile) -> list[str]:
+    if "xl/sharedStrings.xml" not in zf.namelist():
+        return []
+    root = ET.fromstring(zf.read("xl/sharedStrings.xml"))
     shared: list[str] = []
-    if "xl/sharedStrings.xml" in zf.namelist():
-        root = ET.fromstring(zf.read("xl/sharedStrings.xml"))
-        for si in root.findall(f"{_XLSX_NS}si"):
-            parts = [node.text or "" for node in si.iter(f"{_XLSX_NS}t")]
-            shared.append("".join(parts))
+    for si in root.findall(f"{_XLSX_NS}si"):
+        parts = [node.text or "" for node in si.iter(f"{_XLSX_NS}t")]
+        shared.append("".join(parts))
+    return shared
 
-    sheet_names = sorted(n for n in zf.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml"))
-    if not sheet_names:
+
+def _resolve_xlsx_target(target: str) -> str:
+    path = target.replace("\\", "/").lstrip("/")
+    if path.startswith("xl/"):
+        return path
+    return f"xl/{path}"
+
+
+def list_xlsx_sheets(zf: zipfile.ZipFile) -> list[tuple[str, str]]:
+    sheet_files = sorted(
+        n for n in zf.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")
+    )
+    if "xl/workbook.xml" not in zf.namelist():
+        return [(name.rsplit("/", 1)[-1].removesuffix(".xml"), name) for name in sheet_files]
+
+    rels: dict[str, str] = {}
+    if "xl/_rels/workbook.xml.rels" in zf.namelist():
+        rel_root = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
+        for rel in rel_root.findall(f"{_PKG_REL_NS}Relationship"):
+            rid = rel.get("Id")
+            target = rel.get("Target")
+            if rid and target:
+                rels[rid] = _resolve_xlsx_target(target)
+
+    workbook = ET.fromstring(zf.read("xl/workbook.xml"))
+    sheets: list[tuple[str, str]] = []
+    for sheet in workbook.findall(f".//{_XLSX_NS}sheet"):
+        name = sheet.get("name") or ""
+        rid = sheet.get(f"{_REL_NS}id")
+        path = rels.get(rid or "")
+        if name and path and path in zf.namelist():
+            sheets.append((name, path))
+    if sheets:
+        return sheets
+    return [(name.rsplit("/", 1)[-1].removesuffix(".xml"), name) for name in sheet_files]
+
+
+def _pick_xlsx_sheet(
+    sheets: list[tuple[str, str]], sheet_name: str | None
+) -> tuple[str, str]:
+    if not sheets:
         raise HTTPException(400, "Excel 文件中没有工作表")
+    if not sheet_name:
+        return sheets[0]
+    wanted = sheet_name.strip()
+    for name, path in sheets:
+        if name == wanted:
+            return name, path
+    for name, path in sheets:
+        if wanted in name:
+            return name, path
+    available = "、".join(name for name, _path in sheets)
+    raise HTTPException(400, f"找不到工作表「{wanted}」。文件里有：{available}")
 
-    root = ET.fromstring(zf.read(sheet_names[0]))
+
+def _matrix_from_sheet(root: ET.Element, shared: list[str]) -> list[list[str]]:
     rows: dict[int, dict[int, str]] = {}
     for row in root.findall(f".//{_XLSX_NS}row"):
         for cell in row.findall(f"{_XLSX_NS}c"):
@@ -108,24 +174,31 @@ def _xlsx_to_csv_text(data: bytes) -> str:
                 continue
             row_idx = int(digits)
             col_idx = _col_to_index(letters)
-            value_node = cell.find(f"{_XLSX_NS}v")
-            if value_node is None or value_node.text is None:
-                value = ""
-            elif cell.get("t") == "s":
-                value = shared[int(value_node.text)]
-            else:
-                value = value_node.text
-            rows.setdefault(row_idx, {})[col_idx] = value
-
+            rows.setdefault(row_idx, {})[col_idx] = _cell_text(cell, shared)
     if not rows:
         raise HTTPException(400, "Excel 工作表为空")
-
-    lines: list[str] = []
+    matrix: list[list[str]] = []
     for row_idx in sorted(rows):
         cols = rows[row_idx]
-        max_col = max(cols) if cols else 0
-        lines.append(",".join(cols.get(i, "") for i in range(max_col + 1)))
-    return "\n".join(lines)
+        matrix.append([cols.get(i, "") for i in range(max(cols) + 1)])
+    return matrix
+
+
+def read_xlsx_matrix(data: bytes, sheet_name: str | None = None) -> list[list[str]]:
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(400, "文件不是有效的 Excel 工作簿") from exc
+    shared = _xlsx_shared_strings(zf)
+    _name, path = _pick_xlsx_sheet(list_xlsx_sheets(zf), sheet_name)
+    return _matrix_from_sheet(ET.fromstring(zf.read(path)), shared)
+
+
+def _xlsx_to_csv_text(data: bytes) -> str:
+    matrix = read_xlsx_matrix(data)
+    buffer = io.StringIO()
+    csv.writer(buffer).writerows(matrix)
+    return buffer.getvalue()
 
 
 def decode_upload_bytes(data: bytes, filename: str = "") -> tuple[str, str]:

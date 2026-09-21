@@ -299,7 +299,7 @@ function createHydroPatchColorTheme(ctx: { structure?: { root: unknown } }) {
     preferSmoothing: true,
     color,
     props: HydroPatchColorThemeParams,
-    description: 'Hydrophobic surface patches (FILMWVY, RSA≥0.25).',
+    description: 'Engineerable hydrophobic patches (surface SAP ≥ 0.5).',
   }
 }
 

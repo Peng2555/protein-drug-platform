@@ -93,6 +93,18 @@ const router = createRouter({
           meta: { title: '流水线详情' },
         },
         {
+          path: 'antibody-projects',
+          name: 'antibody-projects',
+          component: () => import('@/views/antibody-projects/AntibodyProjectListView.vue'),
+          meta: { title: '抗体改造项目' },
+        },
+        {
+          path: 'antibody-projects/:projectId',
+          name: 'antibody-project-detail',
+          component: () => import('@/views/antibody-projects/AntibodyProjectDetailView.vue'),
+          meta: { title: '抗体项目详情' },
+        },
+        {
           path: 'fold',
           component: () => import('@/views/fold/FoldWorkspaceView.vue'),
           meta: { title: '结构预测' },

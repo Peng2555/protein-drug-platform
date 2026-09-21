@@ -33,7 +33,7 @@ export HMMER_PATH="${HMMER_PATH:-/home/pengpai/data/envs/IgGM/bin}"
 export GMX_BIN="${GMX_BIN:-/home/pengpai/data/envs/IgGM/bin/gmx}"
 export GEMMI_PY="${GEMMI_PY:-/home/pengpai/data/envs/IgGM/bin/python}"
 
-"$PY" -c "import fastapi, celery, sqlalchemy" 2>/dev/null || \
+"$PY" -c "import fastapi, celery, sqlalchemy, alembic" 2>/dev/null || \
   "$PY" -m pip install -q -r "$ROOT/requirements-platform.txt"
 
 echo "=== Init DB ==="

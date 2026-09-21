@@ -66,6 +66,10 @@ def test_health_is_safe_and_protected_api_requires_auth(
         response = client.get("/api/jobs")
         assert response.status_code == 401
         assert response.json()["detail"] == "Not authenticated"
+
+        response = client.get("/api/route-that-does-not-exist")
+        assert response.status_code == 404
+        assert response.headers["content-type"].startswith("application/json")
     finally:
         main.app.dependency_overrides.clear()
         client.close()

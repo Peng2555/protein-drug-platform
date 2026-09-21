@@ -27,6 +27,10 @@
 
 业务领域逐组采用 `app/modules/<name>/` 纵向布局，当前结构预测、MD、成熟、合成、通用/RAS 对接、设计、可开发性、Rosetta 评价及首批抗体分析/改造模块已将各自 Router、Service 和领域辅助实现归入同一模块；尚未迁移的 API 路由与 Service 仍保留原布局。Pydantic schema 按领域位于 `app/schemas/`，异步任务按领域定义在 `worker/tasks/`；纯公共辅助模块统一位于 `app/common/`。
 
+抗体改造项目位于 `app/modules/antibody_projects/`，是建立在计算任务之上的研发资产层：
+项目和序列版本负责长期溯源，现有 `jobs` 继续负责具体计算。数据关系和不可变规则见
+[`ANTIBODY_PROJECTS_DATA.md`](ANTIBODY_PROJECTS_DATA.md)。
+
 ## 任务数据流
 
 ```text

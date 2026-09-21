@@ -58,7 +58,9 @@ def enumerate_mutations(
         nlen = seq_len.get(chain, 0)
 
         reason = None
-        if not row.get("hydrophobic") or not row.get("surface") or not row.get("patch_id"):
+        if not row.get("patch_id"):
+            continue
+        if float(row.get("phi") or 0.0) <= 0:
             continue
         if aa == "C":
             reason = "cysteine"
@@ -96,7 +98,7 @@ def enumerate_mutations(
                     }
                 )
                 continue
-            delta_patch = round(float(row.get("hydro_sasa") or 0.0), 3)
+            delta_patch = round(float(row.get("sap") or row.get("hydro_sasa") or 0.0), 3)
             candidates.append(
                 {
                     "chain": chain,
@@ -107,7 +109,8 @@ def enumerate_mutations(
                     "region": region,
                     "rsa": row.get("rsa"),
                     "sasa": row.get("sasa"),
-                    "hydro_sasa": row.get("hydro_sasa"),
+                    "sap": row.get("sap"),
+                    "hydro_sasa": row.get("sap") or row.get("hydro_sasa"),
                     "patch_id": row.get("patch_id"),
                     "hydro_delta": hydro_delta,
                     "delta_patch": delta_patch,
