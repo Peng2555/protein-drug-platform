@@ -11,16 +11,15 @@ sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import select
 
-from app.auth import hash_password
-from app.config import settings
-from app.database import Base, SessionLocal, engine
-from app.db_migrate import run_migrations
-from app.models import User
+from app.core.security import hash_password
+from app.core.config import settings
+from app.core.database import SessionLocal
+from app.core.migrations import run_migrations
+from app.core.models import User
 
 
 def main() -> None:
     print(f"Database: {settings.database_url}")
-    Base.metadata.create_all(bind=engine)
     run_migrations()
 
     db = SessionLocal()
@@ -36,6 +35,8 @@ def main() -> None:
             email="admin@local",
             is_active=True,
             is_admin=True,
+            account_status="active",
+            token_version=1,
         )
         db.add(admin)
         db.commit()

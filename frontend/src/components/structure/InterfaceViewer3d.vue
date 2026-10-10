@@ -6,7 +6,7 @@ import {
   focusMolstarPoint,
   focusMolstarResidues,
   highlightMolstarResidues,
-  loadMolstarCif,
+  loadMolstarStructure,
   resizeMolstarViewer,
   type MolstarViewer,
 } from '@/composables/useMolstar'
@@ -91,7 +91,7 @@ async function loadViewer(): Promise<void> {
     destroyMolstarViewer(viewer.value, viewerEl.value)
     const v = await createMolstarViewer(viewerEl.value, { viewportBackgroundColor: '0xf8fafc' })
     viewer.value = v
-    await loadMolstarCif(v, props.cifText)
+    await loadMolstarStructure(v, props.cifText)
 
     const { ixResKeys } = collectInterfaceResidueKeys(primary)
     const ifaceRes = [...(primary.residues_a || []), ...(primary.residues_b || [])]

@@ -5,6 +5,7 @@ import { apiJson, TOKEN_KEY } from '@/api/client'
 export interface AuthUser {
   id: string
   username: string
+  is_admin?: boolean
 }
 
 function loadStoredUser(): AuthUser | null {
@@ -44,14 +45,22 @@ export const useAuthStore = defineStore('auth', () => {
     setSession(data.access_token, data.user)
   }
 
-  async function register(username: string, password: string) {
+  async function register(username: string, password: string, email?: string) {
     return apiJson<{ message: string; username: string; pending_approval: boolean }>(
       '/api/auth/register',
       {
         method: 'POST',
-        data: { username, password },
+        data: { username, password, email: email || null },
       },
     )
+  }
+
+  async function changePassword(oldPassword: string, newPassword: string) {
+    const data = await apiJson<{ access_token: string; user: AuthUser }>('/api/auth/password', {
+      method: 'POST',
+      data: { old_password: oldPassword, new_password: newPassword },
+    })
+    setSession(data.access_token, data.user)
   }
 
   async function fetchMe() {
@@ -82,6 +91,8 @@ export const useAuthStore = defineStore('auth', () => {
     isLoggedIn,
     login,
     register,
+    changePassword,
+    fetchMe,
     bootstrap,
     logout,
   }

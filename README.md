@@ -17,7 +17,7 @@
 
 **亲和力成熟**　IgGM 在指定 CDR 上采样变体，再汇总去重。
 
-**亲和力改造**　算法在仓库 `affinity_redesign/`：PLM + AntiFold 双轨，再 Boltz2 / Rosetta 重打分。Web 提交即可，无需再克隆外部 `antibody_redesign`。仍需本机 ESM / AntiFold / PyRosetta 环境。
+**亲和力改造**　算法源码只在仓库 `workflows/affinity_redesign/`：PLM + AntiFold 双轨，再 Boltz2 / Rosetta 重打分。Web 提交即可，无需再克隆外部 `antibody_redesign`。仍需本机 ESM / AntiFold / PyRosetta 环境。
 
 **合成筛选**　把 IgGM 结果和测序表对齐，筛可下单序列。
 
@@ -39,6 +39,8 @@
 
 脚本会打印本机和局域网地址。别的电脑请用服务器 IP，不要用 127.0.0.1。
 
+生产 API 入口是 `app/main.py`（`app.main:app`），生产启停入口是 `scripts/start_platform.sh`。`app/legacy/server.py` 与 `scripts/start_server.sh` 仅为 legacy 单机原型，不用于生产。
+
 首次初始化会有管理员账号 `admin` / `admin123`，请尽快改掉。没有 Docker 时可以只用 SQLite（注释掉 `.env` 里的 `DATABASE_URL`），Celery 仍然需要 Redis。
 
 
@@ -51,7 +53,7 @@
 
 ## 主要目录
 
-`app/` 是 FastAPI 与各模块路由，`worker/` 是 Celery 任务，`scripts/` 里是预测、对接、ESM-2、平台启停脚本。前端在 `frontend/`（部署前需 `bash scripts/build_frontend.sh` 生成 `frontend/dist/`）。运行产物集中在本地 `run/`（根目录的 `outputs/`、`md_outputs/` 等是兼容链接），**不会进 git**——详见 [docs/REPOSITORY.md](docs/REPOSITORY.md)。
+`app/` 是 FastAPI 与各模块路由，`worker/` 是 Celery 任务，四个算法包的源码只在 `workflows/affinity_redesign/`、`workflows/hydro_redesign/`、`workflows/cic_profile/`、`workflows/tnp_profile/`，`scripts/` 里是预测、对接、ESM-2、平台启停脚本。前端在 `frontend/`（部署前需 `bash scripts/build_frontend.sh` 生成 `frontend/dist/`）。运行产物集中在本地 `run/`；根目录的 `outputs/`、`md_outputs/` 等输出兼容链接继续保留，**不会进 git**——详见 [docs/REPOSITORY.md](docs/REPOSITORY.md)。
 
 克隆后若使用 RAS 对接，需初始化子模块：
 
@@ -69,6 +71,15 @@
 用户注册默认需要管理员审批：`bash scripts/manage_users.sh list --pending`。
 
 
+## 文档
+
+- [平台架构](docs/ARCHITECTURE.md)：五层结构、业务模块、任务数据流与生产/legacy 边界。
+- [安装指南](docs/INSTALL.md)：基础设施、Python/Node 和外部计算环境。
+- [测试与验收](docs/TESTING.md)：pytest、前端构建与 smoke test。
+- [备份与回滚](docs/BACKUP.md)：PostgreSQL、运行目录和恢复顺序。
+- [仓库规范](docs/REPOSITORY.md)：源码、子模块、运行产物与提交边界。
+
+
 ## 旧版
 
-`app/server.py` 是无数据库的单机原型，已被当前平台替代。
+`app/legacy/server.py` + `scripts/start_server.sh` 是 legacy 无数据库/Celery 单机原型，已被当前平台替代；`web/` 是 legacy 静态页面。生产使用 `app/main.py` + `scripts/start_platform.sh`，前端源码位于 `frontend/src/`，`frontend/dist/` 为可重建构建产物。

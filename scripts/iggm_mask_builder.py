@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from boltz_runner import parse_fasta_text, write_fasta
-from app.cdr_annotation import annotate_antibody_chain
+from app.common.cdr_annotation import annotate_antibody_chain
 
 VALID_CDR_MASKS = frozenset(
     {

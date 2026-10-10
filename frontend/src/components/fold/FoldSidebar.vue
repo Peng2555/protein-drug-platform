@@ -3,25 +3,32 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createJob, deleteJob } from '@/api/jobs'
-import { createVhhPanel, deleteBatch } from '@/api/batches'
+import { createAntibodyOnly, createVhhPanel, deleteBatch } from '@/api/batches'
 import { useFoldTasksStore } from '@/stores/foldTasks'
 import type { Batch, Job } from '@/api/types'
 import {
   EXAMPLE_FASTA,
   batchStatusLabel,
+  batchTypeLabel,
   engineLabel,
   foldScoreTag,
   statusLabel,
 } from '@/utils/constants'
 import { importHeavyChainFile, parseHeavyChainText, type HeavyChainRow } from '@/utils/heavyChain'
+import {
+  importAntibodyFile,
+  parseAntibodyText,
+  type AntibodyRow,
+} from '@/utils/antibodyBatch'
 
 const router = useRouter()
 const route = useRoute()
 const store = useFoldTasksStore()
 
-const submitTab = ref<'single' | 'batch'>('single')
+const submitTab = ref<'single' | 'batch' | 'ab'>('single')
 const fastaTab = ref<'paste' | 'file'>('paste')
 const heavyTab = ref<'csv' | 'fasta'>('csv')
+const abTab = ref<'csv' | 'fasta'>('csv')
 
 const jobName = ref('')
 const fastaInput = ref('')
@@ -35,6 +42,13 @@ const heavyChainId = ref('H')
 const heavyCsvInput = ref('')
 const heavyFastaInput = ref('')
 const heavyFileHint = ref('')
+
+const abBatchName = ref('')
+const abHeavyChainId = ref('H')
+const abLightChainId = ref('L')
+const abCsvInput = ref('')
+const abFastaInput = ref('')
+const abFileHint = ref('')
 
 const foldEngine = ref<'boltz2' | 'esmfold2'>('boltz2')
 const esmLoops = ref(3)
@@ -56,9 +70,21 @@ const heavyPreview = computed(() => {
   return parsed.rows
 })
 
+const abPreview = computed(() => {
+  const text = abTab.value === 'fasta' ? abFastaInput.value : abCsvInput.value
+  return parseAntibodyText(text).rows
+})
+
+const abHlCount = computed(() => abPreview.value.filter((r) => r.light).length)
+
 function getHeavyChains(): HeavyChainRow[] {
   const text = heavyTab.value === 'fasta' ? heavyFastaInput.value : heavyCsvInput.value
   return parseHeavyChainText(text).rows
+}
+
+function getAntibodies(): AntibodyRow[] {
+  const text = abTab.value === 'fasta' ? abFastaInput.value : abCsvInput.value
+  return parseAntibodyText(text).rows
 }
 
 function getFastaForSubmit() {
@@ -92,6 +118,30 @@ async function onHeavyFileChange(uploadFile: { raw?: File } | File) {
     heavyFileHint.value = data.row_count
       ? `已导入 ${file.name}（${data.encoding}）· 识别 ${data.row_count} 条重链`
       : `已读取 ${file.name}，但未解析到有效重链`
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导入失败')
+  }
+}
+
+async function onAntibodyFileChange(uploadFile: { raw?: File } | File) {
+  const file = uploadFile instanceof File ? uploadFile : uploadFile.raw
+  if (!file) return
+  try {
+    const data = await importAntibodyFile(file)
+    if (data.format === 'fasta') {
+      abFastaInput.value = data.text
+      abCsvInput.value = ''
+      abTab.value = 'fasta'
+    } else {
+      abCsvInput.value = data.text
+      abFastaInput.value = ''
+      abTab.value = 'csv'
+    }
+    const hl = data.rows.filter((r) => r.light).length
+    const vhh = data.row_count - hl
+    abFileHint.value = data.row_count
+      ? `已导入 ${file.name}（${data.encoding}）· ${data.row_count} 条抗体（VHH ${vhh} / H+L ${hl}）`
+      : `已读取 ${file.name}，但未解析到有效抗体`
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导入失败')
   }
@@ -206,6 +256,66 @@ async function submitBatch() {
   }
 }
 
+async function submitAntibodyBatch() {
+  const antibodies = getAntibodies()
+  if (!antibodies.length) {
+    ElMessage.warning('请提供至少一条抗体（CSV 或 FASTA）')
+    return
+  }
+  const hl = antibodies.filter((r) => r.light).length
+  const vhh = antibodies.length - hl
+  try {
+    await ElMessageBox.confirm(
+      `确认提交抗体批量预测（无抗原）？\n\n共 ${antibodies.length} 条：VHH ${vhh}，H+L ${hl}\n\n任务将依次排队运行。`,
+      '抗体批量',
+      { type: 'info' },
+    )
+  } catch {
+    return
+  }
+
+  submitting.value = true
+  try {
+    const engine = foldEngine.value
+    const data = await createAntibodyOnly({
+      batch_name: abBatchName.value.trim() || null,
+      heavy_chain_id: abHeavyChainId.value.trim() || 'H',
+      light_chain_id: abLightChainId.value.trim() || 'L',
+      antibodies: antibodies.map((a) => ({
+        id: a.id,
+        heavy: a.heavy,
+        light: a.light || null,
+      })),
+      engine,
+      use_msa_server: engine === 'boltz2',
+      ...(engine === 'esmfold2'
+        ? {
+            esmfold_params: {
+              num_loops: esmLoops.value,
+              num_sampling_steps: esmSteps.value,
+              num_diffusion_samples: esmSamples.value,
+            },
+          }
+        : {}),
+    })
+    let note = `已创建批次「${data.batch.name}」，共 ${data.job_ids.length} 个任务。`
+    if (data.skipped_duplicates) note += `（跳过 ${data.skipped_duplicates} 条重复序列）`
+    ElMessage.success(note)
+    abCsvInput.value = ''
+    abFastaInput.value = ''
+    abFileHint.value = ''
+    await store.refreshFoldTasks()
+    store.startPolling()
+    router.push({ name: 'fold-batch', params: { id: data.batch.id } })
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error(e instanceof Error ? e.message : '提交失败')
+    }
+  } finally {
+    submitting.value = false
+  }
+}
+
 function openJob(job: Job) {
   router.push({ name: 'fold-job', params: { id: job.id } })
 }
@@ -285,6 +395,14 @@ onMounted(() => {
         @click="submitTab = 'batch'"
       >
         VHH 批量
+      </button>
+      <button
+        type="button"
+        class="sidebar-tab"
+        :class="{ active: submitTab === 'ab' }"
+        @click="submitTab = 'ab'"
+      >
+        抗体批量
       </button>
     </div>
 
@@ -417,6 +535,67 @@ onMounted(() => {
       </el-form>
     </div>
 
+    <div v-show="submitTab === 'ab'" class="submit-panel">
+      <el-form label-position="top" size="small">
+        <el-form-item label="批次名称（可选）">
+          <el-input v-model="abBatchName" />
+        </el-form-item>
+        <div class="inline-fields">
+          <el-form-item label="重链链 ID">
+            <el-input v-model="abHeavyChainId" style="width: 80px" />
+          </el-form-item>
+          <el-form-item label="轻链链 ID">
+            <el-input v-model="abLightChainId" style="width: 80px" />
+          </el-form-item>
+        </div>
+        <el-form-item label="预测引擎">
+          <el-radio-group v-model="foldEngine">
+            <el-radio value="boltz2">Boltz2</el-radio>
+            <el-radio value="esmfold2">ESMFold2</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="抗体列表（无抗原）">
+          <p class="form-hint">CSV：id,heavy,light；FASTA 成对用 Ab1_H / Ab1_L。</p>
+          <el-radio-group v-model="abTab" class="mini-tabs">
+            <el-radio-button value="csv">CSV</el-radio-button>
+            <el-radio-button value="fasta">FASTA</el-radio-button>
+          </el-radio-group>
+          <el-input
+            v-if="abTab === 'csv'"
+            v-model="abCsvInput"
+            type="textarea"
+            :rows="5"
+            placeholder="id,heavy,light"
+            class="mt-sm"
+          />
+          <el-input
+            v-else
+            v-model="abFastaInput"
+            type="textarea"
+            :rows="5"
+            placeholder=">VHH_001&#10;QVQL..."
+            class="mt-sm"
+          />
+          <el-upload
+            class="mt-sm"
+            :auto-upload="false"
+            :show-file-list="false"
+            accept=".csv,.txt,.fasta,.fa,.xlsx,.xlsm"
+            @change="onAntibodyFileChange"
+          >
+            <el-button size="small">导入 CSV / Excel / FASTA</el-button>
+          </el-upload>
+          <p v-if="abFileHint" class="file-hint">{{ abFileHint }}</p>
+          <p v-if="abPreview.length" class="file-hint">
+            已识别 {{ abPreview.length }} 条（VHH {{ abPreview.length - abHlCount }} / H+L {{ abHlCount }}）
+          </p>
+        </el-form-item>
+        <el-button type="primary" size="small" :loading="submitting" @click="submitAntibodyBatch">
+          开始抗体批量预测
+        </el-button>
+      </el-form>
+    </div>
+
     <div class="task-list-section">
       <div class="task-list-head">
         <h3>任务列表</h3>
@@ -522,7 +701,7 @@ onMounted(() => {
               · {{ formatTime(item.data.created_at) }}
             </template>
             <template v-else>
-              {{ (item.data as Batch).target_name }}
+              {{ batchTypeLabel(item.data as Batch) }}
               · {{ (item.data as Batch).done_count }}/{{ (item.data as Batch).heavy_chain_count }} 完成
               · {{ formatTime(item.data.created_at) }}
             </template>

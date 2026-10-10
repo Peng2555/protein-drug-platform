@@ -32,7 +32,12 @@ api.interceptors.response.use(
 )
 
 export async function apiJson<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-  const { data } = await api.request<T>({ url, ...config })
+  const response = await api.request<T>({ url, ...config })
+  const contentType = String(response.headers['content-type'] || '')
+  if (url.startsWith('/api/') && contentType.includes('text/html')) {
+    throw new Error('后端接口尚未加载，请重启平台服务')
+  }
+  const { data } = response
   return data
 }
 

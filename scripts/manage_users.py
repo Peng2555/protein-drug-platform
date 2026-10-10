@@ -12,16 +12,15 @@ sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import select
 
-from app.auth import hash_password
-from app.config import settings
-from app.database import SessionLocal
-from app.models import User
+from app.core.security import hash_password
+from app.core.config import settings
+from app.core.database import SessionLocal
+from app.core.models import User
 
 
 def _status_label(user: User) -> str:
-    if user.is_active:
-        return "已启用"
-    return "待审批"
+    status = getattr(user, "account_status", None) or ("active" if user.is_active else "pending")
+    return {"active": "已启用", "pending": "待审批", "disabled": "已禁用"}.get(status, status)
 
 
 def cmd_list(args: argparse.Namespace) -> int:
@@ -29,7 +28,7 @@ def cmd_list(args: argparse.Namespace) -> int:
     try:
         q = select(User).order_by(User.created_at.asc())
         if args.pending:
-            q = q.where(User.is_active.is_(False))
+            q = q.where(User.account_status == "pending")
         users = db.scalars(q).all()
         if not users:
             print("（无用户）" if not args.pending else "（无待审批用户）")
@@ -59,9 +58,13 @@ def cmd_approve(args: argparse.Namespace) -> int:
         if not user:
             print(f"用户不存在: {args.username}", file=sys.stderr)
             return 1
-        if user.is_active:
+        if user.account_status == "active" and user.is_active:
             print(f"用户「{user.username}」已是启用状态")
             return 0
+        if user.account_status == "disabled":
+            print(f"用户「{user.username}」已禁用，请使用 enable 而不是 approve", file=sys.stderr)
+            return 1
+        user.account_status = "active"
         user.is_active = True
         db.commit()
         print(f"已批准用户「{user.username}」，现在可以登录")
@@ -80,7 +83,9 @@ def cmd_disable(args: argparse.Namespace) -> int:
         if user.is_admin and user.username == settings.admin_username:
             print("不能禁用默认管理员账号", file=sys.stderr)
             return 1
+        user.account_status = "disabled"
         user.is_active = False
+        user.token_version = int(user.token_version or 1) + 1
         db.commit()
         print(f"已禁用用户「{user.username}」")
         return 0
@@ -100,6 +105,8 @@ def cmd_create(args: argparse.Namespace) -> int:
             password_hash=hash_password(args.password),
             is_active=not args.pending,
             is_admin=args.admin,
+            account_status="pending" if args.pending else "active",
+            token_version=1,
         )
         db.add(user)
         db.commit()

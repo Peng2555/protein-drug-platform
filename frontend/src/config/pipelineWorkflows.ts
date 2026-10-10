@@ -120,6 +120,134 @@ export const PIPELINE_WORKFLOWS: PipelineWorkflowDef[] = [
       },
     ],
   },
+  {
+    id: 'hydro-redesign',
+    title: '抗体疏水性改造',
+    description:
+      '无抗原、第一版无 PLM：Boltz2 折抗体（或上传结构）→ 原子级 SAP → 可改造表面疏水斑 → STNQA 枚举。',
+    scene: 'antibody',
+    accent: 'violet',
+    estimatedDuration: '折结构约十余分钟至数小时；有结构时仅数分钟',
+    status: 'beta',
+    inputHint: '提交抗体 FASTA（H 或 H+L）；可选上传 PDB/CIF 跳过折叠。默认冻结 CDR。',
+    inputFields: [
+      { key: 'name', label: '任务名称', placeholder: '例如 VHH_hydro', required: true },
+      { key: 'fasta', label: '抗体 FASTA', placeholder: '>H 与可选 >L', required: true },
+    ],
+    steps: [
+      {
+        id: 'fold',
+        label: '折抗体',
+        description: 'Boltz2 仅折抗体链，diffusion_samples=3。',
+        moduleId: 'fold',
+        moduleRoute: '/fold/new',
+      },
+      {
+        id: 'patches',
+        label: '表面疏水斑',
+        description: '原子级 SAP（5 Å）后切可改造斑：表面暴露、自身疏水、SAP≥0.5，侧链 6 Å 聚类。',
+      },
+      {
+        id: 'export',
+        label: '枚举与导出',
+        description: 'mutations.csv、wetlab 短名单与 pred.cif。',
+        moduleId: 'hydro_redesign',
+        moduleRoute: '/hydro-redesign/new',
+      },
+    ],
+  },
+  {
+    id: 'cic-profile',
+    title: '抗体 CIC 表面斑',
+    description:
+      '独立于疏水改造：按 CIC 实验 pH 计算有效电荷，识别表面正电斑、负电斑与疏水斑，并在分子表面着色。第一版不做 APBS 与突变。',
+    scene: 'antibody',
+    accent: 'blue',
+    estimatedDuration: '折结构约十余分钟至数小时；有结构时仅数分钟',
+    status: 'beta',
+    inputHint: '提交抗体 FASTA（H 或 H+L）；可选上传 PDB/CIF。填写实验 pH，默认 7.0。',
+    inputFields: [
+      { key: 'name', label: '任务名称', placeholder: '例如 VHH_cic', required: true },
+      { key: 'fasta', label: '抗体 FASTA', placeholder: '>H 与可选 >L', required: true },
+    ],
+    steps: [
+      {
+        id: 'fold',
+        label: '折抗体',
+        description: 'Boltz2 仅折抗体链。',
+        moduleId: 'fold',
+        moduleRoute: '/fold/new',
+      },
+      {
+        id: 'patches',
+        label: 'CIC 表面斑',
+        description: '正电 / 负电 / 疏水，Cβ 8 Å 聚类。',
+        moduleId: 'cic_profile',
+        moduleRoute: '/cic-profile/new',
+      },
+    ],
+  },
+  {
+    id: 'tnp-profile',
+    title: 'VHH 可开发性画像',
+    description:
+      'Boltz2 折叠 VHH，按 Kabat 计算六项指标与 tetrad，相对临床参考集给出绿 / 黄 / 红。支持单条与批量。',
+    scene: 'antibody',
+    accent: 'violet',
+    estimatedDuration: '折结构约十余分钟至数小时；有结构时仅数分钟',
+    status: 'beta',
+    inputHint: '提交 VHH FASTA（链 ID H）；可选上传 PDB/CIF。',
+    inputFields: [
+      { key: 'name', label: '任务名称', placeholder: '例如 VHH_profile', required: true },
+      { key: 'fasta', label: 'VHH FASTA', placeholder: '>H', required: true },
+    ],
+    steps: [
+      {
+        id: 'fold',
+        label: '折抗体',
+        description: 'Boltz2 仅折 VHH。',
+        moduleId: 'fold',
+        moduleRoute: '/fold/new',
+      },
+      {
+        id: 'score',
+        label: 'Kabat 计分',
+        description: 'L / L3 / C / PSH / PPC / PNC 与 tetrad。',
+        moduleId: 'tnp_profile',
+        moduleRoute: '/tnp-profile/new',
+      },
+    ],
+  },
+  {
+    id: 'tm-disulfide',
+    title: '抗体额外二硫键',
+    description:
+      '选择已完成的 Boltz2 作业（≥4 套模型），筛选额外二硫键并对折叠态能量排序。本模块不重新折叠。',
+    scene: 'antibody',
+    accent: 'teal',
+    estimatedDuration: '数十分钟至数小时（CPU / PyRosetta）',
+    status: 'beta',
+    inputHint: '先完成 Boltz2 折叠（diffusion_samples ≥ 4），再在本模块选择该作业。',
+    inputFields: [
+      { key: 'name', label: '任务名称', placeholder: '例如 CD38_ss', required: false },
+    ],
+    steps: [
+      {
+        id: 'fold',
+        label: '已有结构',
+        description: 'Boltz2 多模型作业。',
+        moduleId: 'fold',
+        moduleRoute: '/fold/new',
+      },
+      {
+        id: 'screen',
+        label: '二硫键筛选',
+        description: '几何 · 成键 · 能量。',
+        moduleId: 'tm_disulfide',
+        moduleRoute: '/tm-disulfide/new',
+      },
+    ],
+  },
 ]
 
 export function pipelineById(id: string): PipelineWorkflowDef | undefined {

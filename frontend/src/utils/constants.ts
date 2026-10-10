@@ -57,6 +57,11 @@ export function batchStatusLabel(status: string) {
   return BATCH_STATUS_LABELS[status] || status
 }
 
+export function batchTypeLabel(batch: { batch_type?: string; target_name?: string }) {
+  if (batch.batch_type === 'antibody_only') return '抗体批量'
+  return batch.target_name || 'VHH 批量'
+}
+
 export function engineLabel(engine?: string) {
   if (engine === 'esmfold2') return 'ESMFold2'
   if (engine === 'boltz2') return 'Boltz2'
@@ -65,6 +70,10 @@ export function engineLabel(engine?: string) {
   if (engine === 'rosetta_interface_eval') return 'Rosetta 结构评价'
   if (engine === 'affinity_redesign') return '亲和力改造'
   if (engine === 'masking_peptide') return '多肽遮蔽设计'
+  if (engine === 'hydro_redesign') return '抗体疏水性改造'
+  if (engine === 'cic_profile') return '抗体 CIC 表面斑'
+  if (engine === 'tnp_profile') return 'VHH 可开发性画像'
+  if (engine === 'tm_disulfide') return '抗体额外二硫键'
   if (engine === 'iggm_maturation') return 'IgGM 亲和力成熟'
   return engine || '—'
 }
@@ -88,6 +97,44 @@ export function affinityRedesignStageLabel(stage?: string | null): string {
   const m = stage.match(/^boltz2_(\d+)\/(\d+)_(.+)$/)
   if (m) return `Boltz2 折叠 ${m[1]}/${m[2]} · ${m[3]}`
   return stage
+}
+
+export const CIC_PROFILE_STAGE_LABELS: Record<string, string> = {
+  queued: '排队中',
+  fold: '折抗体',
+  patches: '算表面斑',
+  done: '完成',
+  failed: '失败',
+}
+
+export const TNP_PROFILE_STAGE_LABELS: Record<string, string> = {
+  queued: '排队中',
+  fold: '折抗体',
+  score: '计分',
+  done: '完成',
+  failed: '失败',
+}
+
+export const TM_DISULFIDE_STAGE_LABELS: Record<string, string> = {
+  queued: '排队中',
+  qc: '质控',
+  ensemble: '叠合',
+  sites: '位点掩码',
+  pairs: '距离粗筛',
+  geometry: '虚拟 SG',
+  build: '成键',
+  energy: '能量',
+  done: '完成',
+  failed: '失败',
+}
+
+export const HYDRO_REDESIGN_STAGE_LABELS: Record<string, string> = {
+  queued: '排队中',
+  fold: '折抗体',
+  patches: '算疏水斑',
+  enumerate: '枚举突变',
+  done: '完成',
+  failed: '失败',
 }
 
 export function formatEsmfoldParams(params?: Record<string, number>) {

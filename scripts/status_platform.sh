@@ -30,7 +30,17 @@ for (( gpu=0; gpu<CELERY_GPU_COUNT; gpu++ )); do
     echo "GPU $gpu worker: stopped"
   fi
 done
-echo "GPU workers: $worker_up / $CELERY_GPU_COUNT running (unified fold+MD queue)"
+echo "GPU workers: $worker_up / $CELERY_GPU_COUNT running (MD/ESMFold)"
+if [[ -f "$PID_DIR/celery-fold.pid" ]] && kill -0 "$(cat "$PID_DIR/celery-fold.pid")" 2>/dev/null; then
+  echo "Fold worker: running (PID $(cat "$PID_DIR/celery-fold.pid"))"
+else
+  echo "Fold worker: stopped"
+fi
+if [[ -f "$PID_DIR/celery-cpu.pid" ]] && kill -0 "$(cat "$PID_DIR/celery-cpu.pid")" 2>/dev/null; then
+  echo "CPU worker:  running (PID $(cat "$PID_DIR/celery-cpu.pid"))"
+else
+  echo "CPU worker:  stopped"
+fi
 
 curl -s "http://127.0.0.1:${PORT}/api/health" 2>/dev/null | \
   python3 -c "import sys,json; d=json.load(sys.stdin); print(f\"HTTP:   {d.get('status','?')}  queue={d.get('queue_depth','?')}  running={d.get('running_jobs','?')}  workers={d.get('gpu_workers','?')}\")" \

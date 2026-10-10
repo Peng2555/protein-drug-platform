@@ -26,6 +26,8 @@ stop_pid() {
 
 echo "Stopping BoltzFold..."
 stop_pid "API" "$PID_DIR/api.pid"
+stop_pid "Fold worker" "$PID_DIR/celery-fold.pid"
+stop_pid "CPU worker" "$PID_DIR/celery-cpu.pid"
 for (( gpu=0; gpu<CELERY_GPU_COUNT; gpu++ )); do
   stop_pid "GPU worker $gpu" "$PID_DIR/celery-gpu${gpu}.pid"
 done
@@ -35,5 +37,5 @@ for pid_file in "$PID_DIR"/celery-md*.pid; do
 done
 stop_pid "Worker (legacy)" "$PID_DIR/celery.pid"
 pkill -f "uvicorn app.main:app" 2>/dev/null || true
-pkill -f "celery -A app.celery_app worker" 2>/dev/null || true
+pkill -f "celery -A app.core.celery worker" 2>/dev/null || true
 echo "Done."

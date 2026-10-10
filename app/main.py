@@ -12,25 +12,11 @@ from sqlalchemy import text
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.database import SessionLocal, engine
-from app.db_migrate import run_migrations
-from app.models import Job, JobStatus
-from app.routers import (
-    auth,
-    batches,
-    jobs,
-    md_jobs,
-    maturation_jobs,
-    synthesis_jobs,
-    ras_docking_jobs,
-    docking_jobs,
-    developability_jobs,
-    design_jobs,
-    rosetta_eval_jobs,
-    affinity_redesign_jobs,
-    masking_peptide_jobs,
-)
+from app.core.config import settings
+from app.core.database import SessionLocal, engine
+from app.core.migrations import run_migrations
+from app.core.models import Job, JobStatus
+from app.modules import ROUTERS
 from app.schemas import HealthOut
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +31,9 @@ class SPAStaticFiles(StaticFiles):
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:
+            # 未注册的 API 必须保留 404，不能把 index.html 冒充成 JSON。
+            if path.lstrip("/").startswith("api/"):
+                raise
             if exc.status_code == 404 and path not in ("", "/"):
                 return await super().get_response("index.html", scope)
             raise
@@ -60,19 +49,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(jobs.router)
-app.include_router(batches.router)
-app.include_router(md_jobs.router)
-app.include_router(maturation_jobs.router)
-app.include_router(synthesis_jobs.router)
-app.include_router(ras_docking_jobs.router)
-app.include_router(docking_jobs.router)
-app.include_router(developability_jobs.router)
-app.include_router(design_jobs.router)
-app.include_router(rosetta_eval_jobs.router)
-app.include_router(affinity_redesign_jobs.router)
-app.include_router(masking_peptide_jobs.router)
+for router in ROUTERS:
+    app.include_router(router)
 
 
 @app.on_event("startup")
@@ -97,7 +75,9 @@ def health():
         r = redis.from_url(settings.redis_url)
         r.ping()
         q = settings.celery_gpu_queue
-        queue_depth = r.llen(q)
+        queue_depth = int(r.llen(q) or 0)
+        queue_depth += int(r.llen(settings.celery_fold_queue) or 0)
+        queue_depth += int(r.llen(settings.celery_cpu_queue) or 0)
         if queue_depth == 0:
             queue_depth = r.llen("celery")  # legacy fallback
     except Exception as exc:

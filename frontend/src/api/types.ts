@@ -73,6 +73,12 @@ export interface VhhPanelCreateOut {
   skipped_duplicates: number
 }
 
+export interface AntibodyRowPayload {
+  id: string
+  heavy: string
+  light?: string | null
+}
+
 export interface CdrSpan {
   name: string
   start: number
@@ -283,8 +289,10 @@ export interface AffinityRedesignRankedRow {
   chain?: string
   label?: string
   position?: string | number
+  kabat?: string
   wt?: string
   mut?: string
+  sequence?: string
   region?: string
   delta_iptm?: string | number | null
   delta_iptm_band?: string | null
@@ -317,6 +325,7 @@ export interface AffinityRedesignRankedOut {
   wetlab: AffinityRedesignRankedRow[]
   summary: Record<string, unknown> | null
   mutation_table?: AffinityRedesignMutationSiteRow[]
+  chains?: ChainSequence[]
 }
 
 export interface AffinityRedesignHit {
@@ -359,6 +368,101 @@ export interface MaskingPeptideSequenceRow {
 export interface MaskingPeptideSequencesOut {
   sequences: MaskingPeptideSequenceRow[]
   summary: Record<string, unknown> | null
+}
+
+export interface HydroRedesignJob extends Job {}
+
+export interface HydroRedesignJobListOut {
+  items: HydroRedesignJob[]
+  total: number
+}
+
+export interface HydroRedesignProgressOut {
+  stage: string
+  status: string
+  summary: Record<string, unknown> | null
+}
+
+export interface HydroRedesignRankedOut {
+  mutations: Record<string, unknown>[]
+  wetlab: Record<string, unknown>[]
+  patches: Record<string, unknown>[]
+  residues: Record<string, unknown>[]
+  chains?: ChainSequence[]
+  summary: Record<string, unknown> | null
+}
+
+export interface CicProfileJob extends Job {}
+
+export interface CicProfileJobListOut {
+  items: CicProfileJob[]
+  total: number
+}
+
+export interface CicProfileProgressOut {
+  stage: string
+  status: string
+  summary: Record<string, unknown> | null
+}
+
+export interface CicProfileRankedOut {
+  patches: Record<string, unknown>[]
+  residues: Record<string, unknown>[]
+  chains?: ChainSequence[]
+  summary: Record<string, unknown> | null
+}
+
+export interface TnpProfileJob extends Job {}
+
+export interface TnpProfileJobListOut {
+  items: TnpProfileJob[]
+  total: number
+}
+
+export interface TnpProfileProgressOut {
+  stage: string
+  status: string
+  summary: Record<string, unknown> | null
+}
+
+export interface TnpProfileRankedOut {
+  patches: Record<string, unknown>[]
+  residues: Record<string, unknown>[]
+  metrics: Record<string, unknown>[]
+  chains?: ChainSequence[]
+  summary: Record<string, unknown> | null
+}
+
+export interface TmDisulfideJob extends Job {}
+
+export interface TmDisulfideJobListOut {
+  items: TmDisulfideJob[]
+  total: number
+}
+
+export interface TmDisulfideProgressOut {
+  stage: string
+  status: string
+  summary: Record<string, unknown> | null
+}
+
+export interface TmDisulfideRankedOut {
+  candidates: Record<string, unknown>[]
+  summary: Record<string, unknown> | null
+}
+
+export interface TmDisulfideSourceFoldJob {
+  id: string
+  name: string | null
+  status: string
+  n_models: number
+  total_length: number | null
+  created_at: string
+}
+
+export interface TmDisulfideSourceFoldJobListOut {
+  items: TmDisulfideSourceFoldJob[]
+  total: number
 }
 
 export interface DesignCandidate {

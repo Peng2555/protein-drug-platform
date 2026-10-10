@@ -169,7 +169,7 @@ def score_sequences(
         sys.path.insert(0, str(root / "scripts"))
 
     from boltz_runner import parse_fasta_text
-    from app.cdr_annotation import annotate_antibody_chain
+    from app.common.cdr_annotation import annotate_antibody_chain
 
     seqs = parse_fasta_text(fasta_text)
     if on_stage:
@@ -251,7 +251,7 @@ def score_sequences(
                     "kabat": residues[-1]["kabat"],
                     "wt": wt,
                     "mut": mut,
-                    "mutation": f"{chain_id}:{wt}{i + 1}{mut}",
+                    "mutation": f"{chain_id}:{wt}{residues[-1]['kabat']}{mut}",
                     "region": region,
                     "buried": None,
                     "interface": False,

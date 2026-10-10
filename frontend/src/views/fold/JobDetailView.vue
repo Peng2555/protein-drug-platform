@@ -104,12 +104,13 @@ const scoreCards = computed((): FoldScoreCard[] => {
       (iptmOk && j.ptm != null ? 0.8 * j.iptm! + 0.2 * j.ptm : j.ptm ?? null)
   const nSamp = Number(j.results_json?.n_samples)
   const cards: FoldScoreCard[] = []
-  if (monomer || !iptmOk) {
+  // 多链但缺少 ipTM：按复合物卡片展示，不要误报「单体无界面」
+  if (monomer) {
     cards.push({
       key: 'ptm',
       label: 'pTM',
       value: j.ptm != null ? j.ptm.toFixed(3) : '—',
-      hint: monomer ? '单体整体拓扑置信度（无界面，不适用 ipTM）' : '整体拓扑置信度',
+      hint: '单体整体拓扑置信度（无界面，不适用 ipTM）',
       tone: 'primary',
       level: metricLevel(j.ptm, 'iptm'),
     })
@@ -289,11 +290,12 @@ async function onDelete() {
 function onDownload() {
   const j = job.value
   if (!j) return
-  if (foldSamples.value.length > 1) {
-    void downloadAllStructures(j.id, j.name || j.id)
-    return
-  }
-  void downloadStructure(j.id, j.name || j.id, selectedModel.value)
+  const run = foldSamples.value.length > 1
+    ? downloadAllStructures(j.id, j.name || j.id)
+    : downloadStructure(j.id, j.name || j.id, selectedModel.value)
+  void run.catch((e) => {
+    ElMessage.error(e instanceof Error ? e.message : '下载结构失败')
+  })
 }
 
 function startMd() {

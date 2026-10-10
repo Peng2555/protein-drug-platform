@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "boltzfold-tnp-profile"
+version = "0.1.0"
+description = "BoltzFold VHH TNP 可开发性画像工作流"
+requires-python = ">=3.10"
+dependencies = [
+    "boltzfold-shared>=0.1.0",
+    "numpy>=1.24",
+    "gemmi>=0.6",
+    "anarci",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+tnp_profile = ["data/*"]

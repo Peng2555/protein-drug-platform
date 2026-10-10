@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "boltzfold-tm-disulfide"
+version = "0.1.0"
+description = "BoltzFold 抗体 Tm / 额外二硫键工作流（质控、叠合与可设计位点）"
+requires-python = ">=3.10"
+dependencies = [
+    "boltzfold-shared>=0.1.0",
+    "numpy>=1.24",
+    "gemmi>=0.6",
+    "anarci",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

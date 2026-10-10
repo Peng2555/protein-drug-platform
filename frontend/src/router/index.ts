@@ -1,9 +1,9 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { moduleDefinitionFromSegment } from '@/config/moduleRegistry'
 
 function moduleChildren(
   base: string,
-  labels: { module: string; new: string; tasks: string; task: string },
   views: {
     workspace: () => Promise<unknown>
     new: () => Promise<unknown>
@@ -12,6 +12,8 @@ function moduleChildren(
   },
   extraChildren: RouteRecordRaw[] = [],
 ): RouteRecordRaw {
+  const labels = moduleDefinitionFromSegment(base)?.routeTitles
+  if (!labels) throw new Error(`Unknown module route segment: ${base}`)
   return {
     path: base,
     component: views.workspace,
@@ -91,6 +93,18 @@ const router = createRouter({
           meta: { title: '流水线详情' },
         },
         {
+          path: 'antibody-projects',
+          name: 'antibody-projects',
+          component: () => import('@/views/antibody-projects/AntibodyProjectListView.vue'),
+          meta: { title: '抗体改造项目' },
+        },
+        {
+          path: 'antibody-projects/:projectId',
+          name: 'antibody-project-detail',
+          component: () => import('@/views/antibody-projects/AntibodyProjectDetailView.vue'),
+          meta: { title: '抗体项目详情' },
+        },
+        {
           path: 'fold',
           component: () => import('@/views/fold/FoldWorkspaceView.vue'),
           meta: { title: '结构预测' },
@@ -130,12 +144,6 @@ const router = createRouter({
         moduleChildren(
           'design',
           {
-            module: '序列设计',
-            new: '新建设计',
-            tasks: '全部任务',
-            task: '设计详情',
-          },
-          {
             workspace: () => import('@/views/design/DesignWorkspaceView.vue'),
             new: () => import('@/views/design/DesignNewView.vue'),
             tasks: () => import('@/views/design/DesignTasksView.vue'),
@@ -144,12 +152,6 @@ const router = createRouter({
         ),
         moduleChildren(
           'rosetta',
-          {
-            module: '结构评价',
-            new: '新建评价',
-            tasks: '全部任务',
-            task: '评价详情',
-          },
           {
             workspace: () => import('@/views/rosetta/RosettaWorkspaceView.vue'),
             new: () => import('@/views/rosetta/RosettaNewView.vue'),
@@ -160,12 +162,6 @@ const router = createRouter({
         moduleChildren(
           'developability',
           {
-            module: '序列改造',
-            new: '新建改造',
-            tasks: '全部任务',
-            task: '改造详情',
-          },
-          {
             workspace: () => import('@/views/developability/DevelopabilityWorkspaceView.vue'),
             new: () => import('@/views/developability/DevelopabilityNewView.vue'),
             tasks: () => import('@/views/developability/DevelopabilityTasksView.vue'),
@@ -174,12 +170,6 @@ const router = createRouter({
         ),
         moduleChildren(
           'maturation',
-          {
-            module: '亲和力成熟',
-            new: '新建成熟',
-            tasks: '全部任务',
-            task: '成熟详情',
-          },
           {
             workspace: () => import('@/views/maturation/MaturationWorkspaceView.vue'),
             new: () => import('@/views/maturation/MaturationNewView.vue'),
@@ -190,12 +180,6 @@ const router = createRouter({
         moduleChildren(
           'affinity-redesign',
           {
-            module: '亲和力改造',
-            new: '新建改造',
-            tasks: '全部任务',
-            task: '改造详情',
-          },
-          {
             workspace: () => import('@/views/affinity-redesign/AffinityRedesignWorkspaceView.vue'),
             new: () => import('@/views/affinity-redesign/AffinityRedesignNewView.vue'),
             tasks: () => import('@/views/affinity-redesign/AffinityRedesignTasksView.vue'),
@@ -205,12 +189,6 @@ const router = createRouter({
         moduleChildren(
           'masking-peptide',
           {
-            module: '多肽遮蔽设计',
-            new: '新建设计',
-            tasks: '全部任务',
-            task: '设计详情',
-          },
-          {
             workspace: () => import('@/views/masking-peptide/MaskingPeptideWorkspaceView.vue'),
             new: () => import('@/views/masking-peptide/MaskingPeptideNewView.vue'),
             tasks: () => import('@/views/masking-peptide/MaskingPeptideTasksView.vue'),
@@ -218,13 +196,59 @@ const router = createRouter({
           },
         ),
         moduleChildren(
-          'synthesis',
+          'hydro-redesign',
           {
-            module: '合成候选',
-            new: '新建筛选',
-            tasks: '全部任务',
-            task: '筛选结果',
+            workspace: () => import('@/views/hydro-redesign/HydroRedesignWorkspaceView.vue'),
+            new: () => import('@/views/hydro-redesign/HydroRedesignNewView.vue'),
+            tasks: () => import('@/views/hydro-redesign/HydroRedesignTasksView.vue'),
+            task: () => import('@/views/hydro-redesign/HydroRedesignJobDetailView.vue'),
           },
+          [
+            {
+              path: 'batch/:id',
+              name: 'hydro-redesign-batch',
+              component: () => import('@/views/hydro-redesign/HydroRedesignBatchDetailView.vue'),
+              meta: { title: '批量疏水改造' },
+            },
+          ],
+        ),
+        moduleChildren(
+          'cic-profile',
+          {
+            workspace: () => import('@/views/cic-profile/CicProfileWorkspaceView.vue'),
+            new: () => import('@/views/cic-profile/CicProfileNewView.vue'),
+            tasks: () => import('@/views/cic-profile/CicProfileTasksView.vue'),
+            task: () => import('@/views/cic-profile/CicProfileJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
+          'tnp-profile',
+          {
+            workspace: () => import('@/views/tnp-profile/TnpProfileWorkspaceView.vue'),
+            new: () => import('@/views/tnp-profile/TnpProfileNewView.vue'),
+            tasks: () => import('@/views/tnp-profile/TnpProfileTasksView.vue'),
+            task: () => import('@/views/tnp-profile/TnpProfileJobDetailView.vue'),
+          },
+          [
+            {
+              path: 'batch/:id',
+              name: 'tnp-profile-batch',
+              component: () => import('@/views/tnp-profile/TnpProfileBatchDetailView.vue'),
+              meta: { title: '批量画像' },
+            },
+          ],
+        ),
+        moduleChildren(
+          'tm-disulfide',
+          {
+            workspace: () => import('@/views/tm-disulfide/TmDisulfideWorkspaceView.vue'),
+            new: () => import('@/views/tm-disulfide/TmDisulfideNewView.vue'),
+            tasks: () => import('@/views/tm-disulfide/TmDisulfideTasksView.vue'),
+            task: () => import('@/views/tm-disulfide/TmDisulfideJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
+          'synthesis',
           {
             workspace: () => import('@/views/synthesis/SynthesisWorkspaceView.vue'),
             new: () => import('@/views/synthesis/SynthesisNewView.vue'),
@@ -240,12 +264,6 @@ const router = createRouter({
         moduleChildren(
           'docking',
           {
-            module: '分子对接',
-            new: '新建对接',
-            tasks: '全部任务',
-            task: '对接详情',
-          },
-          {
             workspace: () => import('@/views/docking/DockingWorkspaceView.vue'),
             new: () => import('@/views/docking/DockingNewView.vue'),
             tasks: () => import('@/views/docking/DockingTasksView.vue'),
@@ -255,18 +273,18 @@ const router = createRouter({
         moduleChildren(
           'md',
           {
-            module: 'MD 验证',
-            new: '新建 MD',
-            tasks: '全部任务',
-            task: 'MD 详情',
-          },
-          {
             workspace: () => import('@/views/md/MdWorkspaceView.vue'),
             new: () => import('@/views/md/MdNewView.vue'),
             tasks: () => import('@/views/md/MdTasksView.vue'),
             task: () => import('@/views/md/MdJobDetailView.vue'),
           },
         ),
+        {
+          path: 'admin/users',
+          name: 'admin-users',
+          component: () => import('@/views/admin/AdminUsersView.vue'),
+          meta: { title: '用户管理', admin: true },
+        },
         {
           path: 'legacy',
           name: 'legacy',
@@ -288,6 +306,14 @@ router.beforeEach(async (to) => {
   if (!auth.isLoggedIn) {
     const ok = await auth.bootstrap()
     if (!ok) return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.admin && !auth.user?.is_admin) {
+    try {
+      await auth.fetchMe()
+    } catch {
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
+    if (!auth.user?.is_admin) return { name: 'home' }
   }
   return true
 })

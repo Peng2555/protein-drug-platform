@@ -1,6 +1,6 @@
 /** Shared types for 3D structure & PLIP interface visualization (mirrors backend schemas). */
 
-export type ViewerColorMode = 'chain' | 'plddt'
+export type ViewerColorMode = 'chain' | 'plddt' | 'hydro-patch'
 
 export interface SelectedResidue {
   chainId: string

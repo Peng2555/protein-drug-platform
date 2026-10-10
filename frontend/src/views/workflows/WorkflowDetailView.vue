@@ -38,6 +38,22 @@ watch(
       router.replace({ name: 'masking-peptide-new' })
       return
     }
+    if (p?.id === 'hydro-redesign') {
+      router.replace({ name: 'hydro-redesign-new' })
+      return
+    }
+    if (p?.id === 'cic-profile') {
+      router.replace({ name: 'cic-profile-new' })
+      return
+    }
+    if (p?.id === 'tnp-profile') {
+      router.replace({ name: 'tnp-profile-new' })
+      return
+    }
+    if (p?.id === 'tm-disulfide') {
+      router.replace({ name: 'tm-disulfide-new' })
+      return
+    }
     if (!p) router.replace({ name: 'workflows' })
   },
   { immediate: true },

@@ -1,0 +1,1 @@
+"""Affinity redesign application module."""

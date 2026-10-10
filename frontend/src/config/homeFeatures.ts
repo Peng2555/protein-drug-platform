@@ -27,6 +27,8 @@ export const FEATURE_TABS: FeatureTab[] = [
       { text: 'IgGM **亲和力成熟**，CDR 变体采样与筛选' },
       { text: 'ProteinMPNN **界面序列设计**，固定骨架优化序列' },
       { text: 'ESM-2 可开发性打分，辅助 **热稳定性与溶解度** 评估' },
+      { text: '表面疏水斑 × 亲水突变，**无抗原**疏水性改造' },
+      { text: 'CIC 表面斑：实验 pH 下看**正电 / 负电 / 疏水**补丁' },
     ],
     image: '/assets/hero/antibody-engineering.png',
     imageAlt: '抗体 Fab 结合靶蛋白结构示意',

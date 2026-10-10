@@ -222,17 +222,17 @@ async function resubmit() {
           type="button"
           class="aa-cell"
           :class="[tierClass(res.tier), { selected: selectedIndex === res.index }]"
-          :title="`${res.region} ${res.aa}${res.index}${res.kabat && String(res.kabat) !== String(res.index) ? ` (Kabat ${res.kabat})` : ''}  ${res.tier}`"
+          :title="`Kabat ${res.kabat || res.index} · ${res.region} · ${res.tier}`"
           @click="pickResidue(res)"
         >
           {{ res.aa }}
-          <small>{{ res.index }}</small>
+          <small>{{ res.kabat || res.index }}</small>
         </button>
       </div>
 
       <div v-if="selected" class="matrix-card">
         <h4>
-          {{ currentChain?.chain_id }}:{{ selected.aa }}{{ selected.index }}
+          {{ currentChain?.chain_id }}:{{ selected.aa }}{{ selected.kabat || selected.index }}
           · {{ selected.region }}
           · {{ selected.tier === 'freeze' ? '冻住（不可突变）' : selected.tier === 'candidate' ? '可以突变' : '不建议突变' }}
         </h4>
@@ -266,7 +266,7 @@ async function resubmit() {
       </div>
       <el-table :data="siteRows" size="small" border max-height="480" highlight-current-row @row-click="pickSite">
         <el-table-column label="位点" width="120">
-          <template #default="{ row }">{{ currentChain?.chain_id }}:{{ row.aa }}{{ row.index }}</template>
+          <template #default="{ row }">{{ currentChain?.chain_id }}:{{ row.aa }}{{ row.kabat || row.index }}</template>
         </el-table-column>
         <el-table-column prop="region" label="区域" width="90" />
         <el-table-column prop="allowedLabel" label="可突变成" min-width="240" />

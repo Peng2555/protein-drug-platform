@@ -4,19 +4,25 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Plus } from '@element-plus/icons-vue'
 import { createJob } from '@/api/jobs'
-import { createVhhPanel } from '@/api/batches'
+import { createAntibodyOnly, createVhhPanel } from '@/api/batches'
 import BoltzChainBuilder, {
   type ChainEntity,
 } from '@/components/fold/BoltzChainBuilder.vue'
 import { useFoldTasksStore } from '@/stores/foldTasks'
 import { EXAMPLE_FASTA } from '@/utils/constants'
 import { importHeavyChainFile, parseHeavyChainText, type HeavyChainRow } from '@/utils/heavyChain'
+import {
+  importAntibodyFile,
+  parseAntibodyText,
+  type AntibodyRow,
+} from '@/utils/antibodyBatch'
 
 const router = useRouter()
 const store = useFoldTasksStore()
 
-const submitTab = ref<'single' | 'batch'>('single')
+const submitTab = ref<'single' | 'batch' | 'ab'>('single')
 const heavyTab = ref<'csv' | 'fasta'>('csv')
+const abTab = ref<'csv' | 'fasta'>('csv')
 const showOptional = ref(true)
 const showRestraints = ref(true)
 
@@ -85,6 +91,13 @@ const heavyCsvInput = ref('')
 const heavyFastaInput = ref('')
 const heavyFileHint = ref('')
 
+const abBatchName = ref('')
+const abHeavyChainId = ref('H')
+const abLightChainId = ref('L')
+const abCsvInput = ref('')
+const abFastaInput = ref('')
+const abFileHint = ref('')
+
 const foldEngine = ref<'boltz2' | 'esmfold2'>('boltz2')
 const esmLoops = ref(3)
 const esmSteps = ref(200)
@@ -119,6 +132,13 @@ const heavyPreview = computed(() => {
   return parseHeavyChainText(text).rows
 })
 
+const abPreview = computed(() => {
+  const text = abTab.value === 'fasta' ? abFastaInput.value : abCsvInput.value
+  return parseAntibodyText(text).rows
+})
+
+const abHlCount = computed(() => abPreview.value.filter((r) => r.light).length)
+
 const ligandChainIds = computed(() =>
   chainEntities.value.filter((e) => e.entity === 'ligand').flatMap((e) => e.ids),
 )
@@ -140,6 +160,11 @@ function getHeavyChains(): HeavyChainRow[] {
   return parseHeavyChainText(text).rows
 }
 
+function getAntibodies(): AntibodyRow[] {
+  const text = abTab.value === 'fasta' ? abFastaInput.value : abCsvInput.value
+  return parseAntibodyText(text).rows
+}
+
 async function onHeavyFileChange(uploadFile: { raw?: File } | File) {
   const file = uploadFile instanceof File ? uploadFile : uploadFile.raw
   if (!file) return
@@ -157,6 +182,30 @@ async function onHeavyFileChange(uploadFile: { raw?: File } | File) {
     heavyFileHint.value = data.row_count
       ? `已导入 ${file.name}（${data.encoding}）· 识别 ${data.row_count} 条重链`
       : `已读取 ${file.name}，但未解析到有效重链`
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导入失败')
+  }
+}
+
+async function onAntibodyFileChange(uploadFile: { raw?: File } | File) {
+  const file = uploadFile instanceof File ? uploadFile : uploadFile.raw
+  if (!file) return
+  try {
+    const data = await importAntibodyFile(file)
+    if (data.format === 'fasta') {
+      abFastaInput.value = data.text
+      abCsvInput.value = ''
+      abTab.value = 'fasta'
+    } else {
+      abCsvInput.value = data.text
+      abFastaInput.value = ''
+      abTab.value = 'csv'
+    }
+    const hl = data.rows.filter((r) => r.light).length
+    const vhh = data.row_count - hl
+    abFileHint.value = data.row_count
+      ? `已导入 ${file.name}（${data.encoding}）· ${data.row_count} 条抗体（VHH ${vhh} / H+L ${hl}）`
+      : `已读取 ${file.name}，但未解析到有效抗体`
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导入失败')
   }
@@ -465,6 +514,70 @@ async function submitBatch() {
     submitting.value = false
   }
 }
+
+async function submitAntibodyBatch() {
+  const antibodies = getAntibodies()
+  if (!antibodies.length) {
+    ElMessage.warning('请提供至少一条抗体（CSV 或 FASTA）')
+    return
+  }
+  const hl = antibodies.filter((r) => r.light).length
+  const vhh = antibodies.length - hl
+  try {
+    await ElMessageBox.confirm(
+      `确认提交抗体批量预测（无抗原）？\n\n共 ${antibodies.length} 条：VHH ${vhh}，H+L ${hl}\n\n任务将依次排队运行。`,
+      '抗体批量',
+      { type: 'info' },
+    )
+  } catch {
+    return
+  }
+
+  submitting.value = true
+  lastStatus.value = '正在提交抗体批量预测…'
+  try {
+    const engine = foldEngine.value
+    const data = await createAntibodyOnly({
+      batch_name: abBatchName.value.trim() || null,
+      heavy_chain_id: abHeavyChainId.value.trim() || 'H',
+      light_chain_id: abLightChainId.value.trim() || 'L',
+      antibodies: antibodies.map((a) => ({
+        id: a.id,
+        heavy: a.heavy,
+        light: a.light || null,
+      })),
+      engine,
+      use_msa_server: engine === 'boltz2' ? boltz.use_msa_server : false,
+      ...(engine === 'boltz2' ? { boltz_params: boltzParamsPayload() } : {}),
+      ...(engine === 'esmfold2'
+        ? {
+            esmfold_params: {
+              num_loops: esmLoops.value,
+              num_sampling_steps: esmSteps.value,
+              num_diffusion_samples: esmSamples.value,
+            },
+          }
+        : {}),
+    })
+    let note = `已创建批次「${data.batch.name}」，共 ${data.job_ids.length} 个任务。`
+    if (data.skipped_duplicates) note += `（跳过 ${data.skipped_duplicates} 条重复序列）`
+    lastStatus.value = note
+    ElMessage.success(note)
+    abCsvInput.value = ''
+    abFastaInput.value = ''
+    abFileHint.value = ''
+    await store.refreshFoldTasks()
+    store.startPolling()
+    router.push({ name: 'fold-batch', params: { id: data.batch.id } })
+  } catch (e) {
+    if (e !== 'cancel') {
+      lastStatus.value = e instanceof Error ? e.message : '提交失败'
+      ElMessage.error(lastStatus.value)
+    }
+  } finally {
+    submitting.value = false
+  }
+}
 </script>
 
 <template>
@@ -501,6 +614,14 @@ async function submitBatch() {
         @click="submitTab = 'batch'"
       >
         VHH 批量
+      </button>
+      <button
+        type="button"
+        class="boltz-form__tab"
+        :class="{ active: submitTab === 'ab' }"
+        @click="submitTab = 'ab'"
+      >
+        抗体批量
       </button>
     </div>
 
@@ -882,6 +1003,84 @@ async function submitBatch() {
       </div>
     </div>
 
+    <!-- 抗体批量（无抗原） -->
+    <div v-show="submitTab === 'ab'" class="boltz-form__body">
+      <div class="field">
+        <label class="field__label">批次名称</label>
+        <el-input v-model="abBatchName" placeholder="可选" />
+      </div>
+      <div class="inline">
+        <div class="field">
+          <label class="field__label">重链链 ID</label>
+          <el-input v-model="abHeavyChainId" style="width: 100px" />
+        </div>
+        <div class="field">
+          <label class="field__label">轻链链 ID</label>
+          <el-input v-model="abLightChainId" style="width: 100px" />
+        </div>
+      </div>
+      <div class="field">
+        <label class="field__label">预测引擎</label>
+        <el-radio-group v-model="foldEngine">
+          <el-radio-button value="boltz2">Boltz-2</el-radio-button>
+          <el-radio-button value="esmfold2">ESMFold2</el-radio-button>
+        </el-radio-group>
+      </div>
+      <div v-if="foldEngine === 'boltz2'" class="field">
+        <label class="field__label">采样数 / MSA</label>
+        <p class="field__hint">批量任务将复用上方 Boltz 可选参数（采样数、循环步、MSA 等）。单条页的可选参数对批量同样生效。</p>
+        <div class="inline">
+          <el-input-number v-model="boltz.diffusion_samples" :min="1" :max="25" />
+          <el-switch v-model="boltz.use_msa_server" active-text="MSA" inactive-text="无 MSA" />
+        </div>
+      </div>
+      <div class="field">
+        <label class="field__label">抗体列表</label>
+        <p class="field__hint">
+          无需抗原。CSV：<code>id,heavy,light</code>（light 可空 = VHH）。FASTA：单条头为 VHH；成对请用
+          <code>Ab1_H</code> / <code>Ab1_L</code>。
+        </p>
+        <el-radio-group v-model="abTab" size="small">
+          <el-radio-button value="csv">CSV</el-radio-button>
+          <el-radio-button value="fasta">FASTA</el-radio-button>
+        </el-radio-group>
+        <el-input
+          v-if="abTab === 'csv'"
+          v-model="abCsvInput"
+          type="textarea"
+          :rows="8"
+          placeholder="id,heavy,light&#10;VHH_001,QVQL...&#10;IgG_001,EVQL...,DIQMT..."
+          class="mt"
+        />
+        <el-input
+          v-else
+          v-model="abFastaInput"
+          type="textarea"
+          :rows="8"
+          placeholder=">VHH_001&#10;QVQL...&#10;>IgG_001_H&#10;EVQL...&#10;>IgG_001_L&#10;DIQMT..."
+          class="mt"
+        />
+        <el-upload
+          class="mt"
+          :auto-upload="false"
+          :show-file-list="false"
+          accept=".csv,.txt,.fasta,.fa,.xlsx,.xlsm"
+          @change="onAntibodyFileChange"
+        >
+          <el-button>导入 CSV / Excel / FASTA</el-button>
+        </el-upload>
+        <p v-if="abFileHint" class="field__hint">{{ abFileHint }}</p>
+        <p v-if="abPreview.length" class="field__hint">
+          已识别 {{ abPreview.length }} 条抗体（VHH {{ abPreview.length - abHlCount }} / H+L {{ abHlCount }}）
+        </p>
+      </div>
+      <div class="actions">
+        <el-button type="primary" size="large" :loading="submitting" @click="submitAntibodyBatch">
+          开始抗体批量预测
+        </el-button>
+      </div>
+    </div>
+
     <p v-if="lastStatus" class="boltz-form__status">{{ lastStatus }}</p>
   </div>
 </template>
@@ -964,9 +1163,9 @@ async function submitBatch() {
   border: none;
   background: transparent;
   color: #6b7280;
-  padding: 0.6rem 0.75rem;
+  padding: 0.55rem 0.4rem;
   border-radius: 8px;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
 
