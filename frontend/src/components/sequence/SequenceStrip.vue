@@ -5,10 +5,12 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { ChainSequence } from '@/api/types'
+import { residueKabatLabel } from '@/utils/kabatDisplay'
 import { useSelectionStore } from '@/composables/useSelection'
 
 const props = defineProps<{
   chains: ChainSequence[]
+  mutatedKeys?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -18,6 +20,7 @@ const emit = defineEmits<{
 const selectionStore = useSelectionStore()
 const { selectedSeqResidues } = storeToRefs(selectionStore)
 
+const mutated = computed(() => new Set(props.mutatedKeys || []))
 const selectionCount = computed(() => selectedSeqResidues.value.size)
 
 function residuesForChain(ch: ChainSequence) {
@@ -50,21 +53,17 @@ function onResidueClick(chainId: string, resi: number, event: MouseEvent) {
 function clearSelection() {
   selectionStore.clearSequenceResidueSelection()
 }
-
-function showNum(index: number) {
-  return index === 1 || index % 10 === 0
-}
 </script>
 
 <template>
   <div v-if="chains.length" class="seq-strip">
     <div class="seq-strip__bar">
       <div class="seq-strip__meta">
-        <strong>Sequence</strong>
+        <strong>Sequence · Kabat</strong>
         <span class="leg is-fw">FW</span>
         <span class="leg is-cdr1">CDR1</span>
         <span class="leg is-cdr2">CDR2</span>
-        <span class="leg is-cdr3">CDR3</span>
+        <span class="leg is-mut">突变</span>
         <span v-if="selectionCount" class="sel-count">已选 {{ selectionCount }}</span>
         <button v-if="selectionCount" type="button" class="clear-btn" @click="clearSelection">清除</button>
       </div>
@@ -85,12 +84,15 @@ function showNum(index: number) {
               class="aa"
               :class="[
                 cdrClass(ch, r.index),
-                { 'is-selected': selectionStore.isResidueSelected(ch.chain_id, r.index) },
+                {
+                  'is-selected': selectionStore.isResidueSelected(ch.chain_id, r.index),
+                  'is-mut': mutated.has(`${ch.chain_id}:${r.index}`),
+                },
               ]"
-              :title="`${ch.chain_id}${r.index} ${r.aa}`"
+              :title="`${ch.chain_id} Kabat ${residueKabatLabel(r)} ${r.aa}${mutated.has(`${ch.chain_id}:${r.index}`) ? ' · 突变' : ''}`"
               @click="onResidueClick(ch.chain_id, r.index, $event)"
             >
-              <span v-if="showNum(r.index)" class="aa-num">{{ r.index }}</span>
+              <span class="aa-num">{{ residueKabatLabel(r) }}</span>
               <span class="aa-letter">{{ r.aa }}</span>
             </button>
           </div>
@@ -143,6 +145,7 @@ function showNum(index: number) {
   &.is-cdr1 { background: #c2410c; color: #fff7ed; }
   &.is-cdr2 { background: #0f766e; color: #ecfeff; }
   &.is-cdr3 { background: #1d4ed8; color: #eff6ff; }
+  &.is-mut { background: #be123c; color: #ffe4e6; }
 }
 
 .sel-count {
@@ -201,8 +204,8 @@ function showNum(index: number) {
 
 .aa {
   position: relative;
-  width: 12px;
-  height: 22px;
+  width: 16px;
+  height: 24px;
   padding: 0;
   margin: 0;
   border: none;
@@ -223,6 +226,15 @@ function showNum(index: number) {
   &.is-cdr2 .aa-letter { color: #5eead4; font-weight: 700; }
   &.is-cdr3 .aa-letter { color: #93c5fd; font-weight: 700; }
 
+  &.is-mut {
+    outline: 1px solid #fb7185;
+    border-radius: 2px;
+    background: rgba(225, 29, 72, 0.22);
+
+    .aa-letter { color: #fecdd3; font-weight: 800; }
+    .aa-num { color: #fb7185; }
+  }
+
   &.is-selected {
     background: #db2777;
     border-radius: 2px;
@@ -239,10 +251,11 @@ function showNum(index: number) {
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.48rem;
+  font-size: 0.42rem;
   color: #64748b;
   pointer-events: none;
   white-space: nowrap;
+  letter-spacing: -0.04em;
 }
 
 .aa-letter {

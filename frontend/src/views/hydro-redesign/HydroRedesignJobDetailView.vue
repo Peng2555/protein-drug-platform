@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import HydroPatchViewer from '@/components/hydro/HydroPatchViewer.vue'
+import SequenceStrip from '@/components/sequence/SequenceStrip.vue'
 import {
   downloadHydroRedesignFile,
   fetchHydroRedesignCif,
@@ -10,7 +11,9 @@ import {
   fetchHydroRedesignProgress,
   fetchHydroRedesignRanked,
 } from '@/api/hydroRedesign'
-import type { HydroRedesignJob } from '@/api/types'
+import { fetchJobSequences } from '@/api/sequences'
+import type { ChainSequence, HydroRedesignJob } from '@/api/types'
+import { formatAaKabat, kabatForPosition } from '@/utils/kabatDisplay'
 import { usePolling } from '@/composables/usePolling'
 import { HYDRO_REDESIGN_STAGE_LABELS, statusLabel } from '@/utils/constants'
 import { parseHydroPatches, parseHydroResidues, type HydroPatch, type HydroResidue } from '@/utils/hydroPatches'
@@ -27,6 +30,7 @@ const patchRows = ref<Record<string, unknown>[]>([])
 const residueRows = ref<Record<string, unknown>[]>([])
 const summary = ref<Record<string, unknown> | null>(null)
 const cifText = ref<string | null>(null)
+const sequences = ref<ChainSequence[]>([])
 const tableTab = ref<'wetlab' | 'all' | 'patches'>('patches')
 const selectedPatchId = ref<string | null>(null)
 const selectedResidue = ref<{ chainId: string; resi: number } | null>(null)
@@ -108,7 +112,15 @@ async function load() {
       patchRows.value = data.patches
       residueRows.value = data.residues
       summary.value = data.summary
+      sequences.value = data.chains || []
       cifText.value = await fetchHydroRedesignCif(id)
+      if (!sequences.value.length) {
+        try {
+          sequences.value = (await fetchJobSequences(id)).chains
+        } catch {
+          sequences.value = []
+        }
+      }
     }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
@@ -129,6 +141,7 @@ watch(
     residueRows.value = []
     summary.value = null
     cifText.value = null
+    sequences.value = []
     selectedPatchId.value = null
     selectedResidue.value = null
     await refresh()
@@ -158,6 +171,54 @@ function durationLabel(sec: number | null | undefined) {
   const m = Math.floor(s / 60)
   const r = s % 60
   return r ? `${m} 分 ${r} 秒` : `${m} 分钟`
+}
+
+function siteNumber(chain: string, position: number, kabat?: unknown) {
+  const saved = kabat != null ? String(kabat).trim() : ''
+  if (saved) return saved
+  return kabatForPosition(sequences.value, chain, position)
+}
+
+function residueText(row: { chain: string; aa: string; position: number; kabat?: string } | Record<string, unknown>) {
+  const chain = String(row.chain || '')
+  const aa = String(row.aa || '')
+  const position = Number(row.position)
+  return `${chain}:${formatAaKabat(sequences.value, chain, aa, position, row.kabat as string)}`
+}
+
+function mutationSequence(row: Record<string, unknown>) {
+  const saved = String(row.sequence || '').trim()
+  if (saved) return saved
+  const chainId = String(row.chain || '')
+  const pos = Number(row.position)
+  const mut = String(row.mut || '')
+  const wt = String(row.wt || '')
+  const chain = sequences.value.find((item) => item.chain_id === chainId)
+  if (!chain || !mut || !Number.isFinite(pos) || pos < 1 || pos > chain.sequence.length) return ''
+  if (wt && chain.sequence[pos - 1] !== wt) return ''
+  return chain.sequence.slice(0, pos - 1) + mut + chain.sequence.slice(pos)
+}
+
+function mutationText(row: Record<string, unknown>) {
+  const chain = String(row.chain || '')
+  const wt = String(row.wt || '')
+  const mut = String(row.mut || '')
+  const pos = Number(row.position)
+  if (chain && wt && mut && Number.isFinite(pos)) {
+    return `${chain}_${formatAaKabat(sequences.value, chain, wt, pos, row.kabat as string)}${mut}`
+  }
+  return String(row.label || '')
+}
+
+function patchChip(label: string) {
+  const match = label.match(/^([^:]+):([A-Z])(\d+)([A-Za-z]*)$/)
+  if (!match) return label
+  const chain = match[1]
+  const aa = match[2]
+  const pos = Number(match[3])
+  const hit = residues.value.find((r) => r.chain === chain && r.position === pos && r.aa === aa)
+  if (!hit) return label
+  return `${chain}:${formatAaKabat(sequences.value, chain, aa, pos, hit.kabat)}`
 }
 
 function residuePreview(labels: string[], n = 3) {
@@ -291,13 +352,21 @@ const mutationTable = computed(() => {
     <template v-if="job.status === 'done'">
       <section class="stage">
         <div class="stage__view">
-          <HydroPatchViewer
-            :cif-text="cifText"
-            :residues="residues"
-            :patches="patches"
-            :selected-patch-id="selectedPatchId"
-            :selected-residue="selectedResidue"
-            @select-patch="selectPatch"
+          <div class="stage__structure">
+            <HydroPatchViewer
+              :cif-text="cifText"
+              :residues="residues"
+              :patches="patches"
+              :selected-patch-id="selectedPatchId"
+              :selected-residue="selectedResidue"
+              @select-patch="selectPatch"
+              @residue-click="(p) => pickResidue(p.chainId, p.resi)"
+            />
+          </div>
+          <SequenceStrip
+            v-if="sequences.length"
+            :chains="sequences"
+            :mutated-keys="selectedResidue ? [`${selectedResidue.chainId}:${selectedResidue.resi}`] : []"
             @residue-click="(p) => pickResidue(p.chainId, p.resi)"
           />
         </div>
@@ -327,7 +396,7 @@ const mutationTable = computed(() => {
                 <span class="patch__fill" :style="{ width: `${(p.score / patchScoreMax()) * 100}%`, background: p.color }" />
               </span>
               <span class="patch__chips">
-                <span v-for="lab in residuePreview(p.residues)" :key="lab">{{ lab }}</span>
+                <span v-for="lab in residuePreview(p.residues.map(patchChip))" :key="lab">{{ lab }}</span>
                 <span v-if="!patchHasMutable(p)" class="patch__frozen">CDR 冻结</span>
               </span>
             </span>
@@ -395,8 +464,11 @@ const mutationTable = computed(() => {
               {{ row.patch_id }}
             </template>
           </el-table-column>
-          <el-table-column label="残基" min-width="110">
-            <template #default="{ row }">{{ row.chain }}:{{ row.aa }}{{ row.position }}</template>
+          <el-table-column label="残基" min-width="120">
+            <template #default="{ row }">{{ residueText(row) }}</template>
+          </el-table-column>
+          <el-table-column label="Kabat" width="72">
+            <template #default="{ row }">{{ siteNumber(row.chain, row.position, row.kabat) }}</template>
           </el-table-column>
           <el-table-column prop="region" label="区域" width="80" />
           <el-table-column label="RSA" width="88">
@@ -417,9 +489,9 @@ const mutationTable = computed(() => {
           </el-table-column>
         </el-table>
         <p v-if="tableTab === 'patches'" class="hint">
-          「可突变」只计写入 mutations.csv 的位点。
+          「可突变」只计写入 mutations.csv 的位点。残基编号为 Kabat。
           可改造斑：表面暴露、自身疏水、SAP ≥ 0.5，侧链 6 Å 聚类。CDR 默认冻结。
-          CDR、N/C 端 4 位、Cys 标为冻结。
+          CDR、N/C 端 4 位、Cys 标为冻结。突变序列是该链替换后的全长序列。
         </p>
 
         <el-table
@@ -432,7 +504,15 @@ const mutationTable = computed(() => {
           @row-click="onMutationRow"
         >
           <el-table-column prop="rank" label="#" width="55" />
-          <el-table-column prop="label" label="突变" min-width="130" />
+          <el-table-column label="突变" min-width="140">
+            <template #default="{ row }">{{ mutationText(row) }}</template>
+          </el-table-column>
+          <el-table-column label="Kabat" width="72">
+            <template #default="{ row }">{{ siteNumber(String(row.chain || ''), Number(row.position), row.kabat) }}</template>
+          </el-table-column>
+          <el-table-column label="突变序列" min-width="220" show-overflow-tooltip>
+            <template #default="{ row }">{{ mutationSequence(row) || '—' }}</template>
+          </el-table-column>
           <el-table-column prop="region" label="区域" width="80" />
           <el-table-column label="斑" width="88">
             <template #default="{ row }">
@@ -627,8 +707,22 @@ const mutationTable = computed(() => {
 }
 
 .stage__view {
-  height: 640px;
-  min-height: 560px;
+  min-height: 640px;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  border-radius: 16px;
+}
+
+.stage__structure {
+  height: 520px;
+  min-height: 420px;
+  overflow: hidden;
+
+  :deep(.hydro-viewer) {
+    height: 100%;
+    min-height: 0;
+  }
 }
 
 .rail {

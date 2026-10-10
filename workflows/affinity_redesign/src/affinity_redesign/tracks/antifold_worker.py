@@ -322,10 +322,11 @@ def run(
             row = {
                 "chain": chain,
                 "position": pos,
+                "kabat": cand.get("kabat") or "",
                 "wt": wt,
                 "mut": mut,
                 "region": cand.get("region", ""),
-                "label": cand.get("label") or f"{wt}{pos}{mut}",
+                "label": cand.get("label") or f"{wt}{cand.get('kabat') or pos}{mut}",
                 "domain": cand.get("domain", ""),
                 "dll": "",
                 "dll_threshold": dll_threshold,
@@ -337,10 +338,11 @@ def run(
             row = {
                 "chain": chain,
                 "position": pos,
+                "kabat": cand.get("kabat") or "",
                 "wt": wt,
                 "mut": mut,
                 "region": cand.get("region", ""),
-                "label": cand.get("label") or f"{wt}{pos}{mut}",
+                "label": cand.get("label") or f"{wt}{cand.get('kabat') or pos}{mut}",
                 "domain": cand.get("domain", ""),
                 "dll": round(float(dll), 6),
                 "dll_threshold": dll_threshold,
@@ -352,6 +354,7 @@ def run(
     score_fields = [
         "chain",
         "position",
+        "kabat",
         "wt",
         "mut",
         "region",

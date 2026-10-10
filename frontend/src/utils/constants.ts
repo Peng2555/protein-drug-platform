@@ -73,6 +73,7 @@ export function engineLabel(engine?: string) {
   if (engine === 'hydro_redesign') return '抗体疏水性改造'
   if (engine === 'cic_profile') return '抗体 CIC 表面斑'
   if (engine === 'tnp_profile') return 'VHH 可开发性画像'
+  if (engine === 'tm_disulfide') return '抗体额外二硫键'
   if (engine === 'iggm_maturation') return 'IgGM 亲和力成熟'
   return engine || '—'
 }
@@ -110,6 +111,19 @@ export const TNP_PROFILE_STAGE_LABELS: Record<string, string> = {
   queued: '排队中',
   fold: '折抗体',
   score: '计分',
+  done: '完成',
+  failed: '失败',
+}
+
+export const TM_DISULFIDE_STAGE_LABELS: Record<string, string> = {
+  queued: '排队中',
+  qc: '质控',
+  ensemble: '叠合',
+  sites: '位点掩码',
+  pairs: '距离粗筛',
+  geometry: '虚拟 SG',
+  build: '成键',
+  energy: '能量',
   done: '完成',
   failed: '失败',
 }

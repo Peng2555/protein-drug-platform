@@ -13,6 +13,7 @@ import {
 } from '@/api/cicProfile'
 import { fetchJobSequences } from '@/api/sequences'
 import type { ChainSequence, CicProfileJob } from '@/api/types'
+import { formatAaKabat } from '@/utils/kabatDisplay'
 import { usePolling } from '@/composables/usePolling'
 import { CIC_PROFILE_STAGE_LABELS, statusLabel } from '@/utils/constants'
 import { parseCicPatches, parseCicResidues, patchKindLabel, type CicPatchKind, type CicResidue } from '@/utils/cicPatches'
@@ -80,6 +81,24 @@ function pickResidue(chainId: string, resi: number) {
   const hit = residuesAll.value.find((r) => r.chain === chainId && r.position === resi)
   selectedPatchId.value = hit?.patch_id ?? null
 }
+function residueText(row: { chain: string; aa: string; position: number; kabat?: string } | Record<string, unknown>) {
+  const chain = String(row.chain || '')
+  const aa = String(row.aa || '')
+  const position = Number(row.position)
+  return `${chain}:${formatAaKabat(sequences.value, chain, aa, position, row.kabat as string)}`
+}
+
+function patchChip(label: string) {
+  const match = label.match(/^([^:]+):([A-Z])(\d+)([A-Za-z]*)$/)
+  if (!match) return label
+  const chain = match[1]
+  const aa = match[2]
+  const pos = Number(match[3])
+  const hit = residuesAll.value.find((r) => r.chain === chain && r.position === pos && r.aa === aa)
+  if (!hit) return label
+  return `${chain}:${formatAaKabat(sequences.value, chain, aa, pos, hit.kabat)}`
+}
+
 function residuePreview(labels: string[], n = 3) {
   if (labels.length <= n) return labels
   return [...labels.slice(0, n), `+${labels.length - n}`]
@@ -122,6 +141,7 @@ async function load() {
       patchRows.value = data.patches
       residueRows.value = data.residues
       summary.value = data.summary
+      if (data.chains?.length) sequences.value = data.chains
       cifText.value = await fetchCicProfileCif(id)
     }
   } catch (e) {
@@ -246,7 +266,7 @@ function onResidueRow(row: CicResidue) {
               </span>
               <span class="meter"><span class="fill" :style="{ width: `${(p.score / patchScoreMax()) * 100}%`, background: p.color }" /></span>
               <span class="chips">
-                <span v-for="lab in residuePreview(p.residues)" :key="lab">{{ lab }}</span>
+                <span v-for="lab in residuePreview(p.residues.map(patchChip))" :key="lab">{{ lab }}</span>
               </span>
             </span>
           </button>
@@ -277,7 +297,7 @@ function onResidueRow(row: CicResidue) {
             <template #default="{ row }">{{ patchKindLabel(row.patch_kind) }}</template>
           </el-table-column>
           <el-table-column label="残基" min-width="110">
-            <template #default="{ row }">{{ row.chain }}:{{ row.aa }}{{ row.position }}</template>
+            <template #default="{ row }">{{ residueText(row) }}</template>
           </el-table-column>
           <el-table-column prop="region" label="区域" width="80" />
           <el-table-column label="电荷" width="80">
@@ -420,15 +440,15 @@ function onResidueRow(row: CicResidue) {
   }
 }
 .stage__view {
-  height: 640px;
+  min-height: 640px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 16px;
 }
 .stage__structure {
-  flex: 1;
-  min-height: 0;
+  height: 520px;
+  min-height: 420px;
   overflow: hidden;
   :deep(.hydro-viewer) {
     height: 100%;

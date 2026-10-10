@@ -119,10 +119,10 @@ const displaySpans = computed(() => childSpans.value.length ? childSpans.value :
           :key="`p-${item.pos}`"
           class="aa"
           :class="[item.tone, { 'is-mut': item.mutated, 'is-cdr-start': !!item.cdrStart }]"
-          :title="`序列 ${item.pos} · Kabat ${item.kabat}`"
+          :title="`Kabat ${item.kabat} · 顺序位 ${item.pos}`"
         >
           <em v-if="item.cdrStart">{{ item.cdrStart }}</em>
-          <span class="aa-num">{{ item.pos }}</span>
+          <span class="aa-num">{{ item.kabat }}</span>
           <span class="aa-letter">{{ item.aa }}</span>
         </span>
       </div>
@@ -136,10 +136,10 @@ const displaySpans = computed(() => childSpans.value.length ? childSpans.value :
           :key="`c-${item.pos}`"
           class="aa"
           :class="[item.tone, { 'is-mut': item.mutated, 'is-cdr-start': !!item.cdrStart }]"
-          :title="`序列 ${item.pos} · Kabat ${item.kabat}`"
+          :title="`Kabat ${item.kabat} · 顺序位 ${item.pos}`"
         >
           <em v-if="item.cdrStart">{{ item.cdrStart }}</em>
-          <span class="aa-num">{{ item.pos }}</span>
+          <span class="aa-num">{{ item.kabat }}</span>
           <span class="aa-letter">{{ item.aa }}</span>
         </span>
       </div>
@@ -232,7 +232,7 @@ const displaySpans = computed(() => childSpans.value.length ? childSpans.value :
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  width: 1.7em;
+  width: 1.9em;
   min-height: 2.15em;
   padding: 0.12rem 0 0.08rem;
   text-align: center;

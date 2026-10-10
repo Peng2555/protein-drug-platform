@@ -20,22 +20,49 @@ from boltz_runner import validate_seq
 
 _AA = set("ACDEFGHIKLMNPQRSTVWY")
 _ROLE_SUFFIX = re.compile(
-    r"^(?P<base>.+?)(?:[_/\-|.]|chain)(?P<role>heavy|light|h|l)$",
+    r"^(?P<base>.+?)(?:[_/\-|.]|chain)(?P<role>vh|vl|hc|lc|heavy|light|kappa|lambda|h|l|重链|轻链)$",
     re.I,
 )
-_ID_HEADERS = {"id", "vhh_id", "name", "antibody_id", "ab_id", "抗体id"}
+_HEAVY_ROLES = {"HEAVY", "H", "VH", "HC", "重链"}
+_LIGHT_ROLES = {"LIGHT", "L", "VL", "LC", "KAPPA", "LAMBDA", "轻链"}
+_ID_HEADERS = {"id", "vhh_id", "name", "antibody_id", "ab_id", "抗体id", "抗体名称", "蛋白名称"}
 _HEAVY_HEADERS = {
     "heavy",
     "heavy_sequence",
     "heavy_seq",
+    "heavy_chain",
     "h",
+    "vh",
+    "hc",
+    "vh_sequence",
+    "vh_seq",
     "sequence",
     "seq",
     "序列",
     "重链",
     "重链序列",
+    "vh序列",
+    "vh基因序列",
+    "重链可变区",
+    "重链可变区序列",
 }
-_LIGHT_HEADERS = {"light", "light_sequence", "light_seq", "l", "轻链", "轻链序列"}
+_LIGHT_HEADERS = {
+    "light",
+    "light_sequence",
+    "light_seq",
+    "light_chain",
+    "l",
+    "vl",
+    "lc",
+    "vl_sequence",
+    "vl_seq",
+    "轻链",
+    "轻链序列",
+    "vl序列",
+    "vl基因序列",
+    "轻链可变区",
+    "轻链可变区序列",
+}
 
 
 @dataclass
@@ -64,9 +91,9 @@ def _classify_fasta_header(hid: str) -> tuple[str, str | None]:
     if not u:
         raise HTTPException(400, "FASTA 头为空")
     ul = u.upper()
-    if ul in {"H", "HEAVY"}:
+    if ul in _HEAVY_ROLES:
         return "", "H"
-    if ul in {"L", "LIGHT"}:
+    if ul in _LIGHT_ROLES:
         return "", "L"
     m = _ROLE_SUFFIX.match(u)
     if m:
@@ -74,9 +101,9 @@ def _classify_fasta_header(hid: str) -> tuple[str, str | None]:
         base = m.group("base").rstrip("_-./|")
         if not base:
             raise HTTPException(400, f"无法从 FASTA 头解析抗体 ID: {hid!r}")
-        if role in {"HEAVY", "H"}:
+        if role in _HEAVY_ROLES:
             return base, "H"
-        if role in {"LIGHT", "L"}:
+        if role in _LIGHT_ROLES:
             return base, "L"
     return u, None
 

@@ -220,6 +220,21 @@ export interface ProjectJobLink {
   created_at: string
 }
 
+export interface ProjectFoldJobItem {
+  version_id: string
+  version_code: string
+  job_id: string
+}
+
+export interface ProjectFoldAntibodyOnlyOut {
+  batch_id: string
+  batch_name: string
+  job_ids: string[]
+  items: ProjectFoldJobItem[]
+  skipped_existing: number
+  skipped_duplicates: number
+}
+
 export interface AuditEvent {
   id: string
   project_id: string
@@ -253,6 +268,8 @@ export const createAntibodyProject = (data: {
 }) => apiJson<AntibodyProject>(root, { method: 'POST', data })
 export const updateAntibodyProject = (id: string, data: Partial<AntibodyProject>) =>
   apiJson<AntibodyProject>(`${root}/${id}`, { method: 'PATCH', data })
+export const deleteAntibodyProject = (id: string) =>
+  apiJson<void>(`${root}/${id}`, { method: 'DELETE' })
 
 export const fetchProjectMembers = (projectId: string) =>
   apiJson<ProjectMember[]>(`${root}/${projectId}/members`)
@@ -415,6 +432,17 @@ export const createJobLink = (projectId: string, data: {
   job_id: string
   purpose?: string
 }) => apiJson<ProjectJobLink>(`${root}/${projectId}/job-links`, { method: 'POST', data })
+export const foldAntibodyOnly = (
+  projectId: string,
+  data: {
+    candidate_id?: string
+    version_ids?: string[]
+    skip_existing?: boolean
+  },
+) => apiJson<ProjectFoldAntibodyOnlyOut>(
+  `${root}/${projectId}/fold-antibody-only`,
+  { method: 'POST', data },
+)
 
 export const fetchArtifacts = (projectId: string) =>
   apiJson<ProjectArtifact[]>(`${root}/${projectId}/artifacts`)

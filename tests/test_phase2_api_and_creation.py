@@ -167,7 +167,7 @@ def test_hydro_and_tnp_batches_defer_until_explicit_dispatch(
         dispatched.append(("tnp", job_id))
         return SimpleNamespace(id=f"tnp-task-{job_id}")
 
-    monkeypatch.setattr(hydro, "dispatch_to_gpu", fake_hydro_dispatch)
+    monkeypatch.setattr(hydro, "dispatch_fold_compute", fake_hydro_dispatch)
     monkeypatch.setattr(tnp, "dispatch_to_gpu", fake_tnp_dispatch)
     sequence = "Q" * 80
     fasta = f">vhh-a\n{sequence}\n>vhh-b\n{sequence}\n"

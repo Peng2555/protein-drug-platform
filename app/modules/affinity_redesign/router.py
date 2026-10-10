@@ -23,6 +23,7 @@ from app.modules.affinity_redesign.progress import (
     build_mutation_region_table,
     mutation_region_table_csv,
 )
+from app.common.kabat_results import annotate_job_chains, apply_kabat_rows
 from app.core.celery import celery_app
 from app.core.config import settings
 from app.core.database import get_db
@@ -180,11 +181,20 @@ def get_ranked(job_id: str, db: Session = Depends(get_db), user: User = Depends(
             import json
 
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    chains = annotate_job_chains(job)
+    apply_kabat_rows(ranked, chains, with_sequence=True)
+    apply_kabat_rows(wetlab, chains, with_sequence=True)
     mutation_table: list[dict] = []
     if job.work_dir:
-        mutation_table = build_mutation_region_table(collect_mutation_records(Path(job.work_dir)))
+        records = collect_mutation_records(Path(job.work_dir))
+        apply_kabat_rows(records, chains)
+        mutation_table = build_mutation_region_table(records)
     return AffinityRedesignRankedOut(
-        ranked=ranked, wetlab=wetlab, summary=summary, mutation_table=mutation_table
+        ranked=ranked,
+        wetlab=wetlab,
+        summary=summary,
+        mutation_table=mutation_table,
+        chains=chains,
     )
 
 

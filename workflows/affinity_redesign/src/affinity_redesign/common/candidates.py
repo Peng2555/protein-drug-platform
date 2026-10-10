@@ -14,6 +14,7 @@ STANDARD_AA = list("ACDEFGHIKLMNPQRSTVWY")
 CANDIDATE_FIELDS = [
     "chain",
     "position",
+    "kabat",
     "wt",
     "mut",
     "region",
@@ -35,9 +36,11 @@ def enumerate_single_point_mutations(
 
     allow = set(scan_regions or ["FR", "CDR"])
     records: list[MutationRecord] = []
+    labels = list(ab.get("kabat_labels") or [])
     qs, qe = ab["query_start"], ab["query_end"]
     for i in range(qs, qe + 1):
         region = region_for_index(ab, i)
+        kabat = labels[i] if i < len(labels) and labels[i] else str(i + 1)
         if region == "OUT":
             continue
         is_cdr = region.startswith("CDR")
@@ -53,11 +56,12 @@ def enumerate_single_point_mutations(
             records.append(
                 MutationRecord(
                     chain=chain_id,
-                    position=i + 1,  # 1-based
+                    position=i + 1,  # 1-based 顺序位，用于改序列
+                    kabat=str(kabat),
                     wt=wt,
                     mut=mut,
                     region=region,
-                    label=f"{wt}{i + 1}{mut}",
+                    label=f"{wt}{kabat}{mut}",
                 )
             )
     # attach domain via region already; store domain on first record via side channel not needed
@@ -75,6 +79,7 @@ def write_candidates_csv(records: list[MutationRecord], path: Path, *, domains: 
                 {
                     "chain": r.chain,
                     "position": r.position,
+                    "kabat": r.kabat,
                     "wt": r.wt,
                     "mut": r.mut,
                     "region": r.region,
@@ -92,6 +97,7 @@ def read_candidates_csv(path: Path) -> list[MutationRecord]:
                 MutationRecord(
                     chain=row["chain"],
                     position=int(row["position"]),
+                    kabat=row.get("kabat") or "",
                     wt=row["wt"],
                     mut=row["mut"],
                     region=row.get("region") or "",

@@ -8,7 +8,9 @@ export interface AntibodyRow {
 }
 
 const AA = /^[ACDEFGHIKLMNPQRSTVWY]+$/
-const ROLE_SUFFIX = /^(.+?)(?:[_/\-|.]|chain)(heavy|light|h|l)$/i
+const ROLE_SUFFIX = /^(.+?)(?:[_/\-|.]|chain)(vh|vl|hc|lc|heavy|light|kappa|lambda|h|l|重链|轻链)$/i
+const HEAVY_ROLES = new Set(['HEAVY', 'H', 'VH', 'HC', '重链'])
+const LIGHT_ROLES = new Set(['LIGHT', 'L', 'VL', 'LC', 'KAPPA', 'LAMBDA', '轻链'])
 
 function looksLikeSequence(raw: string) {
   const seq = raw.replace(/[\s\d]/g, '').toUpperCase()
@@ -36,14 +38,14 @@ function splitCsvLine(line: string) {
 function classifyFastaHeader(hid: string): { base: string; role: 'H' | 'L' | null } {
   const u = hid.trim()
   const ul = u.toUpperCase()
-  if (ul === 'H' || ul === 'HEAVY') return { base: '', role: 'H' }
-  if (ul === 'L' || ul === 'LIGHT') return { base: '', role: 'L' }
+  if (HEAVY_ROLES.has(ul)) return { base: '', role: 'H' }
+  if (LIGHT_ROLES.has(ul)) return { base: '', role: 'L' }
   const m = u.match(ROLE_SUFFIX)
   if (m) {
     const role = m[2].toUpperCase()
     const base = m[1].replace(/[_./|-]+$/, '')
-    if (role === 'HEAVY' || role === 'H') return { base, role: 'H' }
-    if (role === 'LIGHT' || role === 'L') return { base, role: 'L' }
+    if (HEAVY_ROLES.has(role)) return { base, role: 'H' }
+    if (LIGHT_ROLES.has(role)) return { base, role: 'L' }
   }
   return { base: u, role: null }
 }
@@ -127,14 +129,39 @@ const HEAVY_HEADERS = new Set([
   'heavy',
   'heavy_sequence',
   'heavy_seq',
+  'heavy_chain',
   'h',
+  'vh',
+  'hc',
+  'vh_sequence',
+  'vh_seq',
+  'vh序列',
+  'vh基因序列',
   'sequence',
   'seq',
   '序列',
   '重链',
   '重链序列',
+  '重链可变区',
+  '重链可变区序列',
 ])
-const LIGHT_HEADERS = new Set(['light', 'light_sequence', 'light_seq', 'l', '轻链', '轻链序列'])
+const LIGHT_HEADERS = new Set([
+  'light',
+  'light_sequence',
+  'light_seq',
+  'light_chain',
+  'l',
+  'vl',
+  'lc',
+  'vl_sequence',
+  'vl_seq',
+  'vl序列',
+  'vl基因序列',
+  '轻链',
+  '轻链序列',
+  '轻链可变区',
+  '轻链可变区序列',
+])
 
 function looksLikeHeader(parts: string[]) {
   return parts.some((p) => {

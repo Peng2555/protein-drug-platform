@@ -5,6 +5,8 @@ from boltzfold_shared.antibody.cdr import (
     KABAT_CDR_LIGHT,
     annotate_antibody_chain,
     annotate_regions,
+    format_kabat_number,
+    kabat_labels_for_sequence,
     region_for_index,
 )
 from boltzfold_shared.antibody.folding import fold_antibody
@@ -15,5 +17,7 @@ __all__ = [
     "annotate_antibody_chain",
     "annotate_regions",
     "fold_antibody",
+    "format_kabat_number",
+    "kabat_labels_for_sequence",
     "region_for_index",
 ]

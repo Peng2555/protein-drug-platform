@@ -26,6 +26,8 @@ stop_pid() {
 
 echo "Stopping BoltzFold..."
 stop_pid "API" "$PID_DIR/api.pid"
+stop_pid "Fold worker" "$PID_DIR/celery-fold.pid"
+stop_pid "CPU worker" "$PID_DIR/celery-cpu.pid"
 for (( gpu=0; gpu<CELERY_GPU_COUNT; gpu++ )); do
   stop_pid "GPU worker $gpu" "$PID_DIR/celery-gpu${gpu}.pid"
 done

@@ -85,6 +85,36 @@ def test_cluster_and_enumerate(tmp_path: Path):
     assert wet[0]["rank"] == 1
 
 
+def test_enumerate_uses_kabat_and_writes_sequence():
+    from hydro_redesign.enumerate import enumerate_mutations
+
+    residues = [
+        {
+            "chain": "H",
+            "position": 9,
+            "aa": "I",
+            "patch_id": "P1",
+            "phi": 1.2,
+            "sap": 0.8,
+            "rsa": 0.4,
+            "sasa": 20,
+        }
+    ]
+    seq = "SSSSIIIIIIIIISSS"
+    muts, skipped = enumerate_mutations(
+        residues,
+        {"H": seq},
+        {("H", 9): "FR"},
+        kabats={("H", 9): "31A"},
+    )
+    assert not skipped
+    assert muts
+    assert muts[0]["kabat"] == "31A"
+    assert muts[0]["label"].startswith("H_I31A")
+    assert muts[0]["sequence"][8] == muts[0]["mut"]
+    assert muts[0]["sequence"][:8] == seq[:8]
+
+
 def test_sap_scale_and_hydrophilic_cancellation(tmp_path: Path):
     pytest.importorskip("gemmi")
     from hydro_redesign.constants import BLACK_MOULD_GLY0

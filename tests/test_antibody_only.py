@@ -25,6 +25,31 @@ DIQMTQSPSSLSASVGDRVTITCRAS
     assert by_id["IgG_001"].light.startswith("DIQMT")
 
 
+def test_fasta_vh_vl_pair_is_not_two_heavies():
+    text = """>clone_27_VH
+EVQLVESGGGLVQPGGSLRLSCAASG
+>clone_27_VL
+DIQMTQSPSSLSASVGDRVTITCRAS
+>VH
+QVQLQESGGGLVQPGGSLRLSCAASG
+>VL
+DIQMTQSPSSLSASVGDRVTITCRAS
+"""
+    rows, _fmt = parse_antibody_text(text)
+    by_id = {r.id: r for r in rows}
+    assert by_id["clone_27"].light.startswith("DIQMT")
+    assert by_id["Ab"].light.startswith("DIQMT")
+    assert all(r.light for r in rows)
+
+
+def test_csv_vh_vl_columns():
+    text = "id,VH,VL\nIgG_001,EVQLVESGGGLVQPGGSLRLSCAASG,DIQMTQSPSSLSASVGDRVTITCRAS"
+    rows, fmt = parse_antibody_text(text)
+    assert fmt == "csv"
+    assert rows[0].id == "IgG_001"
+    assert rows[0].light.startswith("DIQMT")
+
+
 def test_generic_h_l_pair():
     text = ">H\nQVQLQESGGGLVQPGGSLRLSCAASG\n>L\nDIQMTQSPSSLSASVGDRVTITCRAS\n"
     rows, _ = parse_antibody_text(text)

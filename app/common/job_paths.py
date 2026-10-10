@@ -7,12 +7,23 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 
 def sanitize_label(text: str, max_len: int = 48) -> str:
     s = re.sub(r"[^\w\-]+", "_", text.strip())
     s = re.sub(r"_+", "_", s).strip("_")
     return (s or "job")[:max_len]
+
+
+def attachment_content_disposition(filename: str) -> str:
+    """HTTP 附件头：ASCII filename + RFC 5987，避免中文作业名让 latin-1 头编码失败。"""
+    path = Path(filename)
+    suffix = path.suffix if path.suffix.isascii() else ""
+    ascii_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", path.stem)
+    ascii_stem = re.sub(r"_+", "_", ascii_stem).strip("._") or "download"
+    ascii_name = f"{ascii_stem[:80]}{suffix}"
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}"
 
 
 def default_job_name(chains_json: dict[str, int]) -> str:

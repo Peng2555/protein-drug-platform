@@ -13,6 +13,7 @@ MODULE_FILES = {
     "hydro_redesign": {"__init__.py", "router.py", "service.py"},
     "cic_profile": {"__init__.py", "router.py", "service.py"},
     "tnp_profile": {"__init__.py", "router.py", "service.py"},
+    "tm_disulfide": {"__init__.py", "router.py", "service.py"},
 }
 
 ROUTER_SERVICE_EXPORTS = {
@@ -42,6 +43,9 @@ ROUTER_SERVICE_EXPORTS = {
         "dispatch_tnp_profile_jobs",
         "parse_vhh_records",
         "save_structure_upload",
+    },
+    "tm_disulfide": {
+        "create_and_queue_tm_disulfide_job",
     },
 }
 
@@ -96,7 +100,7 @@ THIRD_ROUTER_SERVICE_EXPORTS = {
     },
 }
 
-OPENAPI_SHA256 = "8d112488374143fae9a8beb55a95622d06fc4e56290c5f4f77d20bf97c708c02"
+OPENAPI_SHA256 = "c508d0eeb71f52fe3653884b5da276b053329fb89c4c211c242ae436d4115aca"
 
 
 def test_first_module_group_has_exact_vertical_layout():
@@ -302,5 +306,5 @@ def test_openapi_contract_is_stable_after_third_module_move():
         separators=(",", ":"),
         sort_keys=True,
     )
-    assert len(schema["paths"]) == 122
+    assert len(schema["paths"]) == 129
     assert hashlib.sha256(payload.encode()).hexdigest() == OPENAPI_SHA256

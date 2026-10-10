@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import {
   Aim,
   ArrowDown,
@@ -26,6 +27,7 @@ import {
   Umbrella,
   Lightning,
   Guide,
+  Connection,
 } from '@element-plus/icons-vue'
 import ModuleNavBranch from '@/components/layout/ModuleNavBranch.vue'
 import HomeLandingNav from '@/components/home/HomeLandingNav.vue'
@@ -95,6 +97,7 @@ const iconMap: Record<ModuleIconKey, typeof HomeFilled> = {
   hydro_redesign: Umbrella,
   cic_profile: Lightning,
   tnp_profile: Guide,
+  tm_disulfide: Connection,
   synthesis: Histogram,
   docking: Aim,
   md: Timer,
@@ -117,6 +120,7 @@ const badgeMap = computed(() => ({
   hydro_redesign: moduleJobs.counts.hydro_redesign,
   cic_profile: moduleJobs.counts.cic_profile,
   tnp_profile: moduleJobs.counts.tnp_profile,
+  tm_disulfide: moduleJobs.counts.tm_disulfide,
   synthesis: moduleJobs.counts.synthesis,
   docking: moduleJobs.counts.docking,
   md: moduleJobs.counts.md,
@@ -232,6 +236,29 @@ function crumbHint() {
 function onLogout() {
   auth.logout()
   router.push('/login')
+}
+
+const showPassword = ref(false)
+const passwordForm = reactive({ oldPassword: '', newPassword: '' })
+const passwordSaving = ref(false)
+
+async function submitPassword() {
+  if (passwordForm.newPassword.length < 6) {
+    ElMessage.warning('新密码至少 6 位')
+    return
+  }
+  passwordSaving.value = true
+  try {
+    await auth.changePassword(passwordForm.oldPassword, passwordForm.newPassword)
+    showPassword.value = false
+    passwordForm.oldPassword = ''
+    passwordForm.newPassword = ''
+    ElMessage.success('密码已更新，其他设备上的登录已失效')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '修改失败')
+  } finally {
+    passwordSaving.value = false
+  }
 }
 
 onMounted(() => {
@@ -432,6 +459,8 @@ onMounted(() => {
           </div>
           <div class="user-meta">
             <strong>{{ auth.user?.username || '用户' }}</strong>
+            <button type="button" class="logout-link" @click="showPassword = true">修改密码</button>
+            <button v-if="auth.user?.is_admin" type="button" class="logout-link" @click="router.push({ name: 'admin-users' })">用户管理</button>
             <button type="button" class="logout-link" @click="onLogout">退出登录</button>
           </div>
           <button type="button" class="icon-btn" title="退出" @click="onLogout">
@@ -468,6 +497,8 @@ onMounted(() => {
             <span class="user-dot" />
             <span class="username">{{ auth.user?.username }}</span>
           </span>
+          <el-button v-if="auth.user?.is_admin" size="small" plain @click="router.push({ name: 'admin-users' })">用户管理</el-button>
+          <el-button size="small" plain @click="showPassword = true">修改密码</el-button>
           <el-button size="small" plain @click="onLogout">退出</el-button>
         </div>
       </header>
@@ -475,6 +506,21 @@ onMounted(() => {
       <main class="app-content" :class="{ 'app-content--home': isLanding }">
         <RouterView />
       </main>
+
+      <el-dialog v-model="showPassword" title="修改密码" width="420px">
+        <el-form label-position="top">
+          <el-form-item label="当前密码">
+            <el-input v-model="passwordForm.oldPassword" type="password" show-password />
+          </el-form-item>
+          <el-form-item label="新密码">
+            <el-input v-model="passwordForm.newPassword" type="password" show-password />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="showPassword = false">取消</el-button>
+          <el-button type="primary" :loading="passwordSaving" @click="submitPassword">保存</el-button>
+        </template>
+      </el-dialog>
 
       <footer v-if="!isLanding" class="app-footer">
         <span>© {{ PLATFORM_ORG }}</span>

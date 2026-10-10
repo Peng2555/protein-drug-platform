@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from app.schemas.fold import Boltz2Params, EsmFold2Params
 
 
 class ProjectCreate(BaseModel):
@@ -324,6 +327,32 @@ class AffinityImportItem(BaseModel):
 
 class AffinityImportRequest(BaseModel):
     items: list[AffinityImportItem] = Field(min_length=1, max_length=200)
+
+
+class ProjectFoldAntibodyOnlyCreate(BaseModel):
+    candidate_id: str | None = None
+    version_ids: list[str] | None = Field(default=None, max_length=200)
+    skip_existing: bool = True
+    batch_name: str | None = Field(default=None, max_length=128)
+    engine: Literal["boltz2", "esmfold2"] = "boltz2"
+    use_msa_server: bool = True
+    boltz_params: Boltz2Params | None = None
+    esmfold_params: EsmFold2Params | None = None
+
+
+class ProjectFoldJobItem(BaseModel):
+    version_id: str
+    version_code: str
+    job_id: str
+
+
+class ProjectFoldAntibodyOnlyOut(BaseModel):
+    batch_id: str
+    batch_name: str
+    job_ids: list[str]
+    items: list[ProjectFoldJobItem]
+    skipped_existing: int = 0
+    skipped_duplicates: int = 0
 
 
 class JobLinkCreate(BaseModel):

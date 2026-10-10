@@ -11,6 +11,7 @@ const auth = useAuthStore()
 const tab = ref<'login' | 'register'>('login')
 const username = ref('')
 const password = ref('')
+const email = ref('')
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
@@ -29,7 +30,7 @@ async function submit() {
       const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
       router.replace(redirect)
     } else {
-      const result = await auth.register(username.value.trim(), password.value)
+      const result = await auth.register(username.value.trim(), password.value, email.value.trim())
       if (result.pending_approval) {
         success.value = result.message || '注册成功，请等待管理员审批后再登录'
         tab.value = 'login'
@@ -89,6 +90,9 @@ async function submit() {
         <el-form label-position="top" @submit.prevent="submit">
           <el-form-item label="用户名">
             <el-input v-model="username" autocomplete="username" placeholder="请输入用户名" />
+          </el-form-item>
+          <el-form-item v-if="tab === 'register'" label="邮箱（可选）">
+            <el-input v-model="email" autocomplete="email" placeholder="用于管理员联系，不发送验证邮件" />
           </el-form-item>
           <el-form-item label="密码">
             <el-input

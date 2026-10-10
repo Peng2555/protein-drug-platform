@@ -27,6 +27,7 @@ class AffinityRedesignRankedOut(BaseModel):
     wetlab: list[dict] = Field(default_factory=list)
     summary: dict | None = None
     mutation_table: list[dict] = Field(default_factory=list)
+    chains: list[dict] = Field(default_factory=list)
 
 
 class AffinityRedesignProgressOut(BaseModel):

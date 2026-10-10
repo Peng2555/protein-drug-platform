@@ -17,6 +17,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.engines import TNP_PROFILE_ENGINE
 from app.common.job_paths import remove_job_outputs
+from app.common.kabat_results import annotate_job_chains, apply_kabat_rows
 from app.modules.tnp_profile.service import (
     TNP_BATCH_TYPE,
     create_and_queue_tnp_profile_batch,
@@ -327,7 +328,11 @@ def get_ranked(job_id: str, db: Session = Depends(get_db), user: User = Depends(
     if (exports / "summary.json").is_file():
         summary = json.loads((exports / "summary.json").read_text(encoding="utf-8"))
         metrics = list((summary or {}).get("metrics") or metrics)
-    return TnpProfileRankedOut(patches=patches, residues=residues, metrics=metrics, summary=summary)
+    chains = annotate_job_chains(job)
+    apply_kabat_rows(residues, chains)
+    return TnpProfileRankedOut(
+        patches=patches, residues=residues, metrics=metrics, chains=chains, summary=summary
+    )
 
 
 @router.get("/{job_id}/files/{filename}")

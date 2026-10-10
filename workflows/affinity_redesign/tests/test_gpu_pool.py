@@ -28,3 +28,12 @@ def test_select_idle_caps_at_max(monkeypatch):
 
     monkeypatch.setattr("affinity_redesign.tracks.gpu_pool._query_nvidia_smi", fake_smi)
     assert select_idle_gpu_ids(max_gpus=2) == [0, 1]
+
+
+def test_select_fold_worker_ids_uses_npu_slots(monkeypatch):
+    monkeypatch.setenv("BOLTZ_NPU_REMOTE", "true")
+    monkeypatch.setenv("BOLTZ_NPU_COUNT", "8")
+    from affinity_redesign.tracks.gpu_pool import select_fold_worker_ids
+
+    assert select_fold_worker_ids() == list(range(8))
+    assert select_fold_worker_ids(max_gpus=3) == [0, 1, 2]

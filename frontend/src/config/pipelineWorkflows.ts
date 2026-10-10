@@ -218,6 +218,36 @@ export const PIPELINE_WORKFLOWS: PipelineWorkflowDef[] = [
       },
     ],
   },
+  {
+    id: 'tm-disulfide',
+    title: '抗体额外二硫键',
+    description:
+      '选择已完成的 Boltz2 作业（≥4 套模型），筛选额外二硫键并对折叠态能量排序。本模块不重新折叠。',
+    scene: 'antibody',
+    accent: 'teal',
+    estimatedDuration: '数十分钟至数小时（CPU / PyRosetta）',
+    status: 'beta',
+    inputHint: '先完成 Boltz2 折叠（diffusion_samples ≥ 4），再在本模块选择该作业。',
+    inputFields: [
+      { key: 'name', label: '任务名称', placeholder: '例如 CD38_ss', required: false },
+    ],
+    steps: [
+      {
+        id: 'fold',
+        label: '已有结构',
+        description: 'Boltz2 多模型作业。',
+        moduleId: 'fold',
+        moduleRoute: '/fold/new',
+      },
+      {
+        id: 'screen',
+        label: '二硫键筛选',
+        description: '几何 · 成键 · 能量。',
+        moduleId: 'tm_disulfide',
+        moduleRoute: '/tm-disulfide/new',
+      },
+    ],
+  },
 ]
 
 export function pipelineById(id: string): PipelineWorkflowDef | undefined {

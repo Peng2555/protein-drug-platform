@@ -18,7 +18,7 @@ from app.core.engines import FOLD_ENGINES
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.modules.fold.samples import fold_sample_payload, list_fold_samples, resolve_fold_cif
-from app.common.job_paths import default_job_name, remove_job_outputs
+from app.common.job_paths import attachment_content_disposition, default_job_name, remove_job_outputs
 from app.modules.fold.service import create_and_queue_job, dispatch_job, fasta_from_seqs, sequence_hash
 from app.core.models import Job, JobStatus, User
 from app.schemas import JobCreate, JobInterfaceOut, JobListOut, JobOut, JobSequencesOut
@@ -290,12 +290,12 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(
 
 @router.get("/{job_id}/sequences", response_model=JobSequencesOut)
 def get_job_sequences(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    from app.common.cdr_annotation import annotate_fasta
+    from app.common.kabat_results import annotate_job_chains
 
     job = db.get(Job, job_id)
     if not job or job.user_id != user.id:
         raise HTTPException(404, "Job not found")
-    chains = annotate_fasta(job.fasta_text)
+    chains = annotate_job_chains(job)
     return JobSequencesOut(job_id=job_id, chains=chains)
 
 
@@ -387,5 +387,8 @@ def download_structures_zip(
             zf.write(src, arcname=f"model_{row['index']}{tag}.cif")
     buf.seek(0)
     filename = f"{job.name or job.id}_samples.zip"
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
-    return Response(content=buf.getvalue(), media_type="application/zip", headers=headers)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": attachment_content_disposition(filename)},
+    )

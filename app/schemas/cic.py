@@ -29,4 +29,5 @@ class CicProfileProgressOut(BaseModel):
 class CicProfileRankedOut(BaseModel):
     patches: list[dict] = Field(default_factory=list)
     residues: list[dict] = Field(default_factory=list)
+    chains: list[dict] = Field(default_factory=list)
     summary: dict | None = None

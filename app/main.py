@@ -75,7 +75,9 @@ def health():
         r = redis.from_url(settings.redis_url)
         r.ping()
         q = settings.celery_gpu_queue
-        queue_depth = r.llen(q)
+        queue_depth = int(r.llen(q) or 0)
+        queue_depth += int(r.llen(settings.celery_fold_queue) or 0)
+        queue_depth += int(r.llen(settings.celery_cpu_queue) or 0)
         if queue_depth == 0:
             queue_depth = r.llen("celery")  # legacy fallback
     except Exception as exc:

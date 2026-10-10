@@ -17,6 +17,7 @@ def load_plm_top_csv(path: Path) -> list[MutationRecord]:
                 MutationRecord(
                     chain=r["chain"],
                     position=int(r["position"]),
+                    kabat=r.get("kabat") or "",
                     wt=r["wt"],
                     mut=r["mut"],
                     region=r.get("region") or "",
@@ -36,6 +37,7 @@ def load_structure_top_csv(path: Path) -> list[MutationRecord]:
                 MutationRecord(
                     chain=r["chain"],
                     position=int(r["position"]),
+                    kabat=r.get("kabat") or "",
                     wt=r["wt"],
                     mut=r["mut"],
                     region=r.get("region") or "",
@@ -107,6 +109,7 @@ def merge_tracks(
     fieldnames = [
         "chain",
         "position",
+        "kabat",
         "wt",
         "mut",
         "region",
@@ -125,6 +128,7 @@ def merge_tracks(
                     {
                         "chain": row.chain,
                         "position": row.position,
+                        "kabat": row.kabat,
                         "wt": row.wt,
                         "mut": row.mut,
                         "region": row.region,

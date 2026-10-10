@@ -35,6 +35,7 @@ class TnpProfileRankedOut(BaseModel):
     patches: list[dict] = Field(default_factory=list)
     residues: list[dict] = Field(default_factory=list)
     metrics: list[dict] = Field(default_factory=list)
+    chains: list[dict] = Field(default_factory=list)
     summary: dict | None = None
 
 

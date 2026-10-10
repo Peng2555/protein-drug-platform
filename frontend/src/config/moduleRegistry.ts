@@ -11,6 +11,7 @@ export type ModuleId =
   | 'hydro_redesign'
   | 'cic_profile'
   | 'tnp_profile'
+  | 'tm_disulfide'
   | 'synthesis'
   | 'docking'
   | 'md'
@@ -30,6 +31,7 @@ export type ModuleIconKey =
   | 'hydro_redesign'
   | 'cic_profile'
   | 'tnp_profile'
+  | 'tm_disulfide'
   | 'synthesis'
   | 'docking'
   | 'md'
@@ -178,6 +180,16 @@ export const MODULE_REGISTRY = [
     jobKind: 'tnp_profile',
     routeTitles: { module: 'VHH 可开发性画像', new: '新建画像', tasks: '全部任务', task: '画像详情' },
     batchRouteName: 'tnp-profile-batch',
+  },
+  {
+    id: 'tm_disulfide',
+    segment: 'tm-disulfide',
+    routePrefix: 'tm-disulfide',
+    label: '额外二硫键',
+    hint: '已有 Boltz2 结构上筛选额外二硫键',
+    iconKey: 'tm_disulfide',
+    jobKind: 'tm_disulfide',
+    routeTitles: { module: '额外二硫键', new: '新建筛选', tasks: '全部任务', task: '筛选详情' },
   },
   {
     id: 'synthesis',

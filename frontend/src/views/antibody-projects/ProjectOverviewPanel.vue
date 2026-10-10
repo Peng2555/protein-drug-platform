@@ -9,7 +9,7 @@ import {
   type ProjectMember,
 } from '@/api/antibodyProjects'
 
-const props = defineProps<{ project: AntibodyProject }>()
+const props = defineProps<{ project: AntibodyProject; canManage?: boolean }>()
 const emit = defineEmits<{ updated: [project: AntibodyProject] }>()
 const members = ref<ProjectMember[]>([])
 const showMember = ref(false)
@@ -90,7 +90,7 @@ onMounted(loadMembers)
           <p>手工调整项目所处研发阶段</p>
         </div>
       </div>
-      <el-select :model-value="project.status" style="width: 100%" @change="changeStatus">
+      <el-select :model-value="project.status" style="width: 100%" :disabled="!canManage" @change="changeStatus">
         <el-option v-for="[value, label] in statuses" :key="value" :label="label" :value="value" />
       </el-select>
     </section>
@@ -101,7 +101,7 @@ onMounted(loadMembers)
           <h2>项目成员</h2>
           <p>负责人、可编辑成员和只读成员</p>
         </div>
-        <el-button size="small" @click="showMember = true">添加成员</el-button>
+        <el-button v-if="canManage" size="small" @click="showMember = true">添加成员</el-button>
       </div>
       <el-table :data="members" size="small">
         <el-table-column prop="username" label="用户" />

@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
 import {
   createCandidate,
   createVersion,
   fetchCandidates,
   fetchExperiments,
+  fetchJobLinks,
   fetchVersions,
+  foldAntibodyOnly,
   importVersions,
   importVersionsFromFasta,
   importVersionsFromXlsx,
@@ -16,14 +19,19 @@ import {
   type AntibodyCandidate,
   type AntibodyVersion,
   type Experiment,
+  type ProjectJobLink,
   type VersionChain,
 } from '@/api/antibodyProjects'
 import ChainSequencePair from './ChainSequencePair.vue'
+import VersionStructurePanel from './VersionStructurePanel.vue'
 
 const props = defineProps<{ projectId: string }>()
+const router = useRouter()
 const candidates = ref<AntibodyCandidate[]>([])
 const versions = ref<AntibodyVersion[]>([])
 const experiments = ref<Experiment[]>([])
+const jobLinks = ref<ProjectJobLink[]>([])
+const folding = ref(false)
 const activeCandidateId = ref('')
 const activeVersionId = ref('')
 const loading = ref(false)
@@ -286,6 +294,35 @@ const activeVersionExperiments = computed(() =>
     })),
 )
 
+const candidateFoldLinks = computed(() => {
+  const ids = new Set(versions.value.map((item) => item.id))
+  return jobLinks.value.filter(
+    (item) => ids.has(item.version_id) && item.purpose === 'fold_antibody',
+  )
+})
+
+const activeVersionFoldLinks = computed(() =>
+  candidateFoldLinks.value.filter((item) => item.version_id === activeVersionId.value),
+)
+
+const activeFoldJobId = computed(() => {
+  const link = activeVersionFoldLinks.value[0]
+  return link ? (link.job_id || link.original_job_id) : ''
+})
+
+const parentFoldJobId = computed(() => {
+  const parentId = activeVersion.value?.primary_parent_id
+  if (!parentId) return ''
+  const link = jobLinks.value.find(
+    (item) => item.version_id === parentId && item.purpose === 'fold_antibody',
+  )
+  return link ? (link.job_id || link.original_job_id) : ''
+})
+
+function openFoldBatch(batchId: string) {
+  router.push({ name: 'fold-batch', params: { id: batchId } })
+}
+
 function selectImpactRow(row: { id: string }) {
   activeVersionId.value = row.id
 }
@@ -324,12 +361,14 @@ async function loadVersions() {
   }
   loading.value = true
   try {
-    const [versionRows, experimentRows] = await Promise.all([
+    const [versionRows, experimentRows, linkRows] = await Promise.all([
       fetchVersions(props.projectId, activeCandidateId.value),
       fetchExperiments(props.projectId),
+      fetchJobLinks(props.projectId),
     ])
     versions.value = versionRows
     experiments.value = experimentRows
+    jobLinks.value = linkRows
     if (!versions.value.some((item) => item.id === activeVersionId.value)) {
       activeVersionId.value = versions.value.at(-1)?.id || ''
     }
@@ -580,6 +619,40 @@ async function submitImport() {
   }
 }
 
+async function submitFold(versionIds?: string[]) {
+  if (!activeCandidate.value) return
+  const count = versionIds?.length || versions.value.length
+  if (!count) {
+    ElMessage.warning('没有可折叠的版本')
+    return
+  }
+  const scope = versionIds?.length === 1
+    ? `当前版本 ${activeVersion.value?.version_code}`
+    : `本候选的 ${count} 个版本`
+  try {
+    await ElMessageBox.confirm(
+      `将提交 ${scope} 的抗体自身折叠（不含抗原）。IgG 用 VH+VL，VHH 只用重链。已有折叠任务的版本会跳过。`,
+      '折叠抗体结构',
+      { type: 'info', confirmButtonText: '开始折叠' },
+    )
+  } catch {
+    return
+  }
+  folding.value = true
+  try {
+    const result = await foldAntibodyOnly(props.projectId, versionIds?.length
+      ? { version_ids: versionIds }
+      : { candidate_id: activeCandidate.value.id })
+    await loadVersions()
+    ElMessage.success(`已提交 ${result.job_ids.length} 个折叠任务`)
+    if (result.batch_id) openFoldBatch(result.batch_id)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '提交折叠失败')
+  } finally {
+    folding.value = false
+  }
+}
+
 async function doLock() {
   if (!activeVersion.value) return
   try {
@@ -669,6 +742,16 @@ onMounted(loadCandidates)
               · {{ activeCandidate.antibody_type.toUpperCase() }}
             </p>
           </div>
+          <div class="candidate-actions">
+          <el-button
+            type="primary"
+            plain
+            :disabled="!versions.length"
+            :loading="folding"
+            @click="submitFold()"
+          >
+            折叠本候选结构
+          </el-button>
           <el-button
             v-if="allDraftCount"
             type="warning"
@@ -677,6 +760,7 @@ onMounted(loadCandidates)
           >
             锁定全部草稿（{{ allDraftCount }}）
           </el-button>
+          </div>
         </div>
         <div class="lineage-tree">
           <section v-for="group in lineageGroups" :key="group.key" class="lineage-round">
@@ -768,6 +852,15 @@ onMounted(loadCandidates)
               · 指纹 {{ activeVersion.sequence_hash.slice(0, 12) }}…
             </p>
           </div>
+          <div class="candidate-actions">
+          <el-button
+            type="primary"
+            plain
+            :loading="folding"
+            @click="submitFold([activeVersion.id])"
+          >
+            折叠此版本
+          </el-button>
           <el-button
             v-if="activeVersion.status === 'draft'"
             type="warning"
@@ -776,6 +869,7 @@ onMounted(loadCandidates)
           >
             锁定版本
           </el-button>
+          </div>
         </div>
 
         <div class="chain-grid">
@@ -819,6 +913,17 @@ onMounted(loadCandidates)
           </el-table>
         </div>
         <p v-else class="empty-note">这个版本还没有亲和力实验。请到「样品与实验」导入。</p>
+
+        <h3 class="mutation-title">抗体自身结构</h3>
+        <VersionStructurePanel
+          v-if="activeFoldJobId"
+          :key="activeFoldJobId"
+          :version="activeVersion"
+          :parent-version="parentVersion"
+          :job-id="activeFoldJobId"
+          :parent-job-id="parentFoldJobId || null"
+        />
+        <p v-else class="empty-note">还没有抗体自身折叠。点上方「折叠此版本」或「折叠本候选结构」，完成后会在这里看突变。</p>
       </section>
     </template>
 

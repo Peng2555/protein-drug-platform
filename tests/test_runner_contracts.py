@@ -158,7 +158,7 @@ def test_extract_metrics_selects_best_complex_model_and_stable_artifacts(
     assert (tmp_path / "metrics.json").is_file()
 
 
-def test_worker_exports_exactly_thirteen_named_celery_tasks():
+def test_worker_exports_named_celery_tasks():
     from app.core.celery import celery_app
     from worker import tasks
 
@@ -176,6 +176,7 @@ def test_worker_exports_exactly_thirteen_named_celery_tasks():
         "run_hydro_redesign_job": "hydro",
         "run_cic_profile_job": "profile",
         "run_tnp_profile_job": "profile",
+        "run_tm_disulfide_job": "tm_disulfide",
     }
     task_names = set(task_modules)
     assert {
@@ -207,6 +208,7 @@ def test_worker_exports_exactly_thirteen_named_celery_tasks():
         "app.modules.hydro_redesign.service": "run_hydro_redesign_job",
         "app.modules.cic_profile.service": "run_cic_profile_job",
         "app.modules.tnp_profile.service": "run_tnp_profile_job",
+        "app.modules.tm_disulfide.service": "run_tm_disulfide_job",
     }
     for service_name, task_name in service_tasks.items():
         service = importlib.import_module(service_name)

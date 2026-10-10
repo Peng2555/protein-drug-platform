@@ -629,3 +629,71 @@ def test_affinity_xlsx_preview_and_import(sqlite_sessions, active_user) -> None:
         )
         assert overwritten.status_code == 201, overwritten.text
         assert len(overwritten.json()) == 3
+
+
+def test_fold_antibody_only_from_candidate(
+    sqlite_sessions,
+    active_user,
+    monkeypatch,
+) -> None:
+    current_user = {"value": active_user}
+    app = FastAPI()
+    app.include_router(router)
+
+    def isolated_db():
+        with sqlite_sessions() as db:
+            yield db
+
+    app.dependency_overrides[get_db] = isolated_db
+    app.dependency_overrides[get_current_user] = lambda: current_user["value"]
+    monkeypatch.setattr(
+        "app.modules.fold.service.dispatch_job",
+        lambda db, job: setattr(job, "celery_task_id", "test-task"),
+    )
+
+    with TestClient(app) as client:
+        project_id = client.post(
+            "/api/antibody-projects",
+            json={"project_code": "FOLD-AB", "name": "抗体折叠", "target_name": "none"},
+        ).json()["id"]
+        candidate_id = client.post(
+            f"/api/antibody-projects/{project_id}/candidates",
+            json={
+                "candidate_code": "AB-A",
+                "name": "候选",
+                "antibody_category": "RM",
+                "antibody_type": "igg",
+                "chains": [
+                    {"chain_role": "VH", "variable_sequence": "QVQLVQSGAE"},
+                    {"chain_role": "VL", "variable_sequence": "DIQMTQSPSS"},
+                ],
+            },
+        ).json()["id"]
+        versions = client.get(
+            f"/api/antibody-projects/{project_id}/candidates/{candidate_id}/versions"
+        ).json()
+        wt_id = versions[0]["id"]
+
+        created = client.post(
+            f"/api/antibody-projects/{project_id}/fold-antibody-only",
+            json={"candidate_id": candidate_id},
+        )
+        assert created.status_code == 201, created.text
+        body = created.json()
+        assert len(body["job_ids"]) == 1
+        assert body["items"][0]["version_id"] == wt_id
+        assert body["skipped_existing"] == 0
+
+        with sqlite_sessions() as db:
+            job = db.get(Job, body["job_ids"][0])
+            assert job is not None
+            assert ">H\nQVQLVQSGAE" in job.fasta_text
+            assert ">L\nDIQMTQSPSS" in job.fasta_text
+            assert "antigen" not in job.fasta_text.lower()
+
+        again = client.post(
+            f"/api/antibody-projects/{project_id}/fold-antibody-only",
+            json={"candidate_id": candidate_id},
+        )
+        assert again.status_code == 400
+        assert "都已有抗体折叠任务" in again.json()["detail"]

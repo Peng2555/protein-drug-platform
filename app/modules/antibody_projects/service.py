@@ -2,25 +2,37 @@
 
 from __future__ import annotations
 
+import io
 import re
+import zipfile
 from pathlib import Path
 from datetime import datetime, timezone
+from xml.etree import ElementTree as ET
 
 from fastapi import HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import Session
 
+from app.common.antibody_only import AntibodySpec, prepare_antibody_only_jobs
 from app.common.cdr_annotation import annotate_antibody_chain
-from app.common.csv_decode import read_xlsx_matrix
-from app.core.models import Job, User
+from app.common.csv_decode import (
+    _matrix_from_sheet,
+    _xlsx_shared_strings,
+    list_xlsx_sheets,
+    read_xlsx_matrix,
+)
+from app.core.config import settings
+from app.core.models import Batch, Job, User
 from app.modules.antibody_projects.access import add_audit, model_snapshot
 from app.modules.antibody_projects.models import (
     AntibodyCandidate,
     AntibodyProject,
     AntibodyVersion,
     AntibodyVersionChain,
+    AuditEvent,
     ExperimentMeasurement,
     ExperimentRecord,
+    ProjectArtifact,
     ProjectJobLink,
     ProjectMember,
     ProjectRole,
@@ -46,6 +58,9 @@ from app.schemas.antibody_project import (
     JobLinkCreate,
     MeasurementInput,
     ProjectCreate,
+    ProjectFoldAntibodyOnlyCreate,
+    ProjectFoldAntibodyOnlyOut,
+    ProjectFoldJobItem,
     ProjectUpdate,
     SampleBatchCreate,
     VersionChainInput,
@@ -65,17 +80,25 @@ EDITABLE_PARENT_STATUSES = {
 }
 _VERSION_ROUND = re.compile(r"^M(\d+)(?:-(\d+))?$", re.IGNORECASE)
 _FASTA_ROLE = re.compile(
-    r"^(?P<base>.+?)(?:[_/|. \t-]|chain)+(?P<role>VHH|VH|VL|HEAVY|LIGHT|H|L)$",
+    r"^(?P<base>.+?)(?:[_/|. \t-]|chain)+(?P<role>VHH|VH|VL|HC|LC|HEAVY|LIGHT|KAPPA|LAMBDA|H|L|重链序列|轻链序列|重链|轻链)$",
     re.IGNORECASE,
 )
 _FASTA_ROLE_TOKEN = {
     "VHH": "VHH",
     "VH": "VH",
+    "HC": "VH",
     "HEAVY": "VH",
     "H": "VH",
+    "重链": "VH",
+    "重链序列": "VH",
     "VL": "VL",
+    "LC": "VL",
     "LIGHT": "VL",
     "L": "VL",
+    "KAPPA": "VL",
+    "LAMBDA": "VL",
+    "轻链": "VL",
+    "轻链序列": "VL",
 }
 _MAX_FASTA_BYTES = 2 * 1024 * 1024
 _MAX_TABLE_BYTES = 8 * 1024 * 1024
@@ -90,8 +113,30 @@ _SEQ_HEADERS = {
     "dna",
 }
 _GENE_HEADERS = {"基因名称", "genename", "gene"}
-_VH_HEADERS = {"vh基因序列", "vh序列", "重链序列", "heavychain"}
-_VL_HEADERS = {"vl基因序列", "vl序列", "轻链序列", "lightchain"}
+_VH_HEADERS = {
+    "vh",
+    "hc",
+    "vh基因序列",
+    "vh序列",
+    "重链",
+    "重链序列",
+    "重链可变区",
+    "重链可变区序列",
+    "heavychain",
+    "heavy",
+}
+_VL_HEADERS = {
+    "vl",
+    "lc",
+    "vl基因序列",
+    "vl序列",
+    "轻链",
+    "轻链序列",
+    "轻链可变区",
+    "轻链可变区序列",
+    "lightchain",
+    "light",
+}
 _AFFINITY_SHEET = "亲和力"
 _LOADING_ID_HEADERS = {"loadingsampleid", "上样样品id", "上样id", "上样样品"}
 _ANTIGEN_HEADERS = {"sampleid", "抗原", "antigen"}
@@ -226,6 +271,69 @@ def update_project(
         after=model_snapshot(project),
     )
     return project
+
+
+def delete_project(db: Session, project: AntibodyProject) -> None:
+    """删除项目及其候选、版本、实验和附件。计算任务本身保留。"""
+    candidate_ids = list(
+        db.scalars(
+            select(AntibodyCandidate.id).where(AntibodyCandidate.project_id == project.id)
+        ).all()
+    )
+    version_ids: list[str] = []
+    if candidate_ids:
+        version_ids = list(
+            db.scalars(
+                select(AntibodyVersion.id).where(AntibodyVersion.candidate_id.in_(candidate_ids))
+            ).all()
+        )
+    if version_ids:
+        db.execute(
+            delete(VersionMutation).where(
+                or_(
+                    VersionMutation.version_id.in_(version_ids),
+                    VersionMutation.parent_version_id.in_(version_ids),
+                )
+            )
+        )
+        db.execute(
+            delete(AntibodyVersionChain).where(AntibodyVersionChain.version_id.in_(version_ids))
+        )
+    artifacts = list(
+        db.scalars(select(ProjectArtifact).where(ProjectArtifact.project_id == project.id)).all()
+    )
+    root = settings.antibody_projects_out_root
+    for artifact in artifacts:
+        path = (root / artifact.storage_path).resolve()
+        if path.is_file():
+            path.unlink()
+    db.execute(delete(ProjectArtifact).where(ProjectArtifact.project_id == project.id))
+    db.execute(delete(ProjectJobLink).where(ProjectJobLink.project_id == project.id))
+    experiment_ids = list(
+        db.scalars(
+            select(ExperimentRecord.id).where(ExperimentRecord.project_id == project.id)
+        ).all()
+    )
+    if experiment_ids:
+        db.execute(
+            delete(ExperimentMeasurement).where(
+                ExperimentMeasurement.experiment_id.in_(experiment_ids)
+            )
+        )
+        db.execute(delete(ExperimentRecord).where(ExperimentRecord.id.in_(experiment_ids)))
+    if version_ids:
+        db.execute(delete(SampleBatch).where(SampleBatch.version_id.in_(version_ids)))
+        db.execute(
+            update(AntibodyVersion)
+            .where(AntibodyVersion.id.in_(version_ids))
+            .values(primary_parent_id=None)
+        )
+        db.execute(delete(AntibodyVersion).where(AntibodyVersion.id.in_(version_ids)))
+    if candidate_ids:
+        db.execute(delete(AntibodyCandidate).where(AntibodyCandidate.id.in_(candidate_ids)))
+    db.execute(delete(AuditEvent).where(AuditEvent.project_id == project.id))
+    db.execute(delete(ProjectMember).where(ProjectMember.project_id == project.id))
+    db.delete(project)
 
 
 def add_project_member(
@@ -543,6 +651,8 @@ def _fasta_header_role(header: str) -> tuple[str, str | None]:
     tokens = [part for part in re.split(r"[\s|]+", header) if part]
     if not tokens:
         return "seq", None
+    if len(tokens) == 1 and tokens[0].upper() in _FASTA_ROLE_TOKEN:
+        return "Ab", _FASTA_ROLE_TOKEN[tokens[0].upper()]
     matched = _FASTA_ROLE.match(tokens[0])
     if matched:
         return matched.group("base").rstrip("_-./|"), _FASTA_ROLE_TOKEN[
@@ -790,6 +900,88 @@ def _find_column(headers: list[str], aliases: set[str]) -> int | None:
     return None
 
 
+def _header_kind(value: str) -> str | None:
+    """把表头归成 name / vh / vl / seq。VH氨基酸序列、重链可变区这类写法也算。"""
+    key = _header_key(value)
+    if not key:
+        return None
+    if key in _VL_HEADERS or any(token in key for token in ("轻链", "light", "kappa", "lambda", "l链")):
+        return "vl"
+    if re.search(r"(^|[^a-z])vl([^a-z]|$)", key) or key.startswith("vl"):
+        return "vl"
+    if key in _VH_HEADERS or any(token in key for token in ("重链", "heavy", "h链")):
+        return "vh"
+    if re.search(r"(^|[^a-z])vh([^a-z]|$)", key) or key.startswith("vh") or key in {"h", "hc"}:
+        return "vh"
+    if key in _NAME_HEADERS or any(token in key for token in ("克隆", "名称", "clone", "sample", "编号")):
+        if "序列" not in key:
+            return "name"
+    if key in _SEQ_HEADERS:
+        return "seq"
+    if key in {"l", "lc"}:
+        return "vl"
+    return None
+
+
+def _locate_chain_header(
+    matrix: list[list[str]],
+) -> tuple[int, int | None, int | None, int | None, int | None] | None:
+    best: tuple[int, int, int | None, int | None, int | None, int | None] | None = None
+    for index, row in enumerate(matrix[:25]):
+        found: dict[str, int] = {}
+        for col, cell in enumerate(row):
+            kind = _header_kind(cell)
+            if kind and kind not in found:
+                found[kind] = col
+        score = int("vh" in found) + int("vl" in found) + int("name" in found) + int("seq" in found)
+        if score == 0:
+            continue
+        candidate = (
+            score,
+            index,
+            found.get("name"),
+            found.get("vh"),
+            found.get("vl"),
+            found.get("seq"),
+        )
+        if best is None or candidate[0] > best[0]:
+            best = candidate
+    if best is None:
+        return None
+    _score, index, name, vh, vl, seq = best
+    return index, name, vh, vl, seq
+
+
+def _xlsx_sheets(raw: bytes) -> list[tuple[str, list[list[str]]]]:
+    try:
+        workbook = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(400, "文件不是有效的 Excel 工作簿") from exc
+    shared = _xlsx_shared_strings(workbook)
+    sheets: list[tuple[str, list[list[str]]]] = []
+    for name, path in list_xlsx_sheets(workbook):
+        if path not in workbook.namelist():
+            continue
+        try:
+            matrix = _matrix_from_sheet(ET.fromstring(workbook.read(path)), shared)
+        except HTTPException:
+            continue
+        sheets.append((name, matrix))
+    if not sheets:
+        raise HTTPException(400, "Excel 文件中没有可读的工作表")
+    return sheets
+
+
+def _header_preview(headers: list[str]) -> str:
+    cells = [str(cell).strip() for cell in headers if str(cell).strip()]
+    if not cells:
+        return "（空表头）"
+    shown = "、".join(cells[:12])
+    if len(cells) > 12:
+        shown += "…"
+    return shown
+
+
 def _cell(row: list[str], index: int | None) -> str:
     if index is None or index >= len(row):
         return ""
@@ -814,21 +1006,25 @@ def xlsx_to_import_items(antibody_type: str, raw: bytes, filename: str | None) -
     suffix = Path(filename or "").suffix.lower()
     if suffix and suffix not in {".xlsx", ".xlsm"}:
         raise HTTPException(400, "请上传 .xlsx 表格")
-    matrix = read_xlsx_matrix(raw)
-    header_index = 0
-    for index, row in enumerate(matrix[:8]):
-        joined = "".join(row)
-        if "蛋白名称" in joined or "基因序列" in joined or "基因名称" in joined:
-            header_index = index
-            break
+    sheets = _xlsx_sheets(raw)
+    located = []
+    for sheet_name, matrix in sheets:
+        hit = _locate_chain_header(matrix)
+        if hit:
+            located.append((sheet_name, matrix, hit))
+    if not located:
+        preview = _header_preview(sheets[0][1][0] if sheets[0][1] else [])
+        raise HTTPException(400, f"没有找到序列表头。第一张表读到：{preview}")
+    if antibody_type == "vhh":
+        chosen = next((item for item in located if item[2][4] is not None), located[0])
+    else:
+        both = [item for item in located if item[2][2] is not None and item[2][3] is not None]
+        chosen = both[0] if both else located[0]
+    _sheet_name, matrix, (header_index, name_col, vh_col, vl_col, seq_col) = chosen
     headers = matrix[header_index]
-    name_col = _find_column(headers, _NAME_HEADERS)
-    seq_col = _find_column(headers, _SEQ_HEADERS)
     gene_col = _find_column(headers, _GENE_HEADERS)
-    vh_col = _find_column(headers, _VH_HEADERS)
-    vl_col = _find_column(headers, _VL_HEADERS)
     data_rows = [
-        (header_index + 1 + offset, row)
+        (header_index + 2 + offset, row)
         for offset, row in enumerate(matrix[header_index + 1 :])
         if any(str(cell).strip() for cell in row)
     ]
@@ -861,17 +1057,16 @@ def xlsx_to_import_items(antibody_type: str, raw: bytes, filename: str | None) -
     if vh_col is None or vl_col is None:
         raise HTTPException(
             400,
-            "当前候选是 IgG，表格需要「VH序列」和「VL序列」两列；VHH 基因表请在 VHH 候选下导入",
+            "当前候选是 IgG，需要能认出重链和轻链两列（如 VH序列、VL序列、重链氨基酸、轻链氨基酸）。"
+            f"现在读到的表头是：{_header_preview(headers)}",
         )
     items = []
     for excel_row, row in data_rows:
-        name = _cell(row, name_col) or _cell(row, gene_col)
+        name = _cell(row, name_col) or _cell(row, gene_col) or f"第{excel_row}行"
         vh = _cell(row, vh_col)
         vl = _cell(row, vl_col)
         if not vh and not vl:
             continue
-        if not name:
-            raise HTTPException(400, f"第 {excel_row} 行缺少蛋白名称")
         if not vh or not vl:
             raise HTTPException(400, f"第 {excel_row} 行 {name} 需要同时提供 VH 和 VL")
         items.append(
@@ -1490,3 +1685,204 @@ def create_job_link(
         after=model_snapshot(link),
     )
     return link
+
+
+FOLD_ANTIBODY_PURPOSE = "fold_antibody"
+
+
+def _version_chain_map(db: Session, version_id: str) -> dict[str, AntibodyVersionChain]:
+    rows = db.scalars(
+        select(AntibodyVersionChain).where(AntibodyVersionChain.version_id == version_id)
+    ).all()
+    return {item.chain_role.upper(): item for item in rows}
+
+
+def _antibody_spec_for_version(
+    version: AntibodyVersion,
+    candidate: AntibodyCandidate,
+    chains: dict[str, AntibodyVersionChain],
+) -> AntibodySpec:
+    antibody_id = f"Ab{version.id.replace('-', '')[:12]}"
+    if candidate.antibody_type == "vhh":
+        vhh = chains.get("VHH")
+        if not vhh or not (vhh.variable_sequence or "").strip():
+            raise HTTPException(400, f"{version.version_code} 缺少 VHH 可变区序列")
+        return AntibodySpec(id=antibody_id, heavy=vhh.variable_sequence)
+    vh = chains.get("VH")
+    vl = chains.get("VL")
+    if not vh or not (vh.variable_sequence or "").strip():
+        raise HTTPException(400, f"{version.version_code} 缺少 VH 可变区序列")
+    if not vl or not (vl.variable_sequence or "").strip():
+        raise HTTPException(400, f"{version.version_code} 缺少 VL 可变区序列")
+    return AntibodySpec(id=antibody_id, heavy=vh.variable_sequence, light=vl.variable_sequence)
+
+
+def create_fold_antibody_only_batch(
+    db: Session,
+    project: AntibodyProject,
+    body: ProjectFoldAntibodyOnlyCreate,
+    user: User,
+) -> ProjectFoldAntibodyOnlyOut:
+    import sys
+
+    from app.modules.fold.service import create_and_queue_job, dispatch_job, sequence_hash
+
+    root = Path(__file__).resolve().parents[3]
+    sys.path.insert(0, str(root / "scripts"))
+    from boltz_runner import parse_fasta_text, validate_boltz_chain_ids
+
+    if body.version_ids:
+        versions = [get_version(db, project.id, version_id) for version_id in body.version_ids]
+    elif body.candidate_id:
+        candidate = get_candidate(db, project.id, body.candidate_id)
+        versions = list(
+            db.scalars(
+                select(AntibodyVersion)
+                .where(AntibodyVersion.candidate_id == candidate.id)
+                .order_by(AntibodyVersion.version_number, AntibodyVersion.created_at)
+            ).all()
+        )
+    else:
+        raise HTTPException(400, "请选择候选抗体或具体版本")
+    if not versions:
+        raise HTTPException(400, "没有可折叠的序列版本")
+    if len(versions) > settings.max_vhh_panel_size:
+        raise HTTPException(400, f"版本数量超过上限 {settings.max_vhh_panel_size}")
+
+    existing_ids: set[str] = set()
+    if body.skip_existing:
+        existing_ids = set(
+            db.scalars(
+                select(ProjectJobLink.version_id).where(
+                    ProjectJobLink.project_id == project.id,
+                    ProjectJobLink.version_id.in_([item.id for item in versions]),
+                    ProjectJobLink.purpose == FOLD_ANTIBODY_PURPOSE,
+                    ProjectJobLink.engine == body.engine,
+                )
+            ).all()
+        )
+
+    pending: list[tuple[AntibodyVersion, AntibodySpec]] = []
+    skipped_existing = 0
+    for version in versions:
+        if version.id in existing_ids:
+            skipped_existing += 1
+            continue
+        candidate = db.get(AntibodyCandidate, version.candidate_id)
+        if not candidate or candidate.project_id != project.id:
+            raise HTTPException(404, "序列版本不存在")
+        spec = _antibody_spec_for_version(version, candidate, _version_chain_map(db, version.id))
+        pending.append((version, spec))
+    if not pending:
+        raise HTTPException(400, "所选版本都已有抗体折叠任务")
+
+    unique_jobs: list[tuple[AntibodySpec, list[AntibodyVersion]]] = []
+    seen: dict[tuple[str, str], int] = {}
+    skipped_duplicates = 0
+    for version, spec in pending:
+        heavy = spec.heavy.strip().upper().replace(" ", "")
+        light = spec.light.strip().upper().replace(" ", "") if spec.light else ""
+        key = (heavy, light)
+        if key in seen:
+            skipped_duplicates += 1
+            unique_jobs[seen[key]][1].append(version)
+            continue
+        seen[key] = len(unique_jobs)
+        unique_jobs.append((AntibodySpec(id=spec.id, heavy=heavy, light=light or None), [version]))
+
+    batch_name, job_specs, _skipped = prepare_antibody_only_jobs(
+        batch_name=body.batch_name or f"{project.project_code}_ab",
+        antibodies=[spec for spec, _versions in unique_jobs],
+        heavy_chain_id="H",
+        light_chain_id="L",
+    )
+
+    if body.engine == "boltz2":
+        try:
+            sample = {"H": "A"}
+            if any(spec.light for spec, _versions in unique_jobs):
+                sample["L"] = "A"
+            validate_boltz_chain_ids(sample)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    boltz_dump = body.boltz_params.model_dump() if body.engine == "boltz2" and body.boltz_params else None
+    if body.engine == "boltz2":
+        if boltz_dump is None:
+            boltz_dump = {"use_msa_server": body.use_msa_server}
+        use_msa = bool(boltz_dump.get("use_msa_server", body.use_msa_server))
+    else:
+        use_msa = False
+
+    batch = Batch(
+        user_id=user.id,
+        name=batch_name,
+        batch_type="antibody_only",
+        target_name="",
+        target_chain_id="",
+        target_sequence="",
+        heavy_chain_id="H",
+        heavy_chain_count=len(job_specs),
+        use_msa_server=use_msa,
+    )
+    db.add(batch)
+    db.flush()
+
+    spec_by_id = {spec.id: versions_for for spec, versions_for in unique_jobs}
+    pending_jobs: list[Job] = []
+    items: list[ProjectFoldJobItem] = []
+    job_ids: list[str] = []
+    for job_name, hid, fasta_text in job_specs:
+        seqs = parse_fasta_text(fasta_text)
+        job = create_and_queue_job(
+            db,
+            user_id=user.id,
+            name=job_name,
+            fasta_text=fasta_text,
+            chains_json={k: len(v) for k, v in seqs.items()},
+            total_length=sum(len(v) for v in seqs.values()),
+            seq_hash=sequence_hash(seqs),
+            use_msa_server=use_msa,
+            batch_id=batch.id,
+            heavy_chain_id=hid,
+            skip_running_limit=True,
+            engine=body.engine,
+            boltz_params=boltz_dump if body.engine == "boltz2" else None,
+            esmfold_params=(
+                body.esmfold_params.model_dump()
+                if body.engine == "esmfold2" and body.esmfold_params
+                else None
+            ),
+            defer_dispatch=True,
+        )
+        pending_jobs.append(job)
+        job_ids.append(job.id)
+        for version in spec_by_id.get(hid, []):
+            create_job_link(
+                db,
+                project,
+                JobLinkCreate(job_id=job.id, version_id=version.id, purpose=FOLD_ANTIBODY_PURPOSE),
+                user,
+            )
+            items.append(
+                ProjectFoldJobItem(
+                    version_id=version.id,
+                    version_code=version.version_code,
+                    job_id=job.id,
+                )
+            )
+
+    db.flush()
+    db.commit()
+    for job in pending_jobs:
+        dispatch_job(db, job)
+    db.commit()
+    return ProjectFoldAntibodyOnlyOut(
+        batch_id=batch.id,
+        batch_name=batch.name,
+        job_ids=job_ids,
+        items=items,
+        skipped_existing=skipped_existing,
+        skipped_duplicates=skipped_duplicates,
+    )
+

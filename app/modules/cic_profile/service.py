@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.core.engines import CIC_PROFILE_ENGINE
 from app.common.job_paths import sanitize_label
 from app.core.models import Job, JobStatus
-from app.core.queue import dispatch_to_gpu
+from app.core.queue import dispatch_fold_compute
 from app.common.sequence_inputs import parse_fasta_chain_lengths, save_structure_upload
 from worker.tasks import run_cic_profile_job
 
@@ -78,6 +78,6 @@ def create_and_queue_cic_profile_job(
     )
     db.add(job)
     db.flush()
-    async_result = dispatch_to_gpu(run_cic_profile_job, job.id)
+    async_result = dispatch_fold_compute(run_cic_profile_job, job.id)
     job.celery_task_id = async_result.id
     return job

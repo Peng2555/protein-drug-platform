@@ -35,6 +35,8 @@ def main() -> None:
             email="admin@local",
             is_active=True,
             is_admin=True,
+            account_status="active",
+            token_version=1,
         )
         db.add(admin)
         db.commit()

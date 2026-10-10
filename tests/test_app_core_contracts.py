@@ -31,6 +31,7 @@ ROUTER_MODULES = (
     "app.modules.hydro_redesign.router",
     "app.modules.cic_profile.router",
     "app.modules.tnp_profile.router",
+    "app.modules.tm_disulfide.router",
 )
 
 TASK_NAMES = {
@@ -47,6 +48,7 @@ TASK_NAMES = {
     "worker.tasks.run_hydro_redesign_job",
     "worker.tasks.run_cic_profile_job",
     "worker.tasks.run_tnp_profile_job",
+    "worker.tasks.run_tm_disulfide_job",
 }
 
 
@@ -58,6 +60,8 @@ def test_config_root_and_key_defaults_are_unchanged() -> None:
     assert fields["access_token_expire_minutes"].default == 60 * 24 * 7
     assert fields["celery_gpu_count"].default == 4
     assert fields["celery_gpu_queue"].default == "gpu"
+    assert fields["celery_fold_queue"].default == "fold"
+    assert fields["boltz_npu_remote"].default is False
     assert fields["boltz2_out_root"].default == ROOT / "outputs"
     assert fields["md_out_root"].default == ROOT / "md_outputs"
     assert fields["antibody_redesign_root"].default == ROOT
@@ -70,7 +74,7 @@ def test_sqlalchemy_table_and_column_contracts_are_unchanged() -> None:
     } == {
         "users": (
             "id", "username", "email", "password_hash", "is_active", "is_admin",
-            "created_at",
+            "account_status", "token_version", "created_at",
         ),
         "batches": (
             "id", "user_id", "name", "batch_type", "target_name",
@@ -112,6 +116,7 @@ def test_celery_configuration_and_task_registry_are_unchanged() -> None:
     assert celery_app.conf.task_routes == {
         "worker.tasks.run_fold_job": {"queue": config.settings.celery_gpu_queue},
         "worker.tasks.run_md_job": {"queue": config.settings.celery_gpu_queue},
+        "worker.tasks.run_tm_disulfide_job": {"queue": config.settings.celery_cpu_queue},
     }
     assert {
         name for name in celery_app.tasks if name.startswith("worker.tasks.run_")
@@ -144,5 +149,7 @@ def test_old_modules_are_removed_and_startup_uses_new_celery_path() -> None:
 
     start = (ROOT / "scripts" / "start_platform.sh").read_text(encoding="utf-8")
     stop = (ROOT / "scripts" / "stop_platform.sh").read_text(encoding="utf-8")
-    assert "-A app.core.celery worker" in start
+    assert "from app.core.celery import celery_app" in start
+    assert "celery_app.worker_main" in start
+    assert "start_fold_workers" in start
     assert 'celery -A app.core.celery worker' in stop

@@ -39,7 +39,10 @@ PUBLIC_SCHEMA_NAMES = (
     "CicProfileJobCreate", "CicProfileJobOut", "CicProfileJobListOut",
     "CicProfileProgressOut", "CicProfileRankedOut", "TnpProfileJobCreate",
     "TnpProfileBatchCreate", "TnpProfileJobOut", "TnpProfileJobListOut",
-    "TnpProfileProgressOut", "TnpProfileRankedOut", "IgGMParams",
+    "TnpProfileProgressOut", "TnpProfileRankedOut", "TmDisulfideJobCreate",
+    "TmDisulfideJobOut", "TmDisulfideJobListOut", "TmDisulfideProgressOut",
+    "TmDisulfideRankedOut", "TmDisulfideSourceFoldJobOut",
+    "TmDisulfideSourceFoldJobListOut", "IgGMParams",
     "MaturationJobCreate", "MaturationJobOut", "MaturationJobListOut",
     "MaturationVariantOut", "MaturationVariantsOut", "MaturationLogSection",
     "MaturationLogsOut", "AffinityRedesignProgressOut",
@@ -69,7 +72,7 @@ SCHEMA_SHA256 = {
     "BatchOut": "f6e74f24c646143b8fbb63b9d1ace52f39a46379c2a06c9f9d5ecb7d145b6555",
     "VhhPanelCreate": "a9c863b5ff86fb666fa842f3303b18e553b60d8362423bf0c3f3918adb819d3c",
     "HydroRedesignJobCreate": "8f2e66db12ed312718aed99562c88db24ee111880a099e2bf02413749ff92032",
-    "TnpProfileRankedOut": "98450234db66fbc7599067cafe139250b3dc02cd7afc34914b43342daea073fe",
+    "TnpProfileRankedOut": "bb19d128883d4f436703fe5cbec03d91c11a7f7431947df01e1f8e0f2413b609",
     "JobInterfaceOut": "07b88140393356e55812b87a6bb2a080f65c706b61fbd367e9a8bc366291639d",
 }
 
@@ -116,7 +119,7 @@ def test_defaults_and_response_serialization_are_unchanged() -> None:
     )
     assert schemas.UserOut.model_validate(source).model_dump(mode="json") == {
         "id": "u1", "username": "alice", "email": None, "is_active": True,
-        "is_admin": False, "created_at": "2026-01-02T00:00:00",
+        "is_admin": False, "account_status": "active", "created_at": "2026-01-02T00:00:00",
     }
 
 

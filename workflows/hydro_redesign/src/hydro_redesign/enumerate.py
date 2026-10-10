@@ -35,6 +35,7 @@ def enumerate_mutations(
     sequences: dict[str, str],
     regions: dict[tuple[str, int], str],
     *,
+    kabats: dict[tuple[str, int], str] | None = None,
     allow_cdr: bool = False,
     allow_charged: bool = False,
     freeze_nterm: int = FREEZE_NTERM,
@@ -54,6 +55,7 @@ def enumerate_mutations(
         aa = row["aa"]
         seq = sequences.get(chain, "")
         region = regions.get((chain, pos), "FR")
+        kabat = (kabats or {}).get((chain, pos), str(pos))
         is_cdr = str(region).startswith("CDR")
         nlen = seq_len.get(chain, 0)
 
@@ -91,6 +93,7 @@ def enumerate_mutations(
                     {
                         "chain": chain,
                         "position": pos,
+                        "kabat": kabat,
                         "wt": aa,
                         "mut": mut,
                         "region": region,
@@ -99,13 +102,16 @@ def enumerate_mutations(
                 )
                 continue
             delta_patch = round(float(row.get("sap") or row.get("hydro_sasa") or 0.0), 3)
+            mut_seq = seq[: pos - 1] + mut + seq[pos:] if seq and 1 <= pos <= len(seq) else ""
             candidates.append(
                 {
                     "chain": chain,
                     "position": pos,
+                    "kabat": kabat,
                     "wt": aa,
                     "mut": mut,
-                    "label": f"{chain}_{aa}{pos}{mut}",
+                    "label": f"{chain}_{aa}{kabat}{mut}",
+                    "sequence": mut_seq,
                     "region": region,
                     "rsa": row.get("rsa"),
                     "sasa": row.get("sasa"),

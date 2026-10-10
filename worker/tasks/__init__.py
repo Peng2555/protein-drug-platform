@@ -11,6 +11,7 @@ from worker.tasks.maturation import run_maturation_job
 from worker.tasks.md import run_md_job
 from worker.tasks.profile import run_cic_profile_job, run_tnp_profile_job
 from worker.tasks.rosetta import run_rosetta_eval_job
+from worker.tasks.tm_disulfide import run_tm_disulfide_job
 
 __all__ = [
     "run_affinity_redesign_job",
@@ -25,5 +26,6 @@ __all__ = [
     "run_ras_docking_job",
     "run_rosetta_eval_job",
     "run_small_molecule_docking_job",
+    "run_tm_disulfide_job",
     "run_tnp_profile_job",
 ]

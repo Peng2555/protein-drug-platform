@@ -49,8 +49,11 @@ def _display_region(raw: str) -> str:
     return (raw or "").strip() or "其他"
 
 
-def _site_token(wt: str, position: object, label: str = "") -> str:
+def _site_token(wt: str, position: object, label: str = "", kabat: str = "") -> str:
     aa = (wt or "").strip().upper()
+    number = str(kabat or "").strip()
+    if aa and number:
+        return f"{aa}{number}"
     try:
         pos = int(position)  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -80,7 +83,12 @@ def build_mutation_region_table(records: list[dict]) -> list[dict]:
     for rec in records:
         chain = str(rec.get("chain") or "").strip() or "H"
         region = _display_region(str(rec.get("region") or ""))
-        token = _site_token(str(rec.get("wt") or ""), rec.get("position"), str(rec.get("label") or ""))
+        token = _site_token(
+            str(rec.get("wt") or ""),
+            rec.get("position"),
+            str(rec.get("label") or ""),
+            str(rec.get("kabat") or ""),
+        )
         if not token:
             continue
         key = (chain, region, token)

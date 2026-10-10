@@ -66,7 +66,8 @@ def fold_complex(
         cmd.append("--use-msa-server")
 
     env = os.environ.copy()
-    if gpu_id is not None:
+    npu = env.get("BOLTZ_NPU_REMOTE", "").strip().lower() in {"1", "true", "yes", "on"}
+    if gpu_id is not None and not npu:
         env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     env["PYTHONPATH"] = (
         str(_SRC_ROOT) + os.pathsep + str(settings.boltz2_root / "scripts") + os.pathsep + env.get("PYTHONPATH", "")

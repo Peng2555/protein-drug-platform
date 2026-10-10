@@ -21,16 +21,24 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(subject: str) -> str:
+def create_access_token(subject: str, token_version: int = 1) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload = {"sub": subject, "exp": expire}
+    payload = {"sub": subject, "tv": int(token_version), "exp": expire}
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 
 def decode_token(token: str) -> str | None:
+    decoded = decode_access_token(token)
+    return decoded[0] if decoded else None
+
+
+def decode_access_token(token: str) -> tuple[str, int] | None:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
         sub = payload.get("sub")
-        return str(sub) if sub else None
-    except JWTError:
+        if not sub:
+            return None
+        version = payload.get("tv")
+        return str(sub), int(version) if version is not None else -1
+    except (JWTError, TypeError, ValueError):
         return None

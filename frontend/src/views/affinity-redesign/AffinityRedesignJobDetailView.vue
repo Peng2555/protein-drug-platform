@@ -3,6 +3,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Check, Clock, Loading } from '@element-plus/icons-vue'
+import SequenceStrip from '@/components/sequence/SequenceStrip.vue'
+import { fetchJobSequences } from '@/api/sequences'
+import { formatAaKabat, kabatForPosition } from '@/utils/kabatDisplay'
 import {
   downloadAffinityRedesignFile,
   fetchAffinityRedesignJob,
@@ -13,6 +16,7 @@ import type {
   AffinityRedesignHit,
   AffinityRedesignJob,
   AffinityRedesignMutationSiteRow,
+  ChainSequence,
   AffinityRedesignProgressOut,
   AffinityRedesignRankedRow,
 } from '@/api/types'
@@ -25,6 +29,7 @@ const progress = ref<AffinityRedesignProgressOut | null>(null)
 const ranked = ref<AffinityRedesignRankedRow[]>([])
 const wetlab = ref<AffinityRedesignRankedRow[]>([])
 const summary = ref<Record<string, unknown> | null>(null)
+const sequences = ref<ChainSequence[]>([])
 const loading = ref(true)
 const showRuntimeDetails = ref(true)
 const activeLogPanels = ref<string[]>([])
@@ -289,9 +294,25 @@ const trackCounts = computed(() => ({
   both: trackSites.value.filter((r) => r.both).length,
 }))
 
+function siteNumber(chain: string, position: number, kabat?: unknown) {
+  const saved = kabat != null ? String(kabat).trim() : ''
+  if (saved) return saved
+  return kabatForPosition(sequences.value, chain, position)
+}
+
+function mutationText(row: { chain?: string; wt?: string; mut?: string; position?: string | number; kabat?: string; label?: string }) {
+  const chain = String(row.chain || '')
+  const wt = String(row.wt || '')
+  const mut = String(row.mut || '')
+  const pos = Number(row.position)
+  if (wt && mut && Number.isFinite(pos)) {
+    const token = formatAaKabat(sequences.value, chain, wt, pos, row.kabat)
+    return chain ? `${chain}:${token}${mut}` : `${token}${mut}`
+  }
+  return String(row.label || '')
+}
+
 const mutationTable = computed<AffinityRedesignMutationSiteRow[]>(() => {
-  const fromApi = progress.value?.mutation_table
-  if (fromApi && fromApi.length) return fromApi
   const grouped = new Map<string, { chain: string; region: string; tokens: { pos: number; tok: string }[] }>()
   const seen = new Set<string>()
   const src = ranked.value.length
@@ -299,14 +320,17 @@ const mutationTable = computed<AffinityRedesignMutationSiteRow[]>(() => {
         chain: String(r.chain || 'H'),
         wt: String(r.wt || ''),
         position: Number(r.position),
+        kabat: r.kabat,
         region: String(r.region || ''),
       }))
     : trackSites.value.map((s) => ({
         chain: s.chain,
         wt: s.wt,
         position: s.position,
+        kabat: '',
         region: s.region,
       }))
+  if (!src.length) return progress.value?.mutation_table || []
   const displayRegion = (raw: string) => {
     const t = (raw || '').toUpperCase()
     if (t.includes('CDR')) {
@@ -326,7 +350,8 @@ const mutationTable = computed<AffinityRedesignMutationSiteRow[]>(() => {
   }
   for (const row of src) {
     const region = displayRegion(row.region)
-    const tok = row.wt && row.position ? `${row.wt}${row.position}` : ''
+    const number = siteNumber(row.chain, row.position, (row as { kabat?: string }).kabat)
+    const tok = row.wt && number ? `${row.wt}${number}` : ''
     if (!tok) continue
     const uniq = `${row.chain}:${region}:${tok}`
     if (seen.has(uniq)) continue
@@ -368,12 +393,18 @@ async function load() {
   const id = route.params.id as string
   try {
     job.value = await fetchAffinityRedesignJob(id)
+    try {
+      sequences.value = (await fetchJobSequences(id)).chains
+    } catch {
+      sequences.value = []
+    }
     await loadProgress(true)
     if (job.value.status === 'done' || job.value.results_json?.ranked) {
       const data = await fetchAffinityRedesignRanked(id)
       ranked.value = data.ranked
       wetlab.value = data.wetlab
       summary.value = data.summary
+      if (data.chains?.length) sequences.value = data.chains
     }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
@@ -567,11 +598,17 @@ function statusTagType(status: string) {
         </div>
       </div>
 
+      <SequenceStrip
+        v-if="sequences.length"
+        class="ar-seq"
+        :chains="sequences"
+      />
+
       <section v-if="mutationTable.length" class="ar-mut-table">
         <div class="ar-mut-table__head">
           <div>
             <h3>突变位点汇总</h3>
-            <p>按抗体链与 CDR/FR 去重；位点为野生型氨基酸 + 序列编号。</p>
+            <p>按抗体链与 CDR/FR 去重；位点为野生型氨基酸 + Kabat 编号。</p>
           </div>
           <el-button size="small" @click="download('mutation_sites.csv')">下载位点表</el-button>
         </div>
@@ -702,7 +739,7 @@ function statusTagType(status: string) {
                 :class="{ 'ar-site--both': site.both }"
               >
                 <div class="ar-site__pos">
-                  <strong>{{ site.wt }}{{ site.position }}</strong>
+                  <strong>{{ site.wt }}{{ siteNumber(site.chain, site.position) }}</strong>
                   <span>{{ site.chain }} · {{ site.region || '—' }}</span>
                 </div>
                 <div class="ar-site__track">
@@ -847,7 +884,12 @@ function statusTagType(status: string) {
             </template>
           </el-table-column>
           <el-table-column prop="tier" label="tier" width="64" />
-          <el-table-column prop="label" label="label" min-width="100" />
+          <el-table-column label="突变" min-width="120">
+            <template #default="{ row }">{{ mutationText(row) }}</template>
+          </el-table-column>
+          <el-table-column label="序列" min-width="220" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.sequence || '—' }}</template>
+          </el-table-column>
           <el-table-column prop="chain" label="链" width="52" />
           <el-table-column label="ΔipTM" width="88">
             <template #default="{ row }">

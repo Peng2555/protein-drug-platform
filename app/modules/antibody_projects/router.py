@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -39,6 +39,7 @@ from app.modules.antibody_projects.service import (
     add_project_member,
     create_candidate_with_wt,
     create_experiment,
+    create_fold_antibody_only_batch,
     create_job_link,
     create_project,
     create_sample_batch,
@@ -53,6 +54,7 @@ from app.modules.antibody_projects.service import (
     lock_draft_versions,
     lock_version,
     set_candidate_category,
+    delete_project,
     update_draft_version,
     update_project,
     version_out,
@@ -70,6 +72,8 @@ from app.schemas.antibody_project import (
     ExperimentOut,
     JobLinkCreate,
     JobLinkOut,
+    ProjectFoldAntibodyOnlyCreate,
+    ProjectFoldAntibodyOnlyOut,
     MeasurementOut,
     MutationUpdate,
     ProjectCreate,
@@ -147,11 +151,23 @@ def update_project_api(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    project = project_access(db, project_id, user, ProjectRole.editor.value)
+    project = project_access(db, project_id, user, ProjectRole.owner.value)
     project = update_project(db, project, body, user)
     db.commit()
     db.refresh(project)
     return ProjectOut.model_validate(project)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project_api(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    project = project_access(db, project_id, user, ProjectRole.owner.value)
+    delete_project(db, project)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{project_id}/members", response_model=list[ProjectMemberOut])
@@ -686,6 +702,23 @@ def import_affinity_xlsx_api(
     experiments = import_affinity_xlsx(db, project, candidate, body, user)
     db.commit()
     return [_experiment_out(db, item) for item in experiments]
+
+
+@router.post(
+    "/{project_id}/fold-antibody-only",
+    response_model=ProjectFoldAntibodyOnlyOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def fold_antibody_only_api(
+    project_id: str,
+    body: ProjectFoldAntibodyOnlyCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    project = project_access(db, project_id, user, ProjectRole.editor.value)
+    result = create_fold_antibody_only_batch(db, project, body, user)
+    db.commit()
+    return result
 
 
 @router.post(

@@ -134,8 +134,8 @@ export function scenarioById(id: string): ScenarioDef | undefined {
 
 /** 各场景下高亮模块（能力地图默认筛选） */
 export const SCENARIO_MODULES: Record<ScenarioId, ModuleId[]> = {
-  vhh: ['fold', 'rosetta', 'maturation', 'synthesis', 'developability', 'design', 'hydro_redesign', 'cic_profile', 'tnp_profile'],
-  antibody: ['fold', 'design', 'rosetta', 'developability', 'maturation', 'hydro_redesign', 'cic_profile', 'tnp_profile'],
+  vhh: ['fold', 'rosetta', 'maturation', 'synthesis', 'developability', 'design', 'hydro_redesign', 'cic_profile', 'tnp_profile', 'tm_disulfide'],
+  antibody: ['fold', 'design', 'rosetta', 'developability', 'maturation', 'hydro_redesign', 'cic_profile', 'tnp_profile', 'tm_disulfide'],
   small_molecule: ['docking', 'md'],
   general: ['fold', 'design'],
 }
@@ -315,6 +315,7 @@ export const MODULE_ENGINES: Partial<Record<ModuleId, string>> = {
   hydro_redesign: 'Boltz2 · 疏水斑',
   cic_profile: 'Boltz2 · CIC 斑',
   tnp_profile: 'Boltz2 · Kabat 画像',
+  tm_disulfide: 'Boltz2 · PyRosetta 二硫键',
   synthesis: '表交叉筛选',
   docking: 'AutoDock Vina',
   md: 'GROMACS',

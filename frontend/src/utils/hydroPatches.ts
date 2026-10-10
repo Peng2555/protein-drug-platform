@@ -18,6 +18,7 @@ export const HYDRO_PATCH_PALETTE = [
 export type HydroResidue = {
   chain: string
   position: number
+  kabat: string
   aa: string
   region: string
   rsa: number
@@ -71,6 +72,7 @@ export function parseHydroResidues(rows: Record<string, unknown>[]): HydroResidu
     return {
       chain,
       position,
+      kabat: String(row.kabat ?? '').trim(),
       aa: String(row.aa ?? ''),
       region: String(row.region || 'FR'),
       rsa: asNum(row.rsa),

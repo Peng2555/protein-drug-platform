@@ -26,6 +26,7 @@ celery_app.conf.update(
     task_routes={
         "worker.tasks.run_fold_job": {"queue": settings.celery_gpu_queue},
         "worker.tasks.run_md_job": {"queue": settings.celery_gpu_queue},
+        "worker.tasks.run_tm_disulfide_job": {"queue": settings.celery_cpu_queue},
     },
     task_default_queue=settings.celery_gpu_queue,
 )

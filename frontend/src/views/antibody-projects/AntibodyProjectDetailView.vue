@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { fetchAntibodyProject, type AntibodyProject } from '@/api/antibodyProjects'
+import { useAuthStore } from '@/stores/auth'
 import AuditPanel from './AuditPanel.vue'
 import ExperimentPanel from './ExperimentPanel.vue'
 import ProjectOverviewPanel from './ProjectOverviewPanel.vue'
@@ -12,10 +13,14 @@ import VersionWorkspace from './VersionWorkspace.vue'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const project = ref<AntibodyProject | null>(null)
 const loading = ref(false)
 const activeTab = ref('versions')
 const projectId = computed(() => String(route.params.projectId || ''))
+const canManage = computed(() =>
+  Boolean(auth.user?.is_admin || (project.value && auth.user?.id === project.value.owner_id)),
+)
 
 const statusText: Record<string, string> = {
   initiated: '立项',
@@ -74,6 +79,7 @@ onMounted(load)
           <ProjectOverviewPanel
             v-if="activeTab === 'overview'"
             :project="project"
+            :can-manage="canManage"
             @updated="project = $event"
           />
         </el-tab-pane>

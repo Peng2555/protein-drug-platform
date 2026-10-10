@@ -239,6 +239,15 @@ const router = createRouter({
           ],
         ),
         moduleChildren(
+          'tm-disulfide',
+          {
+            workspace: () => import('@/views/tm-disulfide/TmDisulfideWorkspaceView.vue'),
+            new: () => import('@/views/tm-disulfide/TmDisulfideNewView.vue'),
+            tasks: () => import('@/views/tm-disulfide/TmDisulfideTasksView.vue'),
+            task: () => import('@/views/tm-disulfide/TmDisulfideJobDetailView.vue'),
+          },
+        ),
+        moduleChildren(
           'synthesis',
           {
             workspace: () => import('@/views/synthesis/SynthesisWorkspaceView.vue'),
@@ -271,6 +280,12 @@ const router = createRouter({
           },
         ),
         {
+          path: 'admin/users',
+          name: 'admin-users',
+          component: () => import('@/views/admin/AdminUsersView.vue'),
+          meta: { title: '用户管理', admin: true },
+        },
+        {
           path: 'legacy',
           name: 'legacy',
           component: () => import('@/views/LegacyFrameView.vue'),
@@ -291,6 +306,14 @@ router.beforeEach(async (to) => {
   if (!auth.isLoggedIn) {
     const ok = await auth.bootstrap()
     if (!ok) return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.admin && !auth.user?.is_admin) {
+    try {
+      await auth.fetchMe()
+    } catch {
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
+    if (!auth.user?.is_admin) return { name: 'home' }
   }
   return true
 })

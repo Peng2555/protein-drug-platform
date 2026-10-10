@@ -290,11 +290,12 @@ async function onDelete() {
 function onDownload() {
   const j = job.value
   if (!j) return
-  if (foldSamples.value.length > 1) {
-    void downloadAllStructures(j.id, j.name || j.id)
-    return
-  }
-  void downloadStructure(j.id, j.name || j.id, selectedModel.value)
+  const run = foldSamples.value.length > 1
+    ? downloadAllStructures(j.id, j.name || j.id)
+    : downloadStructure(j.id, j.name || j.id, selectedModel.value)
+  void run.catch((e) => {
+    ElMessage.error(e instanceof Error ? e.message : '下载结构失败')
+  })
 }
 
 function startMd() {

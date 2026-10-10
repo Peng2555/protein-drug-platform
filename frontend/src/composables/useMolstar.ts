@@ -1,7 +1,13 @@
 import { QualityAssessmentProvider } from 'molstar/lib/extensions/model-archive/quality-assessment/prop'
 import { Viewer } from 'molstar/lib/apps/viewer/app'
-import { Bond, StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure'
+import { Bond, QueryContext, StructureElement, StructureProperties, StructureSelection, Unit } from 'molstar/lib/mol-model/structure'
+import { MinimizeRmsd } from 'molstar/lib/mol-math/linear-algebra/3d/minimize-rmsd'
 import { Vec3 } from 'molstar/lib/mol-math/linear-algebra'
+import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder'
+import { compile } from 'molstar/lib/mol-script/runtime/query/compiler'
+import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms'
+import { PluginStateObject } from 'molstar/lib/mol-plugin-state/objects'
+import { StructureFocusRepresentation } from 'molstar/lib/mol-plugin/behavior/dynamic/selection/structure-focus-representation'
 import { PresetStructureRepresentations } from 'molstar/lib/mol-plugin-state/builder/structure/representation-preset'
 import { ColorThemeCategory } from 'molstar/lib/mol-theme/color/categories'
 import type { ColorTheme } from 'molstar/lib/mol-theme/color'
@@ -155,7 +161,8 @@ const VIEWER_OPTIONS = {
   viewportShowControls: true,
   viewportShowToggleFullscreen: false,
   viewportBackgroundColor: '0xf1f5f9',
-  illumination: true,
+  illumination: false,
+  viewportFocusBehavior: 'default',
 } as const
 
 export async function createMolstarViewer(
@@ -166,8 +173,17 @@ export async function createMolstarViewer(
   container.style.position = 'relative'
   container.style.width = '100%'
   container.style.height = '100%'
-  return Viewer.create(container, { ...VIEWER_OPTIONS, ...options }).then((viewer) => {
+  return Viewer.create(container, { ...VIEWER_OPTIONS, ...options }).then(async (viewer) => {
     registerBoltzPlddtTheme(viewer.plugin)
+    try {
+      await viewer.plugin.state.updateBehavior(StructureFocusRepresentation, (params) => {
+        params.components = ['target', 'surroundings', 'interactions']
+        params.ignoreHydrogens = true
+        params.expandRadius = 5
+      })
+    } catch {
+      /* 部分 Mol* 版本无此 behavior */
+    }
     return viewer as MolstarViewer
   })
 }
@@ -201,13 +217,39 @@ export async function loadMolstarStructure(
   viewer: MolstarViewer,
   text: string,
   format?: 'mmcif' | 'pdb',
+  options?: {
+    resetCamera?: boolean
+    dataLabel?: string
+    preset?: MolstarReprKind
+  },
 ): Promise<void> {
   const fmt = format ?? detectStructureFormat(text)
-  await viewer.loadStructureFromData(text, fmt, { dataLabel: 'structure' })
-  viewer.plugin.canvas3d?.requestCameraReset()
+  const plugin = viewer.plugin
+  await plugin.initialized
+  const data = await plugin.builders.data.rawData({
+    data: text,
+    label: options?.dataLabel ?? 'structure',
+  })
+  const trajectory = await plugin.builders.structure.parseTrajectory(data, fmt)
+  const model = await plugin.builders.structure.createModel(trajectory)
+  await plugin.builders.structure.createStructure(model)
+  const structures = plugin.managers.structure.hierarchy.current.structures.slice(-1)
+  const preset = options?.preset ?? 'polymer-and-ligand'
+  await plugin.managers.structure.component.applyPreset(
+    structures,
+    PresetStructureRepresentations[preset],
+    { ignoreHydrogens: true, quality: 'auto' } as never,
+  )
+  if (options?.resetCamera !== false) {
+    plugin.canvas3d?.requestCameraReset()
+  }
 }
 
-export type MolstarReprKind = 'molecular-surface' | 'polymer-cartoon'
+export async function clearMolstarPlugin(viewer: MolstarViewer): Promise<void> {
+  await viewer.plugin.clear()
+}
+
+export type MolstarReprKind = 'molecular-surface' | 'polymer-cartoon' | 'polymer-and-ligand'
 
 /** 切换 cartoon / 分子表面。表面计算较慢，调用方应避免在每次着色时重复套用。 */
 export async function applyMolstarStructurePreset(
@@ -411,19 +453,28 @@ export function focusMolstarResidues(
   viewer: MolstarViewer,
   residues: Array<{ chain_id: string; seq_num: number }>,
 ): void {
+  const plugin = viewer.plugin
   if (!residues.length) {
-    viewer.plugin.canvas3d?.requestCameraReset()
+    plugin.managers.structure.focus.clear()
+    plugin.canvas3d?.requestCameraReset()
     return
   }
-  viewer.structureInteractivity({
-    action: 'focus',
-    elements: {
-      items: residues.map((r) => ({
-        auth_asym_id: r.chain_id,
-        auth_seq_id: r.seq_num,
-      })),
-    },
-  })
+  const schema = {
+    items: residues.map((r) => ({
+      auth_asym_id: r.chain_id,
+      auth_seq_id: r.seq_num,
+    })),
+  }
+  const structures = plugin.state.data.selectQ((Q) => Q.rootsOfType(PluginStateObject.Molecule.Structure))
+  for (const s of structures) {
+    const structure = s.obj?.data
+    if (!structure) continue
+    const loci = StructureElement.Loci.fromSchema(structure, schema)
+    if (StructureElement.Loci.isEmpty(loci)) continue
+    plugin.managers.structure.focus.setFromLoci(loci)
+    plugin.managers.camera.focusLoci(loci)
+    return
+  }
 }
 
 export function focusMolstarPoint(
@@ -444,3 +495,138 @@ export async function applyMolstarChainPalette(
   if (!chains.length) return
   await applyMolstarColorMode(viewer, 'chain')
 }
+
+const MUTATION_THEME_NAME = 'boltz-mutation-sites'
+
+const mutationThemeState = {
+  keys: new Set<string>(),
+}
+
+const MUTATION_BASE = Color(0xcbd5e1)
+const MUTATION_HIT = Color(0xe11d48)
+
+function mutationLocationKey(location: StructureElement.Location): string | null {
+  const chain =
+    StructureProperties.chain.auth_asym_id(location) ||
+    StructureProperties.chain.label_asym_id(location)
+  const seq =
+    StructureProperties.residue.auth_seq_id(location) ??
+    StructureProperties.residue.label_seq_id(location)
+  if (!chain || seq == null || Number.isNaN(Number(seq))) return null
+  return `${chain}:${Number(seq)}`
+}
+
+const MutationColorThemeParams = {}
+
+function createMutationColorTheme(ctx: { structure?: { root: unknown } }) {
+  const color = (location: unknown) => {
+    if (StructureElement.Location.is(location) && Unit.isAtomic(location.unit)) {
+      const key = mutationLocationKey(location)
+      if (key && mutationThemeState.keys.has(key)) return MUTATION_HIT
+    }
+    return MUTATION_BASE
+  }
+  void ctx
+  return {
+    factory: createMutationColorTheme,
+    granularity: 'group' as const,
+    preferSmoothing: true,
+    color,
+    props: {},
+    description: 'Highlight antibody mutation sites.',
+  }
+}
+
+const MutationColorThemeProvider = {
+  name: MUTATION_THEME_NAME,
+  label: 'Mutations',
+  category: ColorThemeCategory.Validation,
+  factory: createMutationColorTheme,
+  getParams: () => MutationColorThemeParams,
+  defaultValues: PD.getDefaultValues(MutationColorThemeParams),
+  isApplicable: () => true,
+} as ColorTheme.Provider
+
+export async function applyMolstarMutationTheme(
+  viewer: MolstarViewer,
+  residueKeys: Iterable<string>,
+): Promise<void> {
+  mutationThemeState.keys = new Set(residueKeys)
+  const registry = viewer.plugin.representation.structure.themes.colorThemeRegistry
+  if (!registry.has(MutationColorThemeProvider)) {
+    registry.add(MutationColorThemeProvider)
+  }
+  await updateAllRepresentationThemes(viewer.plugin, { color: MUTATION_THEME_NAME })
+}
+
+function caQuery() {
+  return compile(MS.struct.generator.atomGroups({
+    'atom-test': MS.core.rel.eq([MS.struct.atomProperty.macromolecular.label_atom_id(), 'CA']),
+  }))
+}
+
+function collectFrameworkCa(
+  structure: object,
+  excluded: Set<string>,
+): Map<string, { x: number; y: number; z: number }> {
+  const map = new Map<string, { x: number; y: number; z: number }>()
+  const loci = StructureSelection.toLociWithCurrentUnits(caQuery()(new QueryContext(structure as never)))
+  StructureElement.Loci.forEachLocation(loci, (loc) => {
+    const chain =
+      StructureProperties.chain.auth_asym_id(loc) ||
+      StructureProperties.chain.label_asym_id(loc)
+    const seq =
+      StructureProperties.residue.auth_seq_id(loc) ??
+      StructureProperties.residue.label_seq_id(loc)
+    if (!chain || seq == null || Number.isNaN(Number(seq))) return
+    const key = `${chain}:${Number(seq)}`
+    if (excluded.has(key)) return
+    const { conformation } = loc.unit
+    map.set(key, {
+      x: conformation.x(loc.element),
+      y: conformation.y(loc.element),
+      z: conformation.z(loc.element),
+    })
+  })
+  return map
+}
+
+export async function superposeMolstarMobileOntoPivot(
+  viewer: MolstarViewer,
+  excludedResidueKeys: Iterable<string> = [],
+): Promise<{ rmsd: number; n: number } | null> {
+  const plugin = viewer.plugin
+  const structures = plugin.managers.structure.hierarchy.current.structures
+  if (structures.length < 2) return null
+  const pivot = structures[0].cell.obj?.data
+  const mobile = structures[1].cell.obj?.data
+  if (!pivot || !mobile) return null
+  const excluded = new Set(excludedResidueKeys)
+  const pivotMap = collectFrameworkCa(pivot, excluded)
+  const mobileMap = collectFrameworkCa(mobile, excluded)
+  const keys = [...pivotMap.keys()].filter((key) => mobileMap.has(key))
+  if (keys.length < 8) return null
+  const positions = {
+    a: MinimizeRmsd.Positions.empty(keys.length),
+    b: MinimizeRmsd.Positions.empty(keys.length),
+  }
+  keys.forEach((key, i) => {
+    const pa = pivotMap.get(key)!
+    const pb = mobileMap.get(key)!
+    positions.a.x[i] = pa.x
+    positions.a.y[i] = pa.y
+    positions.a.z[i] = pa.z
+    positions.b.x[i] = pb.x
+    positions.b.y[i] = pb.y
+    positions.b.z[i] = pb.z
+  })
+  const fit = MinimizeRmsd.compute(positions)
+  const b = plugin.state.data.build().to(structures[1].cell)
+    .insert(StateTransforms.Model.TransformStructureConformation, {
+      transform: { name: 'matrix', params: { data: fit.bTransform, transpose: false } },
+    })
+  await plugin.runTask(plugin.state.data.updateTree(b))
+  plugin.canvas3d?.requestCameraReset()
+  return { rmsd: fit.rmsd, n: keys.length }
+}
+

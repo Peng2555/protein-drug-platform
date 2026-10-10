@@ -33,6 +33,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    account_status: Mapped[str] = mapped_column(String(16), default="active")
+    token_version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     jobs: Mapped[list["Job"]] = relationship(back_populates="user", cascade="all, delete-orphan")

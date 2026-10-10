@@ -289,8 +289,10 @@ export interface AffinityRedesignRankedRow {
   chain?: string
   label?: string
   position?: string | number
+  kabat?: string
   wt?: string
   mut?: string
+  sequence?: string
   region?: string
   delta_iptm?: string | number | null
   delta_iptm_band?: string | null
@@ -323,6 +325,7 @@ export interface AffinityRedesignRankedOut {
   wetlab: AffinityRedesignRankedRow[]
   summary: Record<string, unknown> | null
   mutation_table?: AffinityRedesignMutationSiteRow[]
+  chains?: ChainSequence[]
 }
 
 export interface AffinityRedesignHit {
@@ -385,6 +388,7 @@ export interface HydroRedesignRankedOut {
   wetlab: Record<string, unknown>[]
   patches: Record<string, unknown>[]
   residues: Record<string, unknown>[]
+  chains?: ChainSequence[]
   summary: Record<string, unknown> | null
 }
 
@@ -404,6 +408,7 @@ export interface CicProfileProgressOut {
 export interface CicProfileRankedOut {
   patches: Record<string, unknown>[]
   residues: Record<string, unknown>[]
+  chains?: ChainSequence[]
   summary: Record<string, unknown> | null
 }
 
@@ -424,7 +429,40 @@ export interface TnpProfileRankedOut {
   patches: Record<string, unknown>[]
   residues: Record<string, unknown>[]
   metrics: Record<string, unknown>[]
+  chains?: ChainSequence[]
   summary: Record<string, unknown> | null
+}
+
+export interface TmDisulfideJob extends Job {}
+
+export interface TmDisulfideJobListOut {
+  items: TmDisulfideJob[]
+  total: number
+}
+
+export interface TmDisulfideProgressOut {
+  stage: string
+  status: string
+  summary: Record<string, unknown> | null
+}
+
+export interface TmDisulfideRankedOut {
+  candidates: Record<string, unknown>[]
+  summary: Record<string, unknown> | null
+}
+
+export interface TmDisulfideSourceFoldJob {
+  id: string
+  name: string | null
+  status: string
+  n_models: number
+  total_length: number | null
+  created_at: string
+}
+
+export interface TmDisulfideSourceFoldJobListOut {
+  items: TmDisulfideSourceFoldJob[]
+  total: number
 }
 
 export interface DesignCandidate {

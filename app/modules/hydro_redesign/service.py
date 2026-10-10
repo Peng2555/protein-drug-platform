@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.core.engines import HYDRO_REDESIGN_ENGINE
 from app.common.job_paths import sanitize_label
 from app.core.models import Batch, Job, JobStatus
-from app.core.queue import dispatch_to_gpu
+from app.core.queue import dispatch_fold_compute
 from app.common.sequence_inputs import (
     parse_fasta_chain_lengths,
     parse_vhh_records as parse_common_vhh_records,
@@ -93,14 +93,14 @@ def create_and_queue_hydro_redesign_job(
     db.add(job)
     db.flush()
     if not defer_dispatch:
-        async_result = dispatch_to_gpu(run_hydro_redesign_job, job.id)
+        async_result = dispatch_fold_compute(run_hydro_redesign_job, job.id)
         job.celery_task_id = async_result.id
     return job
 
 
 def dispatch_hydro_redesign_jobs(jobs: list[Job]) -> None:
     for job in jobs:
-        async_result = dispatch_to_gpu(run_hydro_redesign_job, job.id)
+        async_result = dispatch_fold_compute(run_hydro_redesign_job, job.id)
         job.celery_task_id = async_result.id
 
 

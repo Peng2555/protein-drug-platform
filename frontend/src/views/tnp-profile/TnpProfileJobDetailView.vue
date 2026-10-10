@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import HydroPatchViewer from '@/components/hydro/HydroPatchViewer.vue'
+import SequenceStrip from '@/components/sequence/SequenceStrip.vue'
+import { fetchJobSequences } from '@/api/sequences'
 import {
   downloadTnpProfileFile,
   fetchTnpProfileCif,
@@ -10,7 +12,7 @@ import {
   fetchTnpProfileProgress,
   fetchTnpProfileRanked,
 } from '@/api/tnpProfile'
-import type { TnpProfileJob } from '@/api/types'
+import type { ChainSequence, TnpProfileJob } from '@/api/types'
 import { usePolling } from '@/composables/usePolling'
 import { TNP_PROFILE_STAGE_LABELS, statusLabel } from '@/utils/constants'
 import { parseHydroPatches, parseHydroResidues } from '@/utils/hydroPatches'
@@ -33,6 +35,7 @@ const patchRows = ref<Record<string, unknown>[]>([])
 const residueRows = ref<Record<string, unknown>[]>([])
 const summary = ref<Record<string, unknown> | null>(null)
 const cifText = ref<string | null>(null)
+const sequences = ref<ChainSequence[]>([])
 const selectedPatchId = ref<string | null>(null)
 const selectedResidue = ref<{ chainId: string; resi: number } | null>(null)
 
@@ -102,7 +105,15 @@ async function load() {
       patchRows.value = data.patches
       residueRows.value = data.residues
       summary.value = data.summary
+      sequences.value = data.chains || []
       cifText.value = await fetchTnpProfileCif(id)
+      if (!sequences.value.length) {
+        try {
+          sequences.value = (await fetchJobSequences(id)).chains
+        } catch {
+          sequences.value = []
+        }
+      }
     }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
@@ -189,14 +200,22 @@ async function download(name: string) {
       </section>
       <section class="stage">
         <div class="stage__view">
-          <HydroPatchViewer
-            :cif-text="cifText"
-            :residues="residues"
-            :patches="patches"
-            :selected-patch-id="selectedPatchId"
-            :selected-residue="selectedResidue"
-            patch-color-label="CDR 附近"
-            @select-patch="selectedPatchId = $event"
+          <div class="stage__structure">
+            <HydroPatchViewer
+              :cif-text="cifText"
+              :residues="residues"
+              :patches="patches"
+              :selected-patch-id="selectedPatchId"
+              :selected-residue="selectedResidue"
+              patch-color-label="CDR 附近"
+              @select-patch="selectedPatchId = $event"
+              @residue-click="(p) => (selectedResidue = { chainId: p.chainId, resi: p.resi })"
+            />
+          </div>
+          <SequenceStrip
+            v-if="sequences.length"
+            :chains="sequences"
+            :mutated-keys="selectedResidue ? [`${selectedResidue.chainId}:${selectedResidue.resi}`] : []"
             @residue-click="(p) => (selectedResidue = { chainId: p.chainId, resi: p.resi })"
           />
         </div>
@@ -397,7 +416,20 @@ async function download(name: string) {
   }
 }
 .stage__view {
-  height: 640px;
+  min-height: 640px;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  border-radius: 16px;
+}
+.stage__structure {
+  height: 520px;
+  min-height: 420px;
+  overflow: hidden;
+  :deep(.hydro-viewer) {
+    height: 100%;
+    min-height: 0;
+  }
 }
 .rail {
   padding: 0.9rem 0.85rem;

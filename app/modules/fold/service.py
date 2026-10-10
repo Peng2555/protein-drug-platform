@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.engines import DEFAULT_FOLD_ENGINE, normalize_fold_engine
 from app.core.models import Job, JobStatus
-from app.core.queue import dispatch_to_gpu
+from app.core.queue import dispatch_to_fold, dispatch_to_gpu
 from worker.tasks import run_fold_job
 
 
@@ -88,8 +88,11 @@ def _boltz_job_params(custom: dict | None = None, *, use_msa_server: bool = True
 
 
 def dispatch_job(db: Session, job: Job) -> None:
-    """Send an already-committed job to the GPU queue."""
-    async_result = dispatch_to_gpu(run_fold_job, job.id)
+    """Boltz2 在开启远程 NPU 时进 fold 队列；ESMFold / 本机折叠仍走 GPU。"""
+    if job.engine != "esmfold2" and settings.boltz_npu_remote:
+        async_result = dispatch_to_fold(run_fold_job, job.id)
+    else:
+        async_result = dispatch_to_gpu(run_fold_job, job.id)
     job.celery_task_id = async_result.id
 
 

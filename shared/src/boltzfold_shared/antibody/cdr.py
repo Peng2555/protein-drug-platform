@@ -22,17 +22,24 @@ def _cdr_defs(domain: str) -> dict[str, tuple[int, int]]:
     return KABAT_CDR_LIGHT if domain == "L" else KABAT_CDR_HEAVY
 
 
+def format_kabat_number(pos: int, ins: str | None) -> str:
+    insertion = str(ins or "").strip()
+    return f"{pos}{insertion}" if insertion else str(pos)
+
+
 def _build_annotation(
     sequence: str, numbering: list, query_start: int, query_end: int, domain: str
 ) -> dict:
     cdr_defs = _cdr_defs(domain)
     index_to_kabat: dict[int, int] = {}
+    index_to_label: dict[int, str] = {}
     seq_i = query_start
-    for (pos, _ins), aa in numbering:
+    for (pos, ins), aa in numbering:
         if aa == "-":
             continue
         if isinstance(pos, int) and seq_i <= query_end:
             index_to_kabat[seq_i] = pos
+            index_to_label[seq_i] = format_kabat_number(pos, ins)
         seq_i += 1
     spans = []
     for name, (lo, hi) in cdr_defs.items():
@@ -58,9 +65,11 @@ def _build_annotation(
             else:
                 region = "FR4"
         regions.append(region)
+    kabat_labels = [index_to_label.get(i, str(i + 1)) for i in range(len(sequence))]
     return {
         "domain": domain, "scheme": "kabat", "query_start": query_start,
-        "query_end": query_end, "cdr_spans": spans, "regions": regions, "is_antibody": True,
+        "query_end": query_end, "cdr_spans": spans, "regions": regions,
+        "kabat_labels": kabat_labels, "is_antibody": True,
     }
 
 
@@ -100,10 +109,13 @@ numbering, qs, qe = nr[0][0]
 ct = detail[0][0].get("chain_type", "H") if detail and detail[0] and detail[0][0] else "H"
 domain = "L" if str(ct).upper().startswith(("K","L")) else "H"
 defs = defs_l if domain == "L" else defs_h
-mapping = {}; idx = int(qs)
-for (pos, _ins), aa in numbering:
+mapping = {}; labels = {}; idx = int(qs)
+for (pos, ins), aa in numbering:
  if aa == "-": continue
- if isinstance(pos, int) and idx <= int(qe): mapping[idx] = pos
+ if isinstance(pos, int) and idx <= int(qe):
+  mapping[idx] = pos
+  ins_s = str(ins or "").strip()
+  labels[idx] = f"{pos}{ins_s}" if ins_s else str(pos)
  idx += 1
 spans = []
 for name, (lo, hi) in defs.items():
@@ -117,7 +129,8 @@ for i in range(len(seq)):
  if region is None:
   region = "FR1" if pos < ordered[0][1][0] else ("FR2" if ordered[0][1][1] < pos < ordered[1][1][0] else ("FR3" if ordered[1][1][1] < pos < ordered[2][1][0] else "FR4"))
  regions.append(region)
-print(json.dumps({"domain":domain,"scheme":"kabat","query_start":int(qs),"query_end":int(qe),"cdr_spans":spans,"regions":regions,"is_antibody":True}))
+kabat_labels=[labels.get(i, str(i+1)) for i in range(len(seq))]
+print(json.dumps({"domain":domain,"scheme":"kabat","query_start":int(qs),"query_end":int(qe),"cdr_spans":spans,"regions":regions,"kabat_labels":kabat_labels,"is_antibody":True}))
 """
 
 
@@ -150,6 +163,19 @@ def annotate_antibody_chain(
 def region_for_index(ab: dict, index0: int) -> str:
     regions = ab.get("regions") or []
     return regions[index0] if 0 <= index0 < len(regions) else "OUT"
+
+
+def kabat_labels_for_sequence(sequence: str) -> list[str]:
+    """与序列等长的 Kabat 标签；编不上时该位回退为 1-based 顺序号。"""
+    ab = annotate_antibody_chain(sequence)
+    labels = list((ab or {}).get("kabat_labels") or [])
+    if len(labels) == len(sequence) and labels:
+        return [str(item) for item in labels]
+    out = [str(i + 1) for i in range(len(sequence))]
+    for i, item in enumerate(labels[: len(sequence)]):
+        if str(item).strip():
+            out[i] = str(item)
+    return out
 
 
 def annotate_regions(sequence: str) -> list[dict]:

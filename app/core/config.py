@@ -45,7 +45,14 @@ class Settings(BaseSettings):
     max_jobs_per_user_running: int = 0  # legacy alias; 0 = do not block submit
     max_vhh_panel_size: int = 5000
     celery_gpu_count: int = 4
-    celery_gpu_queue: str = "gpu"  # unified queue: fold + MD share all GPUs
+    celery_gpu_queue: str = "gpu"  # MD 等仍走本机 NVIDIA
+    celery_fold_queue: str = "fold"
+    celery_fold_concurrency: int = 8
+    celery_cpu_queue: str = "cpu"
+    celery_cpu_concurrency: int = 2
+    boltz_npu_remote: bool = False
+    boltz_npu_ssh_host: str = "npu-3"
+    boltz_npu_count: int = 8
 
     md_out_root: Path = ROOT / "md_outputs"
     maturation_out_root: Path = ROOT / "maturation_outputs"
@@ -74,6 +81,7 @@ class Settings(BaseSettings):
     hydro_redesign_out_root: Path = ROOT / "run" / "hydro_redesign_outputs"
     cic_profile_out_root: Path = ROOT / "run" / "cic_profile_outputs"
     tnp_profile_out_root: Path = ROOT / "run" / "tnp_profile_outputs"
+    tm_disulfide_out_root: Path = ROOT / "run" / "tm_disulfide_outputs"
     antibody_projects_out_root: Path = ROOT / "run" / "antibody_projects"
     antibody_project_max_upload_mb: int = 200
     tnp_profile_max_batch: int = 100
@@ -156,6 +164,7 @@ settings.masking_peptide_out_root.mkdir(parents=True, exist_ok=True)
 settings.hydro_redesign_out_root.mkdir(parents=True, exist_ok=True)
 settings.cic_profile_out_root.mkdir(parents=True, exist_ok=True)
 settings.tnp_profile_out_root.mkdir(parents=True, exist_ok=True)
+settings.tm_disulfide_out_root.mkdir(parents=True, exist_ok=True)
 settings.antibody_projects_out_root.mkdir(parents=True, exist_ok=True)
 (ROOT / "data").mkdir(parents=True, exist_ok=True)
 
@@ -165,6 +174,10 @@ os.environ.setdefault("BOLTZ_CACHE", settings.boltz_cache)
 os.environ.setdefault("HF_HOME", settings.hf_home)
 os.environ.setdefault("TORCH_HOME", settings.torch_home)
 os.environ.setdefault("BOLTZ_BIN", settings.boltz_bin)
+os.environ["BOLTZ_NPU_REMOTE"] = "1" if settings.boltz_npu_remote else "0"
+os.environ.setdefault("BOLTZ_NPU_SSH_HOST", settings.boltz_npu_ssh_host)
+os.environ.setdefault("NPU_SSH_HOST", settings.boltz_npu_ssh_host)
+os.environ.setdefault("BOLTZ_NPU_COUNT", str(settings.boltz_npu_count))
 os.environ.setdefault("DOCKQ_PYTHON", settings.dockq_python)
 os.environ.setdefault("ESMFOLD_PY", settings.esmfold_py)
 os.environ.setdefault("ESMFOLD_MODEL", settings.esmfold_model)

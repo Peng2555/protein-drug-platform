@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   createJobLink,
@@ -16,6 +17,7 @@ import {
 } from '@/api/antibodyProjects'
 
 const props = defineProps<{ projectId: string }>()
+const router = useRouter()
 const candidates = ref<AntibodyCandidate[]>([])
 const versions = ref<AntibodyVersion[]>([])
 const artifacts = ref<ProjectArtifact[]>([])
@@ -170,6 +172,18 @@ onMounted(load)
         <el-table-column prop="engine" label="计算模块" width="150" />
         <el-table-column prop="purpose" label="用途" min-width="160" />
         <el-table-column prop="original_job_id" label="Job ID" min-width="240" />
+        <el-table-column label="操作" width="120">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.engine === 'boltz2' || row.engine === 'esmfold2'"
+              text
+              type="primary"
+              @click="router.push({ name: 'fold-task', params: { id: row.job_id || row.original_job_id } })"
+            >
+              查看结构
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </section>
 

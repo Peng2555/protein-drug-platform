@@ -58,6 +58,29 @@ def _query_nvidia_smi() -> list[dict]:
     return rows
 
 
+def npu_fold_remote() -> bool:
+    return os.environ.get("BOLTZ_NPU_REMOTE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def select_fold_worker_ids(
+    *,
+    max_gpus: int | None = None,
+    mem_used_max_mib: float = 5000.0,
+    util_max: float = 20.0,
+) -> list[int]:
+    """本机空闲 NVIDIA 卡，或远程 NPU 时固定 0..N-1 作为并发名额。"""
+    if npu_fold_remote():
+        try:
+            n = int(os.environ.get("BOLTZ_NPU_COUNT") or "8")
+        except ValueError:
+            n = 8
+        cap = max_gpus if max_gpus else n
+        return list(range(max(1, min(n, cap))))
+    return select_idle_gpu_ids(
+        max_gpus=max_gpus, mem_used_max_mib=mem_used_max_mib, util_max=util_max
+    )
+
+
 def select_idle_gpu_ids(
     *,
     max_gpus: int | None = None,

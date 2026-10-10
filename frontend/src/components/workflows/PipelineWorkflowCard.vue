@@ -30,6 +30,10 @@ function openDetail(id: string) {
     router.push({ name: 'tnp-profile-new' })
     return
   }
+  if (id === 'tm-disulfide') {
+    router.push({ name: 'tm-disulfide-new' })
+    return
+  }
   router.push({ name: 'workflow-detail', params: { id } })
 }
 </script>

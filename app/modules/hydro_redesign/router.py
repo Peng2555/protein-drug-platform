@@ -27,6 +27,7 @@ from app.modules.hydro_redesign.service import (
     save_structure_upload,
 )
 from app.common.job_paths import remove_job_outputs
+from app.common.kabat_results import annotate_job_chains, apply_kabat_rows, relabel_patch_rows
 from app.core.models import Batch, Job, JobStatus, User
 from app.schemas import (
     BatchDetailOut,
@@ -381,11 +382,17 @@ def get_ranked(job_id: str, db: Session = Depends(get_db), user: User = Depends(
         residues = _read_csv_rows(res_csv)
     if (exports / "summary.json").is_file() and summary is None:
         summary = json.loads((exports / "summary.json").read_text(encoding="utf-8"))
+    chains = annotate_job_chains(job)
+    apply_kabat_rows(residues, chains)
+    apply_kabat_rows(mutations, chains, with_sequence=True)
+    apply_kabat_rows(wetlab, chains, with_sequence=True)
+    relabel_patch_rows(patches, residues)
     return HydroRedesignRankedOut(
         mutations=mutations,
         wetlab=wetlab,
         patches=patches,
         residues=residues,
+        chains=chains,
         summary=summary,
     )
 

@@ -48,6 +48,7 @@ function routeForEngine(engine?: string | null): string {
   if (engine === 'hydro_redesign') return 'hydro-redesign-task'
   if (engine === 'cic_profile') return 'cic-profile-task'
   if (engine === 'tnp_profile') return 'tnp-profile-task'
+  if (engine === 'tm_disulfide') return 'tm-disulfide-task'
   if (engine === 'synthesis_select') return 'synthesis-task'
   if (engine === 'small_molecule_docking' || engine === 'ras_tricomplex_docking') return 'docking-task'
   if (engine?.includes('md') || engine === 'gromacs_md') return 'md-task'
@@ -66,6 +67,7 @@ function kindForEngine(engine?: string | null): string {
   if (engine === 'hydro_redesign') return '抗体疏水性改造'
   if (engine === 'cic_profile') return '抗体 CIC 表面斑'
   if (engine === 'tnp_profile') return 'VHH 可开发性画像'
+  if (engine === 'tm_disulfide') return '抗体额外二硫键'
   if (engine === 'synthesis_select') return '合成候选'
   if (engine === 'small_molecule_docking' || engine === 'ras_tricomplex_docking') return '分子对接'
   if (engine?.includes('md') || engine === 'gromacs_md') return 'MD 验证'
@@ -105,6 +107,7 @@ async function loadRecent() {
       { jobs: moduleJobs.hydroRedesignJobs as Job[], routeName: 'hydro-redesign-task', kind: '疏水性改造' },
       { jobs: moduleJobs.cicProfileJobs as Job[], routeName: 'cic-profile-task', kind: 'CIC 表面斑' },
       { jobs: moduleJobs.tnpProfileJobs as Job[], routeName: 'tnp-profile-task', kind: '可开发性画像' },
+      { jobs: moduleJobs.tmDisulfideJobs as Job[], routeName: 'tm-disulfide-task', kind: '额外二硫键' },
       { jobs: moduleJobs.synthesisJobs as Job[], routeName: 'synthesis-task', kind: '合成候选' },
       { jobs: moduleJobs.dockingJobs as Job[], routeName: 'docking-task', kind: '分子对接' },
       { jobs: moduleJobs.mdJobs as Job[], routeName: 'md-task', kind: 'MD 验证' },

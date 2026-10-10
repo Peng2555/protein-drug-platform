@@ -4,16 +4,21 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createAntibodyProject,
+  deleteAntibodyProject,
   fetchAntibodyProjects,
   updateAntibodyProject,
   type AntibodyProject,
 } from '@/api/antibodyProjects'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const auth = useAuthStore()
 const projects = ref<AntibodyProject[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const showCreate = ref(false)
+const showEdit = ref(false)
+const editing = ref<AntibodyProject | null>(null)
 const showArchived = ref(false)
 const form = reactive({
   project_code: '',
@@ -68,19 +73,57 @@ async function submit() {
   }
 }
 
-async function archiveProject(project: AntibodyProject) {
+function canManage(project: AntibodyProject) {
+  return Boolean(auth.user?.is_admin || auth.user?.id === project.owner_id)
+}
+
+function openEdit(project: AntibodyProject) {
+  editing.value = project
+  Object.assign(form, {
+    project_code: project.project_code,
+    name: project.name,
+    target_name: project.target_name,
+    description: project.description || '',
+  })
+  showEdit.value = true
+}
+
+async function saveEdit() {
+  if (!editing.value) return
+  if (!form.name.trim() || !form.target_name.trim()) {
+    ElMessage.warning('请填写项目名称和靶点')
+    return
+  }
+  saving.value = true
+  try {
+    await updateAntibodyProject(editing.value.id, {
+      name: form.name.trim(),
+      target_name: form.target_name.trim(),
+      description: form.description.trim() || null,
+    })
+    showEdit.value = false
+    ElMessage.success('项目已更新')
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '修改失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeProject(project: AntibodyProject) {
   try {
     await ElMessageBox.confirm(
-      `归档“${project.name}”后，它将从默认列表隐藏。是否继续？`,
-      '归档项目',
-      { type: 'warning', confirmButtonText: '确认归档', cancelButtonText: '取消' },
+      `删除“${project.name}”后，候选抗体、版本和实验记录会一起删除，且不能恢复。`,
+      '删除项目',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' },
     )
-    await updateAntibodyProject(project.id, { status: 'archived' })
+    await deleteAntibodyProject(project.id)
     await load()
-    ElMessage.success('项目已归档')
+    ElMessage.success('项目已删除')
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error instanceof Error ? error.message : '归档失败')
+    ElMessage.error(error instanceof Error ? error.message : '删除失败')
   }
 }
 
@@ -119,15 +162,10 @@ onMounted(load)
           <span class="project-code">{{ project.project_code }}</span>
           <div class="project-card__actions">
             <el-tag size="small" effect="plain">{{ statusText[project.status] || project.status }}</el-tag>
-            <el-button
-              v-if="project.status !== 'archived'"
-              text
-              size="small"
-              type="warning"
-              @click.stop="archiveProject(project)"
-            >
-              归档
-            </el-button>
+            <template v-if="canManage(project)">
+              <el-button text size="small" type="primary" @click.stop="openEdit(project)">修改</el-button>
+              <el-button text size="small" type="danger" @click.stop="removeProject(project)">删除</el-button>
+            </template>
           </div>
         </div>
         <h2>{{ project.name }}</h2>
@@ -160,6 +198,27 @@ onMounted(load)
       <template #footer>
         <el-button @click="showCreate = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submit">创建项目</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="showEdit" title="修改项目" width="560px">
+      <el-form label-position="top">
+        <el-form-item label="项目编号">
+          <el-input :model-value="form.project_code" disabled />
+        </el-form-item>
+        <el-form-item label="靶点">
+          <el-input v-model="form.target_name" />
+        </el-form-item>
+        <el-form-item label="项目名称">
+          <el-input v-model="form.name" />
+        </el-form-item>
+        <el-form-item label="项目说明">
+          <el-input v-model="form.description" type="textarea" :rows="4" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showEdit = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveEdit">保存</el-button>
       </template>
     </el-dialog>
   </div>

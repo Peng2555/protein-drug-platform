@@ -200,10 +200,11 @@ def run(
         row = {
             "chain": chain,
             "position": pos,
+            "kabat": cand.get("kabat") or "",
             "wt": wt,
             "mut": mut,
             "region": cand.get("region", ""),
-            "label": cand.get("label") or f"{wt}{pos}{mut}",
+            "label": cand.get("label") or f"{wt}{cand.get('kabat') or pos}{mut}",
             "domain": cand.get("domain", ""),
             "mean_dll": round(mean_dll, 6) if mean_dll != float("-inf") else "",
             "n_models_pass": n_pass,
@@ -218,7 +219,7 @@ def run(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     score_fields = [
-        "chain", "position", "wt", "mut", "region", "label", "domain",
+        "chain", "position", "kabat", "wt", "mut", "region", "label", "domain",
         "mean_dll", "n_models_pass", "n_models", "consensus_k", "dll_threshold",
         "consensus_pass",
     ] + [f"dll_{m}" for m in model_names]

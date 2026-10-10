@@ -32,16 +32,39 @@ from hydro_redesign.sequences import (
     select_top20_rows,
 )
 
-def _annotate_regions(sequences: dict[str, str]) -> dict[tuple[str, int], str]:
-    out: dict[tuple[str, int], str] = {}
+def _annotate_chains(
+    sequences: dict[str, str],
+) -> tuple[dict[tuple[str, int], str], dict[tuple[str, int], str]]:
+    regions: dict[tuple[str, int], str] = {}
+    kabats: dict[tuple[str, int], str] = {}
     for cid, seq in sequences.items():
         ab = annotate_antibody_chain(seq)
+        labels = list((ab or {}).get("kabat_labels") or []) or [str(i + 1) for i in range(len(seq))]
         for i in range(len(seq)):
-            if ab:
-                out[(cid, i + 1)] = region_for_index(ab, i)
-            else:
-                out[(cid, i + 1)] = "FR"
-    return out
+            regions[(cid, i + 1)] = region_for_index(ab, i) if ab else "FR"
+            kabats[(cid, i + 1)] = labels[i] if i < len(labels) else str(i + 1)
+    return regions, kabats
+
+
+def _relabel_patches(patches: list[dict[str, Any]], kabats: dict[tuple[str, int], str]) -> None:
+    import re
+
+    pattern = re.compile(r"^([^:]+):([A-Z])(\d+)$")
+    for patch in patches:
+        raw = patch.get("residues") or []
+        if not isinstance(raw, list):
+            continue
+        labels = []
+        for item in raw:
+            text = str(item)
+            match = pattern.match(text)
+            if not match:
+                labels.append(text)
+                continue
+            chain, aa, pos_s = match.group(1), match.group(2), match.group(3)
+            kabat = kabats.get((chain, int(pos_s)), pos_s)
+            labels.append(f"{chain}:{aa}{kabat}")
+        patch["residues"] = labels
 
 def run_workflow(
     work_dir: Path,
@@ -104,14 +127,17 @@ def run_workflow(
         sap_radius=SAP_RADIUS,
         ensemble=ensemble,
     )
-    regions = _annotate_regions(seqs)
+    regions, kabats = _annotate_chains(seqs)
     for row in residues:
-        row["region"] = regions.get((row["chain"], int(row["position"])), "FR")
+        pos = int(row["position"])
+        row["region"] = regions.get((row["chain"], pos), "FR")
+        row["kabat"] = kabats.get((row["chain"], pos), str(pos))
+    _relabel_patches(patches, kabats)
 
     write_csv(
         patches_dir / "residue_sasa.csv",
         residues,
-        ["chain", "position", "aa", "region", "sasa", "rsa", "sc_sasa", "sc_rsa", "phi", "sap", "sap_std", "hydrophobic", "surface", "hydro_sasa", "patch_id"],
+        ["chain", "position", "kabat", "aa", "region", "sasa", "rsa", "sc_sasa", "sc_rsa", "phi", "sap", "sap_std", "hydrophobic", "surface", "hydro_sasa", "patch_id"],
     )
     (patches_dir / "patches.json").write_text(
         json.dumps(
@@ -147,6 +173,7 @@ def run_workflow(
         residues,
         seqs,
         regions,
+        kabats=kabats,
         allow_cdr=allow_cdr,
         allow_charged=allow_charged,
     )
@@ -155,8 +182,10 @@ def run_workflow(
         "label",
         "chain",
         "position",
+        "kabat",
         "wt",
         "mut",
+        "sequence",
         "region",
         "patch_id",
         "rsa",

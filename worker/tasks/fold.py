@@ -238,6 +238,10 @@ def run_fold_job(self, job_id: str) -> dict:
         return {"job_id": job_id, "status": job.status}
 
     except Exception as exc:
+        from celery.exceptions import Ignore, Retry
+
+        if isinstance(exc, (Retry, Ignore)):
+            raise
         if job := db.get(Job, job_id):
             job.status = JobStatus.failed.value
             job.error_message = str(exc)[:8000]

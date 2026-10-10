@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { ChainSequence } from '@/api/types'
+import { kabatRangeLabel, residueKabatLabel } from '@/utils/kabatDisplay'
 import { useSelectionStore } from '@/composables/useSelection'
 
 const props = defineProps<{
@@ -47,7 +48,7 @@ function clearSelection() {
 <template>
   <section v-if="chains.length" class="sequence-panel page-card">
     <div class="sequence-panel__head">
-      <h3>序列 · 顺序编号</h3>
+      <h3>序列 · Kabat 编号</h3>
       <div class="sequence-panel__actions">
         <span v-if="selectionCount" class="seq-selection-count">已选 {{ selectionCount }} 个残基</span>
         <el-button v-if="selectionCount" size="small" plain @click="clearSelection">清除选中</el-button>
@@ -73,8 +74,8 @@ function clearSelection() {
         <span>
           {{
             ch.is_antibody
-              ? `${ch.domain} 链 · 序列位 1–${ch.length}`
-              : `非抗体链 · 序列位 1–${ch.length}`
+              ? `${ch.domain} 链 · Kabat ${kabatRangeLabel(residuesForChain(ch)) || '—'}`
+              : `非抗体链 · ${ch.length} aa`
           }}
         </span>
       </div>
@@ -93,14 +94,10 @@ function clearSelection() {
               cdrClassForResidue(ch, r.index),
               { 'res-selected': selectionStore.isResidueSelected(ch.chain_id, r.index) },
             ]"
-            :title="
-              ch.is_antibody && r.kabat && String(r.kabat) !== String(r.index)
-                ? `序列位 ${r.index} · Kabat ${r.kabat} · 点击多选`
-                : `序列位 ${r.index} · 点击多选`
-            "
+            :title="`Kabat ${residueKabatLabel(r)} · 顺序位 ${r.index} · 点击多选`"
             @click="onResidueClick(ch.chain_id, r.index, $event)"
           >
-            <span class="res-num">{{ r.index }}</span>
+            <span class="res-num">{{ residueKabatLabel(r) }}</span>
             <span class="res-aa">{{ r.aa }}</span>
           </span>
         </div>

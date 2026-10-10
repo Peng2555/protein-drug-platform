@@ -63,8 +63,21 @@ def translate_cds(sequence: str) -> str:
     return "".join(residues)
 
 
+_TRAILING_LABEL = re.compile(
+    r"^(?P<aa>[ACDEFGHIKLMNPQRSTVWYX]+?)(?P<tail>(?:[-_][0-9A-Z_-]*\d[0-9A-Z_-]*)+)$"
+)
+
+
+def _cut_trailing_label(compact: str) -> str:
+    """去掉粘在氨基酸后面的孔号/样品号，例如 QVQL...SS-012466B_。"""
+    matched = _TRAILING_LABEL.match(compact)
+    if matched and len(matched.group("aa")) >= 20:
+        return matched.group("aa")
+    return compact
+
+
 def _validate_amino_acids(sequence: str) -> str:
-    compact = re.sub(r"\s+", "", sequence or "").upper()
+    compact = _cut_trailing_label(re.sub(r"\s+", "", sequence or "").upper())
     if not compact:
         raise ValueError("序列不能为空")
     invalid = sorted(set(compact) - VALID_AMINO_ACIDS)

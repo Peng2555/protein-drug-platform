@@ -15,6 +15,7 @@ from .input import (
     write_boltz_yaml,
     write_fasta,
 )
+from .npu_remote import npu_remote_enabled, run_boltz_predict_npu
 from .process import _boltz_run_error, run_boltz_predict
 from .results import cif_to_pdb, extract_metrics
 
@@ -143,7 +144,10 @@ def fold_sequences(
             encoding="utf-8",
         )
 
-        proc = run_boltz_predict(yaml_out, job_dir, **predict_kwargs)
+        if npu_remote_enabled():
+            proc = run_boltz_predict_npu(yaml_out, job_dir, **predict_kwargs)
+        else:
+            proc = run_boltz_predict(yaml_out, job_dir, **predict_kwargs)
         elapsed = time.time() - t0
 
         if proc.returncode != 0:

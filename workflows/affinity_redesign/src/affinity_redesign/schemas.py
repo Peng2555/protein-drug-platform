@@ -118,6 +118,7 @@ class MutationRecord(BaseModel):
     wt: str
     mut: str
     region: str = ""
+    kabat: str = ""
     tier: Literal["A", "B", "C"] | None = None
     plm_score: float | None = None
     structure_score: float | None = None
@@ -125,7 +126,8 @@ class MutationRecord(BaseModel):
 
     def model_post_init(self, __context: object) -> None:
         if not self.label:
-            self.label = f"{self.wt}{self.position}{self.mut}"
+            number = self.kabat or str(self.position)
+            self.label = f"{self.wt}{number}{self.mut}"
 
 
 def load_round1_config(path: Path) -> Round1Config:

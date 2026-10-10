@@ -20,7 +20,7 @@ from affinity_redesign.pipeline.boltz2_pose import (
 from affinity_redesign.pipeline.merge import load_plm_top_csv, load_structure_top_csv
 from affinity_redesign.schemas import CampaignConfig, RescoreConfig, Round1Config
 from affinity_redesign.tracks.boltz2 import fold_complex
-from affinity_redesign.tracks.gpu_pool import select_idle_gpu_ids, write_pool_status
+from affinity_redesign.tracks.gpu_pool import select_fold_worker_ids, write_pool_status
 
 
 def _chain_order(campaign: CampaignConfig) -> list[str]:
@@ -29,6 +29,19 @@ def _chain_order(campaign: CampaignConfig) -> list[str]:
         ids.append(campaign.chains.light)
     ids.append(campaign.chains.antigen)
     return ids
+
+
+def _mutant_chain_sequence(seqs: dict[str, str], row: dict) -> str:
+    chain = str(row.get("chain") or "")
+    seq = seqs.get(chain, "")
+    try:
+        pos = int(row.get("position"))
+    except (TypeError, ValueError):
+        return seq
+    mut = str(row.get("mut") or "")
+    if not seq or not mut or pos < 1 or pos > len(seq):
+        return seq
+    return seq[: pos - 1] + mut + seq[pos:]
 
 
 def apply_mutation(seqs: dict[str, str], chain: str, pos1: int, wt: str, mut: str) -> dict[str, str]:
@@ -87,7 +100,8 @@ def build_wt_mutant_fasta(
         if not chain or not wt or not mut:
             continue
         vid = str(row.get("variant_id") or "").strip() or variant_id(chain, label or f"{wt}{pos}{mut}")
-        mut_tag = f"{chain}:{wt}{pos}{mut}"
+        kabat = str(row.get("kabat") or "").strip() or str(pos)
+        mut_tag = f"{chain}:{wt}{kabat}{mut}"
         try:
             mut_seqs = apply_mutation(seqs, chain, pos, wt, mut)
         except (KeyError, ValueError):
@@ -97,7 +111,7 @@ def build_wt_mutant_fasta(
                 continue
             extra = " role=mutated" if cid == chain else " role=unchanged"
             lines.append(
-                f">{vid} chain={cid} mutation={mut_tag} wt={wt} mut={mut} position={pos}{extra}"
+                f">{vid} chain={cid} mutation={mut_tag} wt={wt} mut={mut} position={pos} kabat={kabat}{extra}"
             )
             lines.append(_wrap_seq(mut_seqs[cid]))
     return "\n".join(lines) + "\n"
@@ -149,6 +163,7 @@ def load_merged_rows(campaign_dir: Path) -> list[dict]:
                     {
                         "chain": rec.chain,
                         "position": str(rec.position),
+                        "kabat": rec.kabat,
                         "wt": rec.wt,
                         "mut": rec.mut,
                         "region": rec.region,
@@ -465,7 +480,7 @@ def run_rescore(
             on_stage(name)
 
     max_gpus = int(getattr(cfg, "n_gpus", 0) or 0) or None
-    gpu_ids = select_idle_gpu_ids(max_gpus=max_gpus)
+    gpu_ids = select_fold_worker_ids(max_gpus=max_gpus)
     write_pool_status(rescore_dir / "gpu_pool.json", gpu_ids)
 
     stage("boltz2_wt")
@@ -487,7 +502,8 @@ def run_rescore(
         except ValueError as exc:
             src = dict(src)
             src["_fold_skip"] = {
-                **{k: src.get(k, "") for k in ("chain", "position", "wt", "mut", "region", "tier", "label")},
+                **{k: src.get(k, "") for k in ("chain", "position", "kabat", "wt", "mut", "region", "tier", "label")},
+                "sequence": _mutant_chain_sequence(seqs, src),
                 "plm_score": src.get("plm_score", ""),
                 "structure_score": src.get("structure_score", ""),
                 "variant_id": vid,
@@ -538,8 +554,10 @@ def run_rescore(
         row = {
             "chain": src["chain"],
             "position": src["position"],
+            "kabat": src.get("kabat") or "",
             "wt": src["wt"],
             "mut": src["mut"],
+            "sequence": _mutant_chain_sequence(seqs, src),
             "region": src.get("region", ""),
             "tier": src.get("tier", ""),
             "label": src.get("label", ""),
@@ -637,8 +655,10 @@ def run_rescore(
         "chain",
         "label",
         "position",
+        "kabat",
         "wt",
         "mut",
+        "sequence",
         "region",
         "plm_score",
         "structure_score",

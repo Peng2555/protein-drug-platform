@@ -48,6 +48,7 @@ export function parseCicResidues(rows: Record<string, unknown>[]): CicResidue[] 
     return {
       chain: String(row.chain ?? '').trim(),
       position: asNum(row.position),
+      kabat: String(row.kabat ?? '').trim(),
       aa: String(row.aa ?? ''),
       region: String(row.region || 'FR'),
       rsa: asNum(row.rsa),

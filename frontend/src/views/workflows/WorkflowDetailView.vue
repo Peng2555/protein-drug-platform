@@ -50,6 +50,10 @@ watch(
       router.replace({ name: 'tnp-profile-new' })
       return
     }
+    if (p?.id === 'tm-disulfide') {
+      router.replace({ name: 'tm-disulfide-new' })
+      return
+    }
     if (!p) router.replace({ name: 'workflows' })
   },
   { immediate: true },

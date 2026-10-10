@@ -19,6 +19,7 @@ from app.modules.cic_profile.service import (
     create_and_queue_cic_profile_job,
     save_structure_upload,
 )
+from app.common.kabat_results import annotate_job_chains, apply_kabat_rows, relabel_patch_rows
 from app.core.models import Job, JobStatus, User
 from app.schemas import (
     CicProfileJobCreate,
@@ -160,7 +161,10 @@ def get_ranked(job_id: str, db: Session = Depends(get_db), user: User = Depends(
             residues = list(csv.DictReader(f))
     if (exports / "summary.json").is_file() and summary is None:
         summary = json.loads((exports / "summary.json").read_text(encoding="utf-8"))
-    return CicProfileRankedOut(patches=patches, residues=residues, summary=summary)
+    chains = annotate_job_chains(job)
+    apply_kabat_rows(residues, chains)
+    relabel_patch_rows(patches, residues)
+    return CicProfileRankedOut(patches=patches, residues=residues, chains=chains, summary=summary)
 
 
 @router.get("/{job_id}/files/{filename}")
