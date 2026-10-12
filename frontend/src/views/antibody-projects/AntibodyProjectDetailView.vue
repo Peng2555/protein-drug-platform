@@ -51,16 +51,22 @@ onMounted(load)
 <template>
   <div v-loading="loading" class="antibody-project-page">
     <template v-if="project">
-      <header class="project-head page-card">
-        <el-button text @click="router.push({ name: 'antibody-projects' })">← 返回项目列表</el-button>
+      <header class="project-hero">
+        <button type="button" class="back-link" @click="router.push({ name: 'antibody-projects' })">
+          ← 项目列表
+        </button>
         <div class="project-title">
-          <div>
-            <p class="eyebrow">{{ project.project_code }} · {{ project.target_name }}</p>
+          <div class="project-title__text">
+            <div class="project-title__meta">
+              <span class="code-chip">{{ project.project_code }}</span>
+              <span class="target-chip">{{ project.target_name }}</span>
+            </div>
             <h1>{{ project.name }}</h1>
           </div>
-          <el-tag effect="plain" size="large">{{ statusText[project.status] || project.status }}</el-tag>
+          <span class="status-pill" :data-status="project.status">
+            {{ statusText[project.status] || project.status }}
+          </span>
         </div>
-      </header>
 
       <el-tabs v-model="activeTab" class="project-tabs">
         <el-tab-pane label="版本管理" name="versions">
@@ -87,6 +93,7 @@ onMounted(load)
           <AuditPanel v-if="activeTab === 'audit'" :project-id="projectId" />
         </el-tab-pane>
       </el-tabs>
+      </header>
     </template>
   </div>
 </template>
@@ -94,40 +101,64 @@ onMounted(load)
 <style scoped lang="scss">
 @use '@/styles/antibody-projects.scss';
 
-.project-head {
-  margin-bottom: 0.8rem;
-  padding: 0.7rem 1rem 1rem;
+.project-hero {
+  padding: 0.15rem 0.15rem 0;
+}
+.back-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+
+  &:hover { color: var(--bio-green-dark); }
 }
 .project-title {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.25rem 0.35rem 0;
+  margin-top: 0.55rem;
   min-width: 0;
 
   h1 {
-    margin: 0.1rem 0 0;
+    margin: 0.45rem 0 0;
     color: var(--title);
-    font-size: 1.45rem;
+    font-size: 1.4rem;
+    line-height: 1.3;
     overflow-wrap: anywhere;
   }
-  p { margin: 0; }
-  .el-tag { flex-shrink: 0; }
+}
+.project-title__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.target-chip {
+  color: var(--body);
+  font-size: 0.8rem;
 }
 .project-tabs {
   min-width: 0;
+  margin-top: 0.85rem;
 
   :deep(.el-tabs__header) {
-    margin-bottom: 0.9rem;
-    padding: 0 0.8rem;
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    margin-bottom: 0;
   }
-  :deep(.el-tabs__content),
-  :deep(.el-tab-pane) {
+  :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+    background: #e8eef3;
+  }
+  :deep(.el-tabs__item) {
+    height: 42px;
+    font-weight: 600;
+  }
+  :deep(.el-tabs__content) {
     overflow: visible;
+    padding: 1rem 0 0.4rem;
   }
+  :deep(.el-tab-pane) { overflow: visible; }
 }
 </style>

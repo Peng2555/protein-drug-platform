@@ -351,6 +351,8 @@ export const importVersionsFromXlsx = (
     { method: 'POST', data: form },
   )
 }
+export const deleteVersion = (projectId: string, versionId: string) =>
+  apiJson<void>(`${root}/${projectId}/versions/${versionId}`, { method: 'DELETE' })
 export const lockVersion = (projectId: string, versionId: string) =>
   apiJson<AntibodyVersion>(`${root}/${projectId}/versions/${versionId}/lock`, { method: 'POST' })
 export const lockDraftVersions = (

@@ -51,6 +51,7 @@ from app.modules.antibody_projects.service import (
     import_versions_from_xlsx,
     import_affinity_xlsx,
     preview_affinity_xlsx,
+    delete_draft_version,
     lock_draft_versions,
     lock_version,
     set_candidate_category,
@@ -493,6 +494,19 @@ def update_version_api(
     db.commit()
     db.refresh(version)
     return version_out(db, version)
+
+
+@router.delete("/{project_id}/versions/{version_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_version_api(
+    project_id: str,
+    version_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    project = project_access(db, project_id, user, ProjectRole.editor.value)
+    delete_draft_version(db, project, get_version(db, project_id, version_id), user)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{project_id}/versions/{version_id}/lock", response_model=VersionOut)

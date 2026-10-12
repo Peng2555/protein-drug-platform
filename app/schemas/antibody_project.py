@@ -18,6 +18,7 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
+    project_code: str | None = Field(default=None, min_length=1, max_length=64)
     name: str | None = Field(default=None, min_length=1, max_length=160)
     target_name: str | None = Field(default=None, min_length=1, max_length=160)
     description: str | None = None

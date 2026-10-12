@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 
 from fastapi import HTTPException
@@ -17,6 +18,14 @@ from app.modules.antibody_projects.models import (
     ProjectRole,
     ProjectStatus,
 )
+
+
+def _project_code_key(code: str) -> list[int | str]:
+    return [
+        int(part) if part.isdigit() else part.casefold()
+        for part in re.split(r"(\d+)", code or "")
+        if part
+    ]
 
 
 ROLE_LEVEL = {
@@ -46,7 +55,9 @@ def visible_projects(
         )
     if not include_archived:
         query = query.where(AntibodyProject.status != ProjectStatus.archived.value)
-    return list(db.scalars(query.order_by(AntibodyProject.updated_at.desc())).all())
+    rows = list(db.scalars(query).all())
+    rows.sort(key=lambda project: _project_code_key(project.project_code))
+    return rows
 
 
 def project_access(

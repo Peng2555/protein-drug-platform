@@ -42,6 +42,7 @@ from app.modules.antibody_projects.models import (
     VersionStatus,
 )
 from app.modules.antibody_projects.provenance import (
+    VALID_AMINO_ACIDS,
     diff_sequences,
     normalize_sequence,
     protein_and_optional_cds,
@@ -250,9 +251,23 @@ def update_project(
     changes = body.model_dump(exclude_unset=True)
     if "status" in changes and changes["status"] not in PROJECT_STATUSES:
         raise HTTPException(400, "项目状态无效")
+    if "project_code" in changes:
+        code = str(changes["project_code"]).strip()
+        if not code:
+            raise HTTPException(400, "项目编号不能为空")
+        exists = db.scalar(
+            select(AntibodyProject.id).where(
+                AntibodyProject.owner_id == project.owner_id,
+                AntibodyProject.project_code == code,
+                AntibodyProject.id != project.id,
+            )
+        )
+        if exists:
+            raise HTTPException(409, "这个项目编号已经在使用")
+        changes["project_code"] = code
     before = model_snapshot(project)
     for field, value in changes.items():
-        if isinstance(value, str) and field in {"name", "target_name"}:
+        if isinstance(value, str) and field in {"name", "target_name", "project_code"}:
             value = value.strip()
         setattr(project, field, value)
     if project.status == ProjectStatus.archived.value:
@@ -842,17 +857,24 @@ def import_versions(
 ) -> list[AntibodyVersion]:
     parent = _require_parent(db, project, candidate, body.parent_version_id)
     _lock_candidate(db, candidate.id)
+    existing_hashes = set(
+        db.scalars(
+            select(AntibodyVersion.sequence_hash).where(
+                AntibodyVersion.candidate_id == candidate.id
+            )
+        ).all()
+    )
     seen_hashes: set[str] = set()
     created: list[AntibodyVersion] = []
-    for index, item in enumerate(body.items, start=1):
+    for item in body.items:
         chains = _normalized_chains(candidate.antibody_type, item.chains)
         sequence_hash = version_sha256(
             {role: values[0] for role, values in chains.items()}
         )
-        if sequence_hash in seen_hashes:
-            raise HTTPException(400, f"第 {index} 条与本次导入中的其他序列重复")
+        # 表格里常带母本行。母本和已经入库的序列跳过，其余克隆继续导入。
+        if sequence_hash in existing_hashes or sequence_hash in seen_hashes:
+            continue
         seen_hashes.add(sequence_hash)
-        _assert_unique_sequence(db, candidate.id, sequence_hash)
         created.append(
             create_version(
                 db,
@@ -866,6 +888,9 @@ def import_versions(
                 user,
             )
         )
+        existing_hashes.add(sequence_hash)
+    if not created:
+        raise HTTPException(400, "没有新序列可导入。与母本或已有版本相同的行已跳过。")
     return created
 
 
@@ -916,39 +941,92 @@ def _header_kind(value: str) -> str | None:
     if key in _NAME_HEADERS or any(token in key for token in ("克隆", "名称", "clone", "sample", "编号")):
         if "序列" not in key:
             return "name"
-    if key in _SEQ_HEADERS:
+    if key in _SEQ_HEADERS or "氨基酸序列" in key or "核苷酸序列" in key:
         return "seq"
     if key in {"l", "lc"}:
         return "vl"
     return None
 
 
+def _is_id_header(value: str) -> bool:
+    """编号、孔号、样品号不是序列，即使表头里带了 VH / 重链。"""
+    key = _header_key(value)
+    if any(token in key for token in ("序列", "sequence", "seq", "氨基酸", "核酸", "核苷酸", "cds", "dna")):
+        return False
+    return any(
+        token in key
+        for token in ("编号", "样品", "sample", "孔号", "孔位", "well", "批号", "浓度", "滴度", "体积", "id")
+    )
+
+
+def _sequence_mass(rows: list[list[str]], column: int | None) -> int:
+    if column is None:
+        return 0
+    total = 0
+    for row in rows:
+        letters = re.sub(r"[^A-Za-z]", "", _cell(row, column)).upper()
+        if len(letters) < 30:
+            continue
+        valid = sum(char in VALID_AMINO_ACIDS or char in "ACGTU" for char in letters)
+        if valid / len(letters) < 0.85:
+            continue
+        total += len(letters)
+    return total
+
+
+def _pick_sequence_column(
+    columns: list[int],
+    headers: list[str],
+    data_rows: list[list[str]],
+) -> int | None:
+    if not columns:
+        return None
+    ranked = sorted(
+        columns,
+        key=lambda col: (
+            _sequence_mass(data_rows, col),
+            0 if _is_id_header(headers[col] if col < len(headers) else "") else 1,
+        ),
+        reverse=True,
+    )
+    best = ranked[0]
+    if _sequence_mass(data_rows, best) > 0:
+        return best
+    for col in columns:
+        header = headers[col] if col < len(headers) else ""
+        if not _is_id_header(header):
+            return col
+    return best
+
+
 def _locate_chain_header(
     matrix: list[list[str]],
 ) -> tuple[int, int | None, int | None, int | None, int | None] | None:
-    best: tuple[int, int, int | None, int | None, int | None, int | None] | None = None
+    best_row: tuple[int, int] | None = None
+    grouped: dict[int, dict[str, list[int]]] = {}
     for index, row in enumerate(matrix[:25]):
-        found: dict[str, int] = {}
+        found: dict[str, list[int]] = {}
         for col, cell in enumerate(row):
             kind = _header_kind(cell)
-            if kind and kind not in found:
-                found[kind] = col
-        score = int("vh" in found) + int("vl" in found) + int("name" in found) + int("seq" in found)
+            if kind:
+                found.setdefault(kind, []).append(col)
+        score = sum(kind in found for kind in ("vh", "vl", "name", "seq"))
         if score == 0:
             continue
-        candidate = (
-            score,
-            index,
-            found.get("name"),
-            found.get("vh"),
-            found.get("vl"),
-            found.get("seq"),
-        )
-        if best is None or candidate[0] > best[0]:
-            best = candidate
-    if best is None:
+        grouped[index] = found
+        if best_row is None or score > best_row[0]:
+            best_row = (score, index)
+    if best_row is None:
         return None
-    _score, index, name, vh, vl, seq = best
+    index = best_row[1]
+    found = grouped[index]
+    headers = matrix[index]
+    data_rows = matrix[index + 1 : index + 11]
+    name_cols = found.get("name") or []
+    name = name_cols[0] if name_cols else None
+    vh = _pick_sequence_column(found.get("vh") or [], headers, data_rows)
+    vl = _pick_sequence_column(found.get("vl") or [], headers, data_rows)
+    seq = _pick_sequence_column(found.get("seq") or [], headers, data_rows)
     return index, name, vh, vl, seq
 
 
@@ -988,11 +1066,12 @@ def _cell(row: list[str], index: int | None) -> str:
     return str(row[index] or "").strip()
 
 
-def _chain_from_sequence(role: str, raw: str, row_label: str) -> VersionChainInput:
+def _chain_from_sequence(role: str, raw: str, row_label: str, column_name: str = "") -> VersionChainInput:
     try:
         protein, cds = protein_and_optional_cds(raw)
     except ValueError as exc:
-        raise HTTPException(400, f"{row_label}：{exc}") from exc
+        where = f"{row_label}（列「{column_name}」）" if column_name else row_label
+        raise HTTPException(400, f"{where}：{exc}") from exc
     return VersionChainInput(
         chain_role=role,
         variable_sequence=protein,
@@ -1015,11 +1094,18 @@ def xlsx_to_import_items(antibody_type: str, raw: bytes, filename: str | None) -
     if not located:
         preview = _header_preview(sheets[0][1][0] if sheets[0][1] else [])
         raise HTTPException(400, f"没有找到序列表头。第一张表读到：{preview}")
+    def _sheet_score(item: tuple[str, list[list[str]], tuple]) -> int:
+        _name, sheet_matrix, (header_index, _name_col, vh_col, vl_col, seq_col) = item
+        data_rows = sheet_matrix[header_index + 1 : header_index + 11]
+        if antibody_type == "vhh":
+            return _sequence_mass(data_rows, seq_col)
+        return _sequence_mass(data_rows, vh_col) + _sequence_mass(data_rows, vl_col)
+
     if antibody_type == "vhh":
-        chosen = next((item for item in located if item[2][4] is not None), located[0])
+        pool = [item for item in located if item[2][4] is not None] or located
     else:
-        both = [item for item in located if item[2][2] is not None and item[2][3] is not None]
-        chosen = both[0] if both else located[0]
+        pool = [item for item in located if item[2][2] is not None and item[2][3] is not None] or located
+    chosen = max(pool, key=_sheet_score)
     _sheet_name, matrix, (header_index, name_col, vh_col, vl_col, seq_col) = chosen
     headers = matrix[header_index]
     gene_col = _find_column(headers, _GENE_HEADERS)
@@ -1073,8 +1159,18 @@ def xlsx_to_import_items(antibody_type: str, raw: bytes, filename: str | None) -
             VersionImportItem(
                 name=_clip_name(name),
                 chains=[
-                    _chain_from_sequence("VH", vh, f"第 {excel_row} 行 {name} VH"),
-                    _chain_from_sequence("VL", vl, f"第 {excel_row} 行 {name} VL"),
+                    _chain_from_sequence(
+                        "VH",
+                        vh,
+                        f"第 {excel_row} 行 {name} VH",
+                        _cell(headers, vh_col),
+                    ),
+                    _chain_from_sequence(
+                        "VL",
+                        vl,
+                        f"第 {excel_row} 行 {name} VL",
+                        _cell(headers, vl_col),
+                    ),
                 ],
             )
         )
@@ -1170,6 +1266,84 @@ def lock_version(
         after=version_snapshot(db, version),
     )
     return version
+
+
+def delete_draft_version(
+    db: Session,
+    project: AntibodyProject,
+    version: AntibodyVersion,
+    user: User,
+) -> None:
+    if version.version_code.upper() == "WT" or version.version_number == 0:
+        raise HTTPException(409, "母本序列不能删除")
+    if version.status != VersionStatus.draft.value:
+        raise HTTPException(409, "只有未锁定的草稿可以删除")
+    child = db.scalar(
+        select(AntibodyVersion.id).where(AntibodyVersion.primary_parent_id == version.id)
+    )
+    if child:
+        raise HTTPException(409, "已有后续版本从这条序列改出，不能删除")
+
+    before = version_snapshot(db, version)
+    experiment_ids = list(
+        db.scalars(
+            select(ExperimentRecord.id).where(ExperimentRecord.version_id == version.id)
+        ).all()
+    )
+    batch_ids = list(
+        db.scalars(select(SampleBatch.id).where(SampleBatch.version_id == version.id)).all()
+    )
+    link_ids = list(
+        db.scalars(select(ProjectJobLink.id).where(ProjectJobLink.version_id == version.id)).all()
+    )
+    artifact_filters = [ProjectArtifact.version_id == version.id]
+    if experiment_ids:
+        artifact_filters.append(ProjectArtifact.experiment_id.in_(experiment_ids))
+    if batch_ids:
+        artifact_filters.append(ProjectArtifact.sample_batch_id.in_(batch_ids))
+    if link_ids:
+        artifact_filters.append(ProjectArtifact.job_link_id.in_(link_ids))
+    artifacts = list(
+        db.scalars(select(ProjectArtifact).where(or_(*artifact_filters))).all()
+    )
+    root = settings.antibody_projects_out_root
+    for artifact in artifacts:
+        path = (root / artifact.storage_path).resolve()
+        if path.is_file():
+            path.unlink()
+    if artifacts:
+        db.execute(delete(ProjectArtifact).where(ProjectArtifact.id.in_([item.id for item in artifacts])))
+    if experiment_ids:
+        db.execute(
+            delete(ExperimentMeasurement).where(
+                ExperimentMeasurement.experiment_id.in_(experiment_ids)
+            )
+        )
+        db.execute(delete(ExperimentRecord).where(ExperimentRecord.id.in_(experiment_ids)))
+    if batch_ids:
+        db.execute(delete(SampleBatch).where(SampleBatch.id.in_(batch_ids)))
+    if link_ids:
+        db.execute(delete(ProjectJobLink).where(ProjectJobLink.id.in_(link_ids)))
+    db.execute(
+        delete(VersionMutation).where(
+            or_(
+                VersionMutation.version_id == version.id,
+                VersionMutation.parent_version_id == version.id,
+            )
+        )
+    )
+    db.execute(delete(AntibodyVersionChain).where(AntibodyVersionChain.version_id == version.id))
+    add_audit(
+        db,
+        project_id=project.id,
+        entity_type="antibody_version",
+        entity_id=version.id,
+        action="delete",
+        actor_id=user.id,
+        before=before,
+    )
+    db.delete(version)
+    db.flush()
 
 
 def _matches_round(version_code: str, round_code: str) -> bool:
@@ -1359,9 +1533,35 @@ def _normalize_result(raw: str) -> str | None:
     return text
 
 
+_WELL_PREFIX = re.compile(r"^\d{1,4}[-_／/]")
+_FORMAT_PREFIX = re.compile(r"^(?:vh\d+(?:\$|\.)?\d*|h\d+s\d+)[-_]", re.IGNORECASE)
+_FORMAT_SUFFIX = re.compile(
+    r"[-_](?:h\d+s\d+|h\d+(?:\$|\.)\d+|h\d{2,}|higg\d*)$",
+    re.IGNORECASE,
+)
+_CLONE_CODE = re.compile(r"(?:RL|RN|RM)[A-Z0-9]{8,}", re.IGNORECASE)
+
+
 def _protein_key_from_loading_id(raw: str) -> str:
     text = str(raw or "").strip()
-    return re.sub(r"^\d{1,4}[-_／/]", "", text).strip()
+    return _WELL_PREFIX.sub("", text).strip()
+
+
+def _clone_token(raw: str) -> str:
+    """去掉孔号、Vh1$0- 这类前缀和 _h1S0 / _h150 这类尾标，留下克隆号。"""
+    text = _protein_key_from_loading_id(raw)
+    previous = None
+    while text and text != previous:
+        previous = text
+        text = _FORMAT_PREFIX.sub("", text)
+        text = _FORMAT_SUFFIX.sub("", text)
+    return text.strip("-_ ").lower()
+
+
+def _clone_code(raw: str) -> str:
+    """取出 RLCWM1AAZ69M 这种克隆号，忽略孔号、Vh1.0VKB 和 _h1.0。"""
+    matches = _CLONE_CODE.findall(str(raw or "").upper())
+    return matches[-1] if matches else ""
 
 
 def _is_control_sample(loading_id: str, protein_key: str) -> bool:
@@ -1382,6 +1582,16 @@ def _match_version_by_protein_name(
     contained = [item for item, name in named if key in name.lower() or name.lower() in key]
     if len(contained) == 1:
         return contained[0]
+    token = _clone_token(key)
+    if len(token) >= 8:
+        by_token = [item for item, name in named if _clone_token(name) == token]
+        if len(by_token) == 1:
+            return by_token[0]
+    code = _clone_code(key)
+    if len(code) >= 10:
+        by_code = [item for item, name in named if _clone_code(name) == code]
+        if len(by_code) == 1:
+            return by_code[0]
     return None
 
 

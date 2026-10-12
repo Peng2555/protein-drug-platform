@@ -63,16 +63,33 @@ def translate_cds(sequence: str) -> str:
     return "".join(residues)
 
 
-_TRAILING_LABEL = re.compile(
-    r"^(?P<aa>[ACDEFGHIKLMNPQRSTVWYX]+?)(?P<tail>(?:[-_][0-9A-Z_-]*\d[0-9A-Z_-]*)+)$"
-)
+_SAMPLE_ID_RUN = re.compile(r"[^ACDEFGHIKLMNPQRSTVWYX]+")
 
 
 def _cut_trailing_label(compact: str) -> str:
-    """去掉粘在氨基酸后面的孔号/样品号，例如 QVQL...SS-012466B_。"""
-    matched = _TRAILING_LABEL.match(compact)
-    if matched and len(matched.group("aa")) >= 20:
-        return matched.group("aa")
+    """去掉粘在氨基酸前、后或中间的孔号/样品号，例如 -012466B_ 或 QVQL...SS-012466B_。
+
+    只删除含数字、长度不超过 32 的非氨基酸片段。单独的 B 会留下来，交给后面的校验报错。
+    """
+    if not compact:
+        return compact
+    pieces: list[str] = []
+    cursor = 0
+    removed = False
+    for matched in _SAMPLE_ID_RUN.finditer(compact):
+        token = matched.group(0)
+        pieces.append(compact[cursor : matched.start()])
+        if len(token) <= 32 and any(char.isdigit() for char in token):
+            removed = True
+        else:
+            pieces.append(token)
+        cursor = matched.end()
+    pieces.append(compact[cursor:])
+    if not removed:
+        return compact
+    cleaned = "".join(pieces)
+    if len(cleaned) >= 20 and set(cleaned) <= VALID_AMINO_ACIDS:
+        return cleaned
     return compact
 
 

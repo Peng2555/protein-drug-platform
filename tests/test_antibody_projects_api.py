@@ -697,3 +697,95 @@ def test_fold_antibody_only_from_candidate(
         )
         assert again.status_code == 400
         assert "都已有抗体折叠任务" in again.json()["detail"]
+
+
+def test_owner_can_rename_project_code(sqlite_sessions, active_user) -> None:
+    current_user = {"value": active_user}
+    app = FastAPI()
+    app.include_router(router)
+
+    def isolated_db():
+        with sqlite_sessions() as db:
+            yield db
+
+    app.dependency_overrides[get_db] = isolated_db
+    app.dependency_overrides[get_current_user] = lambda: current_user["value"]
+
+    with TestClient(app) as client:
+        first = client.post(
+            "/api/antibody-projects",
+            json={"project_code": "EGFR-001", "name": "EGFR", "target_name": "EGFR"},
+        )
+        second = client.post(
+            "/api/antibody-projects",
+            json={"project_code": "HER2-001", "name": "HER2", "target_name": "HER2"},
+        )
+        assert first.status_code == 201
+        assert second.status_code == 201
+        project_id = first.json()["id"]
+
+        renamed = client.patch(
+            f"/api/antibody-projects/{project_id}",
+            json={"project_code": "EGFR-002"},
+        )
+        assert renamed.status_code == 200
+        assert renamed.json()["project_code"] == "EGFR-002"
+
+        conflict = client.patch(
+            f"/api/antibody-projects/{project_id}",
+            json={"project_code": "HER2-001"},
+        )
+        assert conflict.status_code == 409
+
+
+def test_draft_version_can_be_deleted_before_lock(sqlite_sessions, active_user) -> None:
+    current_user = {"value": active_user}
+    app = FastAPI()
+    app.include_router(router)
+
+    def isolated_db():
+        with sqlite_sessions() as db:
+            yield db
+
+    app.dependency_overrides[get_db] = isolated_db
+    app.dependency_overrides[get_current_user] = lambda: current_user["value"]
+
+    with TestClient(app) as client:
+        project_id = client.post(
+            "/api/antibody-projects",
+            json={"project_code": "DEL-001", "name": "删除草稿", "target_name": "CD19"},
+        ).json()["id"]
+        candidate_id = client.post(
+            f"/api/antibody-projects/{project_id}/candidates",
+            json={
+                "candidate_code": "001",
+                "name": "候选",
+                "antibody_category": "RM",
+                "antibody_type": "vhh",
+                "chains": [{"chain_role": "VHH", "variable_sequence": "M" * 20}],
+            },
+        ).json()["id"]
+        versions = client.get(
+            f"/api/antibody-projects/{project_id}/candidates/{candidate_id}/versions"
+        ).json()
+        wt = versions[0]
+        created = client.post(
+            f"/api/antibody-projects/{project_id}/candidates/{candidate_id}/versions",
+            json={
+                "parent_version_id": wt["id"],
+                "name": "clone_a",
+                "chains": [{"chain_role": "VHH", "variable_sequence": "M" * 19 + "A"}],
+            },
+        )
+        assert created.status_code == 201, created.text
+        draft_id = created.json()["id"]
+
+        blocked = client.delete(f"/api/antibody-projects/{project_id}/versions/{wt['id']}")
+        assert blocked.status_code == 409
+
+        removed = client.delete(f"/api/antibody-projects/{project_id}/versions/{draft_id}")
+        assert removed.status_code == 204
+        left = client.get(
+            f"/api/antibody-projects/{project_id}/candidates/{candidate_id}/versions"
+        ).json()
+        assert [item["id"] for item in left] == [wt["id"]]

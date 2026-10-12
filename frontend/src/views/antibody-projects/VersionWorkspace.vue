@@ -13,6 +13,7 @@ import {
   importVersions,
   importVersionsFromFasta,
   importVersionsFromXlsx,
+  deleteVersion,
   lockDraftVersions,
   lockVersion,
   setCandidateCategory,
@@ -653,6 +654,26 @@ async function submitFold(versionIds?: string[]) {
   }
 }
 
+async function doDelete() {
+  if (!activeVersion.value) return
+  const label = activeVersion.value.name
+    ? `${activeVersion.value.version_code} · ${activeVersion.value.name}`
+    : activeVersion.value.version_code
+  try {
+    await ElMessageBox.confirm(
+      `删除草稿 ${label} 后，这条序列和对应的突变记录会一起去掉，且不能恢复。`,
+      '删除序列',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' },
+    )
+    await deleteVersion(props.projectId, activeVersion.value.id)
+    await loadVersions()
+    ElMessage.success('序列已删除')
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error instanceof Error ? error.message : '删除失败')
+  }
+}
+
 async function doLock() {
   if (!activeVersion.value) return
   try {
@@ -732,6 +753,7 @@ onMounted(loadCandidates)
     <el-empty v-if="!candidates.length && !loading" description="请先添加候选抗体和 WT" />
 
     <template v-else-if="activeCandidate">
+      <div class="studio">
       <section class="page-card lineage-card">
         <div class="section-head">
           <div>
@@ -789,8 +811,8 @@ onMounted(loadCandidates)
                 <template v-if="versionNameParts(version.name).length">
                   <span v-for="(part, index) in versionNameParts(version.name)" :key="index">{{ part }}</span>
                 </template>
-                <span v-else>无备注</span>
-                <small>{{ statusText[version.status] }}</small>
+                <span v-else class="version-note">无备注</span>
+                <small class="status-pill" :data-status="version.status">{{ statusText[version.status] }}</small>
               </button>
             </div>
           </section>
@@ -862,6 +884,14 @@ onMounted(loadCandidates)
             折叠此版本
           </el-button>
           <el-button
+            v-if="activeVersion.status === 'draft' && activeVersion.version_code.toUpperCase() !== 'WT'"
+            type="danger"
+            plain
+            @click="doDelete"
+          >
+            删除序列
+          </el-button>
+          <el-button
             v-if="activeVersion.status === 'draft'"
             type="warning"
             plain
@@ -925,6 +955,7 @@ onMounted(loadCandidates)
         />
         <p v-else class="empty-note">还没有抗体自身折叠。点上方「折叠此版本」或「折叠本候选结构」，完成后会在这里看突变。</p>
       </section>
+      </div>
     </template>
 
     <el-dialog v-model="showCandidate" title="添加候选抗体和 WT" width="700px">
@@ -1043,7 +1074,7 @@ onMounted(loadCandidates)
           />
         </el-form-item>
         <p class="empty-note">
-          Excel：使用「蛋白名称」作为版本备注（显示为 M1-017 · 蛋白名称），「基因序列」为核酸 CDS，系统翻译成氨基酸后再入库。
+          Excel：单链用「蛋白名称」和「基因序列」。IgG 需要重链、轻链各一列序列（如 VH氨基酸序列、VL氨基酸序列），「克隆编号」只作备注。
           FASTA：每个 <code>&gt;</code> 标题对应一条版本；IgG 要用 <code>&gt;名称_VH</code> 和 <code>&gt;名称_VL</code> 成对。
           编号仍由系统生成，例如 M1-001。
         </p>
@@ -1061,13 +1092,34 @@ onMounted(loadCandidates)
 
 .version-workspace { display: grid; gap: 1rem; min-width: 0; }
 .candidate-bar {
-  padding: 0.9rem 1rem;
+  padding: 0.85rem 1rem;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 0.75rem 1rem;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(0, 172, 161, 0.06), transparent 70%),
+    #fff;
 }
+.studio {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.lineage-card {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+  border-radius: 16px;
+}
+.version-detail { grid-column: 2; grid-row: 1; border-radius: 16px; }
+.impact-card { grid-column: 2; grid-row: 2; border-radius: 16px; }
 .candidate-picker {
   flex: 1 1 280px;
   min-width: 0;
@@ -1082,7 +1134,16 @@ onMounted(loadCandidates)
   justify-content: flex-end;
   gap: 0.55rem;
 }
-.lineage-card, .version-detail, .impact-card { padding: 1rem; min-width: 0; overflow: visible; }
+.lineage-card, .version-detail, .impact-card { padding: 1rem; min-width: 0; }
+.lineage-card {
+  .section-head,
+  .candidate-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .candidate-actions { justify-content: flex-start; }
+  .el-button { margin: 0; }
+}
 .impact-cell {
   display: grid;
   gap: 0.15rem;
@@ -1109,8 +1170,8 @@ onMounted(loadCandidates)
 }
 .version-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
 }
 .version-node {
   min-width: 0;
@@ -1121,11 +1182,15 @@ onMounted(loadCandidates)
   text-align: left;
   cursor: pointer;
   display: grid;
-  gap: 0.2rem;
+  gap: 0.28rem;
   overflow: visible;
 
-  &.active { border-color: var(--bio-green); background: var(--bio-green-light); }
-  strong { color: var(--title); }
+  &.active {
+    border-color: var(--bio-green);
+    background: var(--bio-green-light);
+    box-shadow: inset 3px 0 0 var(--bio-green-dark);
+  }
+  strong { color: var(--title); font-size: 0.92rem; }
   span {
     font-size: 0.76rem;
     color: var(--body);
@@ -1134,7 +1199,8 @@ onMounted(loadCandidates)
     white-space: normal;
     line-height: 1.4;
   }
-  small { color: var(--muted); }
+  .version-note { color: var(--muted); }
+  .status-pill { justify-self: start; margin-top: 0.15rem; }
 }
 .version-title {
   overflow-wrap: anywhere;
@@ -1145,16 +1211,20 @@ onMounted(loadCandidates)
 .mutation-title { margin: 1.2rem 0 0.65rem; font-size: 0.95rem; color: var(--title); }
 .category-options { display: flex; justify-content: center; margin-top: 1rem; }
 
-@media (max-width: 1280px) {
-  .version-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 @media (max-width: 960px) {
-  .version-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio { grid-template-columns: minmax(0, 1fr); }
+  .lineage-card,
+  .version-detail,
+  .impact-card {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+    max-height: none;
+  }
 }
 @media (max-width: 720px) {
   .candidate-bar { align-items: stretch; flex-direction: column; }
   .candidate-picker { max-width: none; }
   .candidate-actions { justify-content: flex-start; }
-  .version-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
