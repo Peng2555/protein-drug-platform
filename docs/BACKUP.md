@@ -62,7 +62,7 @@ bash scripts/stop_platform.sh
 rsync -aH --numeric-ids "<项目目录>/run/" "<备份目录>/run/"
 ```
 
-当前 `hydro_redesign_outputs/`、`cic_profile_outputs/`、`tnp_profile_outputs/` 等路径仍可能是根目录实目录。备份前用 `test -L`/`test -d` 逐一确认；凡是实目录都要单独纳入备份，不能只复制 `run/`。兼容符号链接本身可以重建，但备份工具不得误将链接外的数据漏掉。
+本仓库的 `outputs/`、各 `*_outputs/` 和 `logs/` 是指向 `run/` 的符号链接，复制 `run/` 即覆盖这些产物。备份前仍用 `test -L` 看一眼：若某台旧机器上的同名路径是实目录，要单独纳入备份。链接本身可以重建。
 
 建议为数据库 dump 和文件快照使用同一时间戳，并生成校验和。恢复演练应验证结构文件、指标 JSON、下载接口和至少一个历史任务页面。
 抗体项目恢复时，还应抽查附件 SHA-256、一条 WT→M1 版本关系和对应实验结果。

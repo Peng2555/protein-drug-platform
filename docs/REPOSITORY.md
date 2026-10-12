@@ -20,7 +20,7 @@
 | `external/ras-tricomplex-docking/` | 🔗 子模块 | RAS 三元复合物对接外部流程，见下文 |
 | `external/TNP/` | 本地依赖 | TNP 上游代码的本地对照副本，当前不是正式子模块 |
 | `run/` | ❌ | 所有任务运行结果与日志的实际目录 |
-| `outputs/` 等 `*_outputs/`、`logs/` | ❌ | 兼容输出路径；多数目标为归入 `run/`，但部分路径当前仍可能是根目录实目录 |
+| `outputs/` 等 `*_outputs/`、`logs/` | ❌ | 指向 `run/` 的兼容链接，不是第二份产物 |
 | `HER2_domain_binding*.csv` | 分析产物 | HER2 domain binding 汇总结果，不是源码或固定输入 |
 | `data/` | ❌ | 本地 SQLite 或运行时数据 |
 
@@ -101,13 +101,13 @@ bash scripts/stop_platform.sh && bash scripts/start_platform.sh
 
 `frontend/dist/` 是 Vue 生产构建产物，可以从 `frontend/src/`、`package.json` 和锁文件重建；`web/` 是 legacy 静态页面，只保留兼容访问。
 
-## 运行目录现状与目标
+## 运行目录
 
-长期目标是所有任务产物实际存放在 `run/`，根目录 `outputs/` 与各 `*_outputs/` 仅作为兼容链接，以适配 `.env` 和历史 `work_dir`。
+任务产物实际存放在 `run/`。根目录 `outputs/`、各 `*_outputs/` 和 `logs/` 是指向 `run/` 的兼容链接，用来适配 `.env` 和历史 `work_dir`。模块与配置项的对应关系见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
-这些输出兼容链接与源码布局无关，继续保留。`affinity_redesign`、`hydro_redesign`、`cic_profile`、`tnp_profile` 的算法源码只存放在 `workflows/` 下，根目录不再提供同名源码软链接。
+这些链接与源码布局无关，继续保留。五个算法包的源码只在 `workflows/` 下，根目录不再提供同名源码软链接。
 
-当前部署中 `hydro_redesign_outputs/`、`cic_profile_outputs/`、`tnp_profile_outputs/` 仍可能是根目录实目录，而不是链接。清理、备份或迁移前必须先判断路径类型并确认内容已经复制到 `run/`，不得直接按“都是符号链接”处理。
+本仓库里上述输出路径都是符号链接。从旧机器迁来的副本若仍是实目录，清理或备份前用 `test -L` 确认，不能把实目录当成链接删掉。
 
 ## 提交前自检
 

@@ -1,35 +1,66 @@
 # 平台架构
 
-本文描述当前蛋白质-药物计算平台的代码边界、生产入口和任务数据流。
+本文是当前代码的地图：层、业务模块、队列、产物目录，以及生产和 legacy 入口。模块行为以代码为准；抗体项目的表和不可变规则见 [`ANTIBODY_PROJECTS_DATA.md`](ANTIBODY_PROJECTS_DATA.md)。
 
-## 五层结构
+## 代码分层
+
+层与层之间单向调用：页面和 API 不实现算法，Worker 只调度，Runner 适配外部工具，算法包放可测试的领域逻辑。
 
 | 层级 | 主要目录 | 职责 |
 |------|----------|------|
-| 平台层 | `app/`、`frontend/src/` | FastAPI API、认证、数据库模型、业务 Service、任务查询与 Vue 页面 |
-| Worker 层 | `worker/`、`app/core/celery.py` | 从 Redis 队列领取任务，更新 PostgreSQL 状态，调用 Runner |
-| Runner 层 | `scripts/*_runner.py` | 组织输入、调用模型或命令行工具、解析结果并写出标准产物 |
-| 算法包层 | `workflows/affinity_redesign/`、`workflows/hydro_redesign/`、`workflows/cic_profile/`、`workflows/tnp_profile/` | 可复用的候选生成、评分和分析实现 |
-| 外部依赖与运行产物层 | `external/`、本机 conda/工具环境、`run/` 及兼容输出目录 | RAS/TNP 对照代码、Boltz2/IgGM/GROMACS/Rosetta 等工具，以及不进入 git 的任务结果 |
+| 平台层 | `app/`、`frontend/src/` | FastAPI、认证、数据库模型、业务 Service、Vue 页面 |
+| Worker 层 | `worker/`、`app/core/celery.py`、`app/core/queue.py` | 从 Redis 领任务，更新任务状态，调用 Runner |
+| Runner 层 | `scripts/*_runner.py` 及合成筛选脚本 | 组织输入、调用模型或命令行、写出标准产物 |
+| 算法包层 | `workflows/` | 亲和力改造、疏水改造、CIC、TNP、额外二硫键 |
+| 共享库 | `shared/src/boltzfold_shared/` | 序列/结构 IO、抗体 CDR、SASA、Boltz2 worker 辅助 |
+| Boltz2 适配 | `integrations/boltz2/` | 输入、进程、结果解析，以及昇腾 NPU 远程折叠 |
+| 外部依赖与产物 | `external/`、本机 conda/工具、`run/` | RAS 子模块、TNP 本地副本、不进 git 的任务结果 |
 
-层与层之间保持单向调用：平台层不直接实现计算算法，Worker 负责调度，Runner 负责适配具体工具，算法包负责可测试的领域逻辑。PostgreSQL 保存用户、任务和结果元数据；Redis 同时承担 Celery broker/result backend；结构、轨迹、日志和分析文件保存在文件系统。
+`algorithm_paths.py` 把 `shared/src` 和五个 `workflows/*/src` 放进 `sys.path`，部署时可以不先做 editable install。
 
-## 主要业务模块
+PostgreSQL 保存用户、任务和结果元数据；Redis 同时做 Celery broker 和 result backend。结构、轨迹、日志和分析文件在文件系统。Pydantic schema 在 `app/schemas/`，跨模块辅助在 `app/common/`。路由注册表是 `app/modules/__init__.py` 的 `ROUTERS`，由 `app/main.py` 一次挂上。
 
-- 结构预测与批量 VHH：Boltz2、ESMFold2，包含置信度及界面指标。
-- MD 验证：GROMACS 显式溶剂模拟。
-- 亲和力成熟与合成筛选：IgGM 采样、候选汇总和测序表匹配。
-- 小分子/RAS 三元复合物对接：RDKit、Vina/GNINA 及外部 RAS 流程。
-- 序列与结构设计：ESM-2 可开发性、ProteinMPNN、Rosetta 评价。
-- 亲和力改造：`workflows/affinity_redesign/` 中的 PLM、AntiFold、Boltz2/Rosetta 重打分。
-- 多肽遮蔽：RFdiffusion 与 ProteinMPNN。
-- 抗体分析：亲水性改造、CIC profile、TNP profile。
+## 业务模块
 
-业务领域逐组采用 `app/modules/<name>/` 纵向布局，当前结构预测、MD、成熟、合成、通用/RAS 对接、设计、可开发性、Rosetta 评价及首批抗体分析/改造模块已将各自 Router、Service 和领域辅助实现归入同一模块；尚未迁移的 API 路由与 Service 仍保留原布局。Pydantic schema 按领域位于 `app/schemas/`，异步任务按领域定义在 `worker/tasks/`；纯公共辅助模块统一位于 `app/common/`。
+每个计算模块在 `app/modules/<name>/` 里放 Router 和 Service。前端计算页大多是同一套四段路由：工作台、新建、任务列表、任务详情。`/jobs/:id` 会重定向到 `/task/:id`。
 
-抗体改造项目位于 `app/modules/antibody_projects/`，是建立在计算任务之上的研发资产层：
-项目和序列版本负责长期溯源，现有 `jobs` 继续负责具体计算。数据关系和不可变规则见
-[`ANTIBODY_PROJECTS_DATA.md`](ANTIBODY_PROJECTS_DATA.md)。
+| 模块 | 页面 | API 前缀 | Worker 任务 | 默认队列 | Runner / 算法 | 产物配置 |
+|------|------|----------|-------------|----------|---------------|----------|
+| 结构预测 | `/fold` | `/api/jobs`、`/api/batches` | `run_fold_job` | 见下方队列 | `boltz_runner`、`esmfold_runner`，以及 `pdockq_runner`、`dockq_runner` | `BOLTZ2_OUT_ROOT` → `outputs/` |
+| MD 验证 | `/md` | `/api/md-jobs` | `run_md_job` | `gpu` | `md_runner`（GROMACS） | `md_outputs/` |
+| 亲和力成熟 | `/maturation` | `/api/maturation-jobs` | `run_maturation_job` | `gpu` | `iggm_maturation_runner` | `maturation_outputs/` |
+| 合成筛选 | `/synthesis` | `/api/synthesis-jobs` | 无。请求内同步完成 | — | `iggm_shm_matcher`、`iggm_synthesis_order` | `synthesis_outputs/` |
+| 小分子对接 | `/docking` | `/api/docking-jobs` | `run_small_molecule_docking_job` | `gpu` | `docking_runner`（Vina） | `docking_outputs/` |
+| RAS 对接 | 前端 `/ras-docking` 转到 `/docking` | `/api/ras-docking-jobs` | `run_ras_docking_job` | `gpu` | `ras_docking_runner` + `external/ras-tricomplex-docking` | `docking_outputs/` |
+| 序列改造 | `/developability` | `/api/developability-jobs` | `run_developability_job` | `gpu` | `esm2_developability_runner` | `developability_outputs/` |
+| 序列设计 | `/design` | `/api/design-jobs` | `run_design_job` | `gpu` | `proteinmpnn_design_runner` | `design_outputs/` |
+| Rosetta 评价 | `/rosetta` | `/api/rosetta-eval-jobs` | `run_rosetta_eval_job` | `gpu` | `rosetta_eval_runner` | `rosetta_eval_outputs/` |
+| 亲和力改造 | `/affinity-redesign` | `/api/affinity-redesign-jobs` | `run_affinity_redesign_job` | `gpu` | `affinity_redesign_runner` → `workflows/affinity_redesign/` | `affinity_redesign_outputs/` |
+| 多肽遮蔽 | `/masking-peptide` | `/api/masking-peptide-jobs` | `run_masking_peptide_job` | `gpu` | `masking_peptide_runner`（RFdiffusion、ProteinMPNN） | `masking_peptide_outputs/` |
+| 疏水性改造 | `/hydro-redesign` | `/api/hydro-redesign-jobs` | `run_hydro_redesign_job` | 折叠计算队列 | `hydro_redesign_runner` → `workflows/hydro_redesign/` | `run/hydro_redesign_outputs/` |
+| CIC 表面斑 | `/cic-profile` | `/api/cic-profile-jobs` | `run_cic_profile_job` | 折叠计算队列 | `cic_profile_runner` → `workflows/cic_profile/` | `run/cic_profile_outputs/` |
+| VHH 可开发性画像 | `/tnp-profile` | `/api/tnp-profile-jobs` | `run_tnp_profile_job` | `gpu` | `tnp_profile_runner` → `workflows/tnp_profile/` | `run/tnp_profile_outputs/` |
+| 额外二硫键 | `/tm-disulfide` | `/api/tm-disulfide-jobs` | `run_tm_disulfide_job` | `cpu` | `tm_disulfide_runner` → `workflows/tm_disulfide/` | `run/tm_disulfide_outputs/` |
+| 抗体改造项目 | `/antibody-projects` | `/api/antibody-projects` | 无。关联已有 `jobs` | — | — | `run/antibody_projects/` |
+| 账号 | `/login`、`/admin/users` | `/api/auth` | 无 | — | — | — |
+
+页面上还有首页 `/home`、工具目录 `/app`、场景 `/use-cases/:id`、流水线说明 `/workflows`，以及旧界面 iframe `/legacy`。这些页面不单独创建计算任务。
+
+疏水改造和 TNP 画像另有批量详情页：`/hydro-redesign/batch/:id`、`/tnp-profile/batch/:id`。结构预测批次是 `/fold/batches/:id`。
+
+## 队列
+
+`scripts/start_platform.sh` 拉起三类 Worker。任务实际进哪个队列，看 Service 调用的 `app/core/queue.py`，不看 Celery `task_routes` 里的少数默认项。
+
+| 队列 | 环境变量 | Worker | 谁会进来 |
+|------|----------|--------|----------|
+| `gpu` | `CELERY_GPU_QUEUE`，每卡一个进程，并发 1 | 本机 NVIDIA | 默认队列。MD、ESMFold、成熟、设计、可开发性、Rosetta、亲和力改造、遮蔽肽、两种对接、TNP |
+| `fold` | `CELERY_FOLD_QUEUE`，仅 `BOLTZ_NPU_REMOTE=1` 时启动 | 本机不占 GPU，转远程 NPU | Boltz2 结构预测；疏水改造和 CIC 在远程开关打开时也走这里 |
+| `cpu` | `CELERY_CPU_QUEUE` | 不占 GPU | 额外二硫键（PyRosetta） |
+
+结构预测的分流在 `app/modules/fold/service.py`：`engine` 为 ESMFold2 时始终进 `gpu`；Boltz2 在 `BOLTZ_NPU_REMOTE` 打开时进 `fold`，否则进 `gpu`。疏水和 CIC 用 `dispatch_fold_compute`：远程开关打开进 `fold`，否则进 `gpu`。TNP 固定进 `gpu`。合成筛选在 API 进程里算完，不进队列。
+
+健康检查 `/api/health` 会把这三条队列的长度加在一起。
 
 ## 任务数据流
 
@@ -37,32 +68,41 @@
 浏览器 / API 客户端
   → FastAPI Router（鉴权、参数校验）
   → Service（创建输出目录和 PostgreSQL 任务记录）
-  → Celery / Redis（投递到 GPU 队列）
-  → worker/tasks/（领取任务、更新 running/done/failed）
-  → scripts/*_runner.py（调用算法包或外部工具）
-  → 输出目录（结构、指标、日志、轨迹等）
+  → Celery / Redis（gpu、fold 或 cpu）
+  → worker/tasks/（更新 running / done / failed）
+  → scripts/*_runner.py（调用 workflows/、integrations/boltz2 或外部工具）
+  → run/ 下的输出目录（结构、指标、日志、轨迹）
   → PostgreSQL（状态与结果索引）
   → API / Vue（轮询、展示、下载）
 ```
 
-结构预测和 MD 当前共用可配置的 GPU 队列，每个 GPU Worker 的并发数为 1。其他业务也通过 `worker/tasks/` 进入相应 Runner；具体输出根目录由 `.env` 中的变量控制。
+合成筛选停在 Service，直接调用 `scripts/` 里的匹配和排序脚本。抗体项目不产生自己的计算任务，用 `antibody_project_job_links` 指向已有 `jobs`。
 
 ## 生产与 legacy 入口
 
-生产入口是：
+生产入口：
 
-- API 应用：`app/main.py`（`app.main:app`）。
-- 启动脚本：`scripts/start_platform.sh`，负责初始化数据库、启动 Celery GPU Worker 和 Uvicorn。
-- 前端：优先由 `app/main.py` 挂载 `frontend/dist/`；`/legacy-app` 保留旧页面。
+- API：`app/main.py`（`app.main:app`），默认端口 `8765`。
+- 启停：`scripts/start_platform.sh`、`scripts/status_platform.sh`、`scripts/stop_platform.sh`。启动时做数据库迁移，并拉起 GPU Worker；远程折叠和 CPU Worker 按配置启动。
+- 前端：存在 `frontend/dist/` 时挂到 `/`。未知路径回退 `index.html`，但 `/api/` 仍返回 404。
 
-Legacy 入口仅用于兼容和排障：
+Legacy 只用于兼容和排障：
 
-- `app/legacy/server.py`：legacy 无 PostgreSQL/Celery 单机折叠原型。
+- `app/legacy/server.py`：无 PostgreSQL / Celery 的单机折叠原型。
 - `scripts/start_server.sh`：只启动上述原型。
-- `web/`：旧版静态页面，不再作为新功能开发位置。
+- `web/`：旧静态页，挂在 `/legacy-app`。Vue 里的 `/legacy` 用 iframe 打开它。
 
-`frontend/dist/` 是由 `frontend/src/` 构建得到的部署产物，不是源码，也不进入 git。若该目录不存在，生产 API 会回退到 `web/`（存在时），但这不代表 `web/` 是生产前端。
+`frontend/dist/` 由 `frontend/src/` 构建，不进 git。目录不存在时，API 会回退挂载 `web/`（若存在）。回退不表示 `web/` 是生产前端。
 
 ## 输出目录
 
-目标布局是将所有运行产物集中到 `run/`，根目录的 `outputs/`、`md_outputs/` 等路径作为兼容入口。当前部分环境中的 `hydro_redesign_outputs/`、`cic_profile_outputs/`、`tnp_profile_outputs/` 仍可能是根目录实目录，而非指向 `run/` 的链接；备份和迁移时必须同时检查。详细规则见 [REPOSITORY.md](REPOSITORY.md)。
+任务文件的实际位置是 `run/`。根目录的 `outputs/`、`md_outputs/`、`logs/` 等是指向 `run/` 对应子目录的符号链接，给 `.env` 和历史 `work_dir` 用。
+
+配置默认值有两种写法，解析后都在 `run/` 里：
+
+- 较早的模块写成仓库根下的名字，例如 `outputs/`、`md_outputs/`。这些名字现在是链接。
+- 疏水、CIC、TNP、额外二硫键和抗体项目直接写成 `run/<name>/`。
+
+`run/` 里还有 `npu_fold_stage/`，给远程折叠暂存用，没有对应的根目录链接。小分子对接和 RAS 对接共用 `docking_outputs/`。
+
+备份时复制 `run/` 即可覆盖当前这些产物。若某台旧机器上的同名路径仍是实目录而不是链接，要单独纳入备份。链接本身可以重建。规则见 [REPOSITORY.md](REPOSITORY.md) 和 [BACKUP.md](BACKUP.md)。

@@ -46,14 +46,14 @@
 
 ## 任务怎么走
 
-浏览器带着 JWT 打 FastAPI，任务进 Redis 队列，每张 GPU 一个 Celery Worker 拉任务，结构写到 `outputs/`，元数据进 PostgreSQL。折叠和 MD 共用队列 `gpu`。四张卡都有活时会跑满；任务少于四条就只占对应数量的卡。
+浏览器带着 JWT 打 FastAPI，任务进 Redis 队列，Worker 拉任务，结构写到 `run/`，元数据进 PostgreSQL。默认队列是 `gpu`（每张卡一个 Worker）。Boltz2 在打开远程 NPU 时走 `fold`，额外二硫键走 `cpu`。合成筛选在 API 请求里同步完成。队列对应关系见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 改 GPU 数量：在 `.env` 里设 `CELERY_GPU_COUNT`，然后重启平台。排队是否设上限看 `MAX_JOBS_PER_USER_QUEUED`（`0` 表示不限制）。
 
 
 ## 主要目录
 
-`app/` 是 FastAPI 与各模块路由，`worker/` 是 Celery 任务，四个算法包的源码只在 `workflows/affinity_redesign/`、`workflows/hydro_redesign/`、`workflows/cic_profile/`、`workflows/tnp_profile/`，`scripts/` 里是预测、对接、ESM-2、平台启停脚本。前端在 `frontend/`（部署前需 `bash scripts/build_frontend.sh` 生成 `frontend/dist/`）。运行产物集中在本地 `run/`；根目录的 `outputs/`、`md_outputs/` 等输出兼容链接继续保留，**不会进 git**——详见 [docs/REPOSITORY.md](docs/REPOSITORY.md)。
+`app/` 是 FastAPI 与各模块路由，`worker/` 是 Celery 任务。算法源码在 `workflows/`（亲和力改造、疏水改造、CIC、TNP、额外二硫键），共享代码在 `shared/`，Boltz2 调用在 `integrations/boltz2/`。`scripts/` 里是各模块 Runner 和平台启停脚本。前端在 `frontend/`（部署前需 `bash scripts/build_frontend.sh` 生成 `frontend/dist/`）。运行产物在 `run/`；根目录的 `outputs/`、`md_outputs/` 等是指向 `run/` 的兼容链接，**不会进 git**。模块、队列和产物目录见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，提交边界见 [docs/REPOSITORY.md](docs/REPOSITORY.md)。
 
 克隆后若使用 RAS 对接，需初始化子模块：
 
@@ -73,7 +73,7 @@
 
 ## 文档
 
-- [平台架构](docs/ARCHITECTURE.md)：五层结构、业务模块、任务数据流与生产/legacy 边界。
+- [平台架构](docs/ARCHITECTURE.md)：模块地图、队列、产物目录与生产/legacy 边界。
 - [安装指南](docs/INSTALL.md)：基础设施、Python/Node 和外部计算环境。
 - [测试与验收](docs/TESTING.md)：pytest、前端构建与 smoke test。
 - [备份与回滚](docs/BACKUP.md)：PostgreSQL、运行目录和恢复顺序。
