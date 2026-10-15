@@ -20,16 +20,20 @@ export interface InterfaceResidue {
   chain_id: string
   seq_num: number
   resname: string
+  /** 抗体链的 Kabat 编号；靶点为空。 */
+  kabat?: string
 }
 
 export interface InterfaceInteraction {
   type: string
   chain_a: string
   resnum_a: number
+  kabat_a?: string
   resname_a: string
   atom_a: string
   chain_b: string
   resnum_b: number
+  kabat_b?: string
   resname_b: string
   atom_b: string
   distance_angstrom: number

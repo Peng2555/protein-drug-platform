@@ -179,17 +179,6 @@ export const PLATFORM_TOOLS: PlatformTool[] = [
     engines: ['PyRosetta'],
   },
   {
-    id: 'synthesis',
-    name: '合成候选筛选',
-    moduleId: 'synthesis',
-    route: '/synthesis/new',
-    function: 'utilities',
-    modalities: ['antibody'],
-    inputs: ['csv'],
-    description: '测序表与突变表交叉筛选，输出合成优先级候选。',
-    duration: '1–5 分钟',
-  },
-  {
     id: 'vina',
     name: 'AutoDock Vina',
     moduleId: 'docking',

@@ -350,12 +350,12 @@ watch(
                   </el-table-column>
                   <el-table-column label="链 A" min-width="96">
                     <template #default="{ row }">
-                      {{ row.resname_a }} {{ row.chain_a }}{{ row.resnum_a }}
+                      {{ row.resname_a }} {{ row.chain_a }}{{ row.kabat_a || row.resnum_a }}
                     </template>
                   </el-table-column>
                   <el-table-column label="链 B" min-width="96">
                     <template #default="{ row }">
-                      {{ row.resname_b }} {{ row.chain_b }}{{ row.resnum_b }}
+                      {{ row.resname_b }} {{ row.chain_b }}{{ row.kabat_b || row.resnum_b }}
                     </template>
                   </el-table-column>
                   <el-table-column label="Å" width="56" align="right">
@@ -376,7 +376,7 @@ watch(
                   <h4>{{ chainBadgeA.label }} ({{ primary?.residues_a?.length ?? 0 }})</h4>
                   <ul class="interface-res-list">
                     <li v-for="r in primary?.residues_a ?? []" :key="`${r.chain_id}-${r.seq_num}`">
-                      {{ r.resname }} {{ r.chain_id }}{{ r.seq_num }}
+                      {{ r.resname }} {{ r.chain_id }}{{ r.kabat || r.seq_num }}
                     </li>
                   </ul>
                 </div>
@@ -384,7 +384,7 @@ watch(
                   <h4>{{ chainBadgeB.label }} ({{ primary?.residues_b?.length ?? 0 }})</h4>
                   <ul class="interface-res-list">
                     <li v-for="r in primary?.residues_b ?? []" :key="`${r.chain_id}-${r.seq_num}`">
-                      {{ r.resname }} {{ r.chain_id }}{{ r.seq_num }}
+                      {{ r.resname }} {{ r.chain_id }}{{ r.kabat || r.seq_num }}
                     </li>
                   </ul>
                 </div>

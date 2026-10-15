@@ -10,7 +10,7 @@
 |------|----------|------|
 | 平台层 | `app/`、`frontend/src/` | FastAPI、认证、数据库模型、业务 Service、Vue 页面 |
 | Worker 层 | `worker/`、`app/core/celery.py`、`app/core/queue.py` | 从 Redis 领任务，更新任务状态，调用 Runner |
-| Runner 层 | `scripts/*_runner.py` 及合成筛选脚本 | 组织输入、调用模型或命令行、写出标准产物 |
+| Runner 层 | `scripts/*_runner.py` | 组织输入、调用模型或命令行、写出标准产物 |
 | 算法包层 | `workflows/` | 亲和力改造、疏水改造、CIC、TNP、额外二硫键 |
 | 共享库 | `shared/src/boltzfold_shared/` | 序列/结构 IO、抗体 CDR、SASA、Boltz2 worker 辅助 |
 | Boltz2 适配 | `integrations/boltz2/` | 输入、进程、结果解析，以及昇腾 NPU 远程折叠 |
@@ -29,7 +29,6 @@ PostgreSQL 保存用户、任务和结果元数据；Redis 同时做 Celery brok
 | 结构预测 | `/fold` | `/api/jobs`、`/api/batches` | `run_fold_job` | 见下方队列 | `boltz_runner`、`esmfold_runner`，以及 `pdockq_runner`、`dockq_runner` | `BOLTZ2_OUT_ROOT` → `outputs/` |
 | MD 验证 | `/md` | `/api/md-jobs` | `run_md_job` | `gpu` | `md_runner`（GROMACS） | `md_outputs/` |
 | 亲和力成熟 | `/maturation` | `/api/maturation-jobs` | `run_maturation_job` | `gpu` | `iggm_maturation_runner` | `maturation_outputs/` |
-| 合成筛选 | `/synthesis` | `/api/synthesis-jobs` | 无。请求内同步完成 | — | `iggm_shm_matcher`、`iggm_synthesis_order` | `synthesis_outputs/` |
 | 小分子对接 | `/docking` | `/api/docking-jobs` | `run_small_molecule_docking_job` | `gpu` | `docking_runner`（Vina） | `docking_outputs/` |
 | RAS 对接 | 前端 `/ras-docking` 转到 `/docking` | `/api/ras-docking-jobs` | `run_ras_docking_job` | `gpu` | `ras_docking_runner` + `external/ras-tricomplex-docking` | `docking_outputs/` |
 | 序列改造 | `/developability` | `/api/developability-jobs` | `run_developability_job` | `gpu` | `esm2_developability_runner` | `developability_outputs/` |
@@ -58,7 +57,7 @@ PostgreSQL 保存用户、任务和结果元数据；Redis 同时做 Celery brok
 | `fold` | `CELERY_FOLD_QUEUE`，仅 `BOLTZ_NPU_REMOTE=1` 时启动 | 本机不占 GPU，转远程 NPU | Boltz2 结构预测；疏水改造和 CIC 在远程开关打开时也走这里 |
 | `cpu` | `CELERY_CPU_QUEUE` | 不占 GPU | 额外二硫键（PyRosetta） |
 
-结构预测的分流在 `app/modules/fold/service.py`：`engine` 为 ESMFold2 时始终进 `gpu`；Boltz2 在 `BOLTZ_NPU_REMOTE` 打开时进 `fold`，否则进 `gpu`。疏水和 CIC 用 `dispatch_fold_compute`：远程开关打开进 `fold`，否则进 `gpu`。TNP 固定进 `gpu`。合成筛选在 API 进程里算完，不进队列。
+结构预测的分流在 `app/modules/fold/service.py`：`engine` 为 ESMFold2 时始终进 `gpu`；Boltz2 在 `BOLTZ_NPU_REMOTE` 打开时进 `fold`，否则进 `gpu`。疏水和 CIC 用 `dispatch_fold_compute`：远程开关打开进 `fold`，否则进 `gpu`。TNP 固定进 `gpu`。
 
 健康检查 `/api/health` 会把这三条队列的长度加在一起。
 
@@ -76,7 +75,7 @@ PostgreSQL 保存用户、任务和结果元数据；Redis 同时做 Celery brok
   → API / Vue（轮询、展示、下载）
 ```
 
-合成筛选停在 Service，直接调用 `scripts/` 里的匹配和排序脚本。抗体项目不产生自己的计算任务，用 `antibody_project_job_links` 指向已有 `jobs`。
+抗体项目不产生自己的计算任务，用 `antibody_project_job_links` 指向已有 `jobs`。
 
 ## 生产与 legacy 入口
 

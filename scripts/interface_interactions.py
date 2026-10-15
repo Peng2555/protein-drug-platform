@@ -95,12 +95,24 @@ def _summarize(interactions: list[dict], n_res_a: int, n_res_b: int) -> dict:
     }
 
 
-def analyze_plip_ppi(cif_path: Path, receptor_chain: str, ligand_chain: str) -> dict:
+def _chain_group(value: str | list[str] | tuple[str, ...]) -> list[str]:
+    if isinstance(value, str):
+        return [value] if value else []
+    return [chain for chain in value if chain]
+
+
+def analyze_plip_ppi(
+    cif_path: Path,
+    receptor_chain: str | list[str],
+    ligand_chain: str | list[str],
+) -> dict:
     """Run PLIP with receptor/ligand chain groups (BindCraft / PLIP PPI mode)."""
     from plip.basic import config
     from plip.exchange.report import BindingSiteReport
     from plip.structure.preparation import PDBComplex
 
+    receptor_chains = _chain_group(receptor_chain)
+    ligand_chains = _chain_group(ligand_chain)
     pdb_path = _cif_to_pdb(cif_path)
     try:
         config.NOFIXFILE = True
@@ -108,7 +120,7 @@ def analyze_plip_ppi(cif_path: Path, receptor_chain: str, ligand_chain: str) -> 
         config.PEPTIDES = []
         config.INTRA = None
         config.REGIONS = None
-        config.CHAINS = [[receptor_chain], [ligand_chain]]
+        config.CHAINS = [receptor_chains, ligand_chains]
 
         mol = PDBComplex()
         mol.load_pdb(str(pdb_path))
@@ -252,7 +264,12 @@ def analyze_plip_ppi(cif_path: Path, receptor_chain: str, ligand_chain: str) -> 
         iface_b = {(ix["chain_b"], ix["resnum_b"]) for ix in interactions}
         summary = _summarize(interactions, len(iface_a), len(iface_b))
         interactions.sort(key=lambda x: (x["type"], x["distance_angstrom"]))
-        return {"interactions": interactions, "summary": summary, "receptor_chain": receptor_chain, "ligand_chain": ligand_chain}
+        return {
+            "interactions": interactions,
+            "summary": summary,
+            "receptor_chain": "+".join(receptor_chains),
+            "ligand_chain": "+".join(ligand_chains),
+        }
     finally:
         try:
             pdb_path.unlink(missing_ok=True)
@@ -273,12 +290,12 @@ def analyze_interactions_from_cif(
     chain_a: str,
     chain_b: str,
     *,
-    receptor_chain: str | None = None,
-    ligand_chain: str | None = None,
+    receptor_chain: str | list[str] | None = None,
+    ligand_chain: str | list[str] | None = None,
 ) -> dict:
-    """Analyze PPI with PLIP; default receptor=chain_b if H/A pair else first chain."""
+    """Analyze PPI with PLIP. Receptor is the target side, ligand is the binder side."""
     rec = receptor_chain or chain_b
     lig = ligand_chain or chain_a
-    if rec == lig:
+    if isinstance(rec, str) and isinstance(lig, str) and rec == lig:
         rec, lig = chain_a, chain_b
     return analyze_plip_ppi(cif_path, rec, lig)

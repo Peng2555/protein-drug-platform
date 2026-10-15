@@ -77,7 +77,7 @@ SECOND_ROUTER_SERVICE_EXPORTS = {
 
 THIRD_MODULE_FILES = {
     name: {"__init__.py", "router.py", "service.py"}
-    for name in ("maturation", "synthesis", "docking", "ras_docking")
+    for name in ("maturation", "docking", "ras_docking")
 }
 
 THIRD_ROUTER_SERVICE_EXPORTS = {
@@ -87,11 +87,6 @@ THIRD_ROUTER_SERVICE_EXPORTS = {
         "prepare_maturation_from_body",
         "save_uploaded_structure",
     },
-    "synthesis": {
-        "run_and_record_synthesis_job",
-        "save_fasta_upload",
-        "save_table_upload",
-    },
     "docking": {"create_and_queue_docking_job"},
     "ras_docking": {
         "create_and_queue_ras_job",
@@ -100,7 +95,7 @@ THIRD_ROUTER_SERVICE_EXPORTS = {
     },
 }
 
-OPENAPI_SHA256 = "c508d0eeb71f52fe3653884b5da276b053329fb89c4c211c242ae436d4115aca"
+OPENAPI_SHA256 = "31dd4043c924a52997d08673d52da1e05267c40b37f03767fe3b0f937066e848"
 
 
 def test_first_module_group_has_exact_vertical_layout():
@@ -283,7 +278,7 @@ def test_main_registers_third_group_in_original_order():
     import app.main as main
     from app.modules import ROUTERS
 
-    names = ("maturation", "synthesis", "ras_docking", "docking")
+    names = ("maturation", "ras_docking", "docking")
     modules = [importlib.import_module(f"app.modules.{name}.router") for name in names]
     assert all(module.router in ROUTERS for module in modules)
 
@@ -306,5 +301,5 @@ def test_openapi_contract_is_stable_after_third_module_move():
         separators=(",", ":"),
         sort_keys=True,
     )
-    assert len(schema["paths"]) == 129
+    assert len(schema["paths"]) == 130
     assert hashlib.sha256(payload.encode()).hexdigest() == OPENAPI_SHA256

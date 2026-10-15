@@ -247,15 +247,6 @@ const router = createRouter({
             task: () => import('@/views/tm-disulfide/TmDisulfideJobDetailView.vue'),
           },
         ),
-        moduleChildren(
-          'synthesis',
-          {
-            workspace: () => import('@/views/synthesis/SynthesisWorkspaceView.vue'),
-            new: () => import('@/views/synthesis/SynthesisNewView.vue'),
-            tasks: () => import('@/views/synthesis/SynthesisTasksView.vue'),
-            task: () => import('@/views/synthesis/SynthesisJobDetailView.vue'),
-          },
-        ),
         {
           path: 'ras-docking/:pathMatch(.*)*',
           redirect: (to) =>

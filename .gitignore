@@ -12,7 +12,6 @@ md_outputs
 docking_outputs
 ras_docking_outputs
 maturation_outputs
-synthesis_outputs
 developability_outputs
 design_outputs
 rosetta_eval_outputs
@@ -120,3 +119,5 @@ Desktop.ini
 # TNP 官方仓库仅用于本机校准；产品所需参考数据已收录在 tnp_profile/data。
 external/TNP/
 HER2_domain_binding*.csv
+backups/
+tmp_sap_preview/

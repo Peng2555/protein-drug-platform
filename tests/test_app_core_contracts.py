@@ -20,7 +20,6 @@ ROUTER_MODULES = (
     "app.modules.fold.batch_router",
     "app.modules.md.router",
     "app.modules.maturation.router",
-    "app.modules.synthesis.router",
     "app.modules.ras_docking.router",
     "app.modules.docking.router",
     "app.modules.developability.router",

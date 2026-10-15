@@ -13,7 +13,6 @@ import {
   EditPen,
   FolderOpened,
   Grid,
-  Histogram,
   HomeFilled,
   MagicStick,
   Plus,
@@ -98,7 +97,6 @@ const iconMap: Record<ModuleIconKey, typeof HomeFilled> = {
   cic_profile: Lightning,
   tnp_profile: Guide,
   tm_disulfide: Connection,
-  synthesis: Histogram,
   docking: Aim,
   md: Timer,
 }
@@ -121,7 +119,6 @@ const badgeMap = computed(() => ({
   cic_profile: moduleJobs.counts.cic_profile,
   tnp_profile: moduleJobs.counts.tnp_profile,
   tm_disulfide: moduleJobs.counts.tm_disulfide,
-  synthesis: moduleJobs.counts.synthesis,
   docking: moduleJobs.counts.docking,
   md: moduleJobs.counts.md,
 }) as Record<ModuleId, number>)
@@ -647,9 +644,36 @@ onMounted(() => {
   }
 }
 
-.layout-root.is-collapsed .nav-item {
-  justify-content: center;
-  padding: 0.72rem 0.4rem;
+.layout-root.is-collapsed {
+  .sidebar-brand {
+    justify-content: center;
+    padding: 0.85rem 0.45rem;
+  }
+  .sidebar-logo {
+    width: 40px;
+    height: 40px;
+    padding: 4px;
+    object-fit: cover;
+    object-position: left center;
+  }
+  .sidebar-nav {
+    padding: 0.55rem 0.45rem 0.4rem;
+  }
+  .nav-group + .nav-group {
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: none;
+  }
+  .nav-item {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 0.28rem;
+    padding: 0;
+    justify-content: center;
+  }
+  .sidebar-footer {
+    padding: 0.5rem 0.45rem 0.7rem;
+  }
 }
 
 .nav-icon { flex-shrink: 0; }

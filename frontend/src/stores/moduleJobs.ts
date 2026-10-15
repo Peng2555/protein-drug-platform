@@ -4,7 +4,6 @@ import { fetchDesignJobs } from '@/api/design'
 import { fetchRosettaEvalJobs } from '@/api/rosetta'
 import { fetchDevelopabilityJobs } from '@/api/developability'
 import { fetchDockingJobs } from '@/api/docking'
-import { fetchSynthesisJobs } from '@/api/synthesis'
 import { fetchMaturationJobs } from '@/api/maturation'
 import { fetchAffinityRedesignJobs } from '@/api/affinityRedesign'
 import { fetchMaskingPeptideJobs } from '@/api/maskingPeptide'
@@ -28,7 +27,6 @@ import type {
   MaturationJob,
   MdJob,
   RosettaEvalJob,
-  SynthesisJob,
 } from '@/api/types'
 
 export type { ModuleJobKind } from '@/config/moduleRegistry'
@@ -70,7 +68,6 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
   const tnpProfileJobs = ref<TnpProfileJob[]>([])
   const tnpProfileBatches = ref<Batch[]>([])
   const tmDisulfideJobs = ref<TmDisulfideJob[]>([])
-  const synthesisJobs = ref<SynthesisJob[]>([])
   const designJobs = ref<DesignJob[]>([])
   const rosettaJobs = ref<RosettaEvalJob[]>([])
   const loading = ref(false)
@@ -86,7 +83,6 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     cic_profile: cicProfileJobs.value.length,
     tnp_profile: tnpProfileJobs.value.length + tnpProfileBatches.value.length,
     tm_disulfide: tmDisulfideJobs.value.length,
-    synthesis: synthesisJobs.value.length,
     design: designJobs.value.length,
     rosetta: rosettaJobs.value.length,
   }))
@@ -123,7 +119,6 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
         })),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       tm_disulfide: toNavItems(tmDisulfideJobs.value, '二硫键'),
-      synthesis: toNavItems(synthesisJobs.value, '合成'),
       design: toNavItems(designJobs.value, '设计'),
       rosetta: toNavItems(rosettaJobs.value, '评价'),
     }
@@ -185,11 +180,6 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     hydroRedesignBatches.value = batches.items ?? []
   }
 
-  async function refreshSynthesis() {
-    const data = await fetchSynthesisJobs(50)
-    synthesisJobs.value = data.items ?? []
-  }
-
   async function refreshDesign() {
     const data = await fetchDesignJobs(50)
     designJobs.value = data.items ?? []
@@ -214,7 +204,6 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
         refreshCicProfile().catch(() => undefined),
         refreshTnpProfile().catch(() => undefined),
         refreshTmDisulfide().catch(() => undefined),
-        refreshSynthesis().catch(() => undefined),
         refreshDesign().catch(() => undefined),
         refreshRosetta().catch(() => undefined),
       ])
@@ -236,7 +225,6 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     if (kind === 'tm_disulfide') return refreshTmDisulfide()
     if (kind === 'design') return refreshDesign()
     if (kind === 'rosetta') return refreshRosetta()
-    return refreshSynthesis()
   }
 
   return {
@@ -252,7 +240,6 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     tnpProfileJobs,
     tnpProfileBatches,
     tmDisulfideJobs,
-    synthesisJobs,
     designJobs,
     rosettaJobs,
     loading,
@@ -270,7 +257,6 @@ export const useModuleJobsStore = defineStore('moduleJobs', () => {
     refreshCicProfile,
     refreshTnpProfile,
     refreshTmDisulfide,
-    refreshSynthesis,
     refreshDesign,
     refreshRosetta,
   }

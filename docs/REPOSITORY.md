@@ -57,13 +57,14 @@ git clone --recurse-submodules https://github.com/Peng2555/protein-drug-platform
 ### 绝不上传
 
 - **密钥**：`.env`、任何含密码/Token 的文件（只提交 `.env.example`）
-- **任务产物**：`run/`，以及根目录兼容路径 `outputs/`、`md_outputs/`、`docking_outputs/`、`maturation_outputs/`、`synthesis_outputs/`、`developability_outputs/`、`hydro_redesign_outputs/`、`cic_profile_outputs/`、`tnp_profile_outputs/`
+- **任务产物**：`run/`，以及根目录兼容路径 `outputs/`、`md_outputs/`、`docking_outputs/`、`maturation_outputs/`、`developability_outputs/`、`hydro_redesign_outputs/`、`cic_profile_outputs/`、`tnp_profile_outputs/`
 - **分析汇总**：根目录 `HER2_domain_binding.csv`、`HER2_domain_binding_iptm_max.csv` 等可重新生成的分析产物
 - **结构/轨迹**：`*.cif`、`*.pdb`、`*.npz`、`*.gro`、`*.xtc` 等
 - **模型权重**：`*.ckpt`、`*.pt`、`weights/`
 - **前端构建**：`frontend/dist/`、`frontend/node_modules/`
 - **日志**：`logs/`、`*.log`、`*.pid`
 - **本地数据库**：`data/`、`*.db`
+- **本机备份与临时预览**：`backups/`、`tmp_sap_preview/`
 
 ### 不要手动提交（工具会自动生成）
 

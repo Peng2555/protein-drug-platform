@@ -56,7 +56,6 @@ class Settings(BaseSettings):
 
     md_out_root: Path = ROOT / "md_outputs"
     maturation_out_root: Path = ROOT / "maturation_outputs"
-    synthesis_out_root: Path = ROOT / "synthesis_outputs"
     ras_docking_root: Path = ROOT / "external" / "ras-tricomplex-docking"
     ras_docking_out_root: Path = ROOT / "docking_outputs"
     ras_docking_python: str = "python3"
@@ -153,7 +152,6 @@ ensure_affinity_redesign_on_path()
 settings.boltz2_out_root.mkdir(parents=True, exist_ok=True)
 settings.md_out_root.mkdir(parents=True, exist_ok=True)
 settings.maturation_out_root.mkdir(parents=True, exist_ok=True)
-settings.synthesis_out_root.mkdir(parents=True, exist_ok=True)
 settings.ras_docking_out_root.mkdir(parents=True, exist_ok=True)
 settings.docking_out_root.mkdir(parents=True, exist_ok=True)
 settings.developability_out_root.mkdir(parents=True, exist_ok=True)
@@ -187,7 +185,6 @@ os.environ.setdefault("IGGM_PY", settings.iggm_py)
 os.environ.setdefault("IGGM_ROOT", settings.iggm_root)
 os.environ.setdefault("MD_OUT_ROOT", str(settings.md_out_root))
 os.environ.setdefault("MATURATION_OUT_ROOT", str(settings.maturation_out_root))
-os.environ.setdefault("SYNTHESIS_OUT_ROOT", str(settings.synthesis_out_root))
 os.environ.setdefault("ESM2_3B_PATH", str(settings.esm2_3b_path))
 _rosetta_bin = settings.rosetta_bin_dir or os.environ.get("ROSETTA_BIN") or os.environ.get("ROSETTA3") or ""
 if _rosetta_bin:

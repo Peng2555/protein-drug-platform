@@ -15,7 +15,6 @@ from app.modules.maturation.router import router as maturation_router
 from app.modules.md.router import router as md_router
 from app.modules.ras_docking.router import router as ras_docking_router
 from app.modules.rosetta_eval.router import router as rosetta_eval_router
-from app.modules.synthesis.router import router as synthesis_router
 from app.modules.tm_disulfide.router import router as tm_disulfide_router
 from app.modules.tnp_profile.router import router as tnp_router
 
@@ -26,7 +25,6 @@ ROUTERS = (
     fold_batch_router,
     md_router,
     maturation_router,
-    synthesis_router,
     ras_docking_router,
     docking_router,
     developability_router,

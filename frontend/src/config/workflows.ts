@@ -37,11 +37,11 @@ export const SCENARIOS: ScenarioDef[] = [
     id: 'vhh',
     label: '纳米抗体 VHH',
     headline: '从 WT 结构到突变体排序',
-    summary: '面向 VHH–抗原复合物：批量折叠、Rosetta 界面评价与合成候选筛选。',
+    summary: '面向 VHH–抗原复合物：批量折叠、Rosetta 界面评价与亲和力成熟。',
     highlights: [
       'Boltz2 / ESMFold2 批量预测复合物结构',
       'PyRosetta 约束 Relax + 界面 ΔΔG 排序',
-      'IgGM 亲和力成熟与合成候选交叉筛选',
+      'IgGM 亲和力成熟',
     ],
     primaryCta: { label: '开始 VHH 结构预测', route: '/fold/new' },
     pipeline: [
@@ -107,7 +107,7 @@ export const SCENARIOS: ScenarioDef[] = [
 
 export const SCENARIO_DETAILS: Record<ScenarioId, ScenarioDetailContent> = {
   vhh: {
-    intro: '面向纳米抗体研发：从抗原复合物预测到突变体界面排序，再到合成候选收敛。',
+    intro: '面向纳米抗体研发：从抗原复合物预测到突变体界面排序。',
     pipeline: SCENARIOS[0].pipeline,
     outputs: ['复合物 PDB/CIF', 'ranking.csv / scores.csv', 'relaxed_structures/', 'report.html'],
   },
@@ -134,7 +134,7 @@ export function scenarioById(id: string): ScenarioDef | undefined {
 
 /** 各场景下高亮模块（能力地图默认筛选） */
 export const SCENARIO_MODULES: Record<ScenarioId, ModuleId[]> = {
-  vhh: ['fold', 'rosetta', 'maturation', 'synthesis', 'developability', 'design', 'hydro_redesign', 'cic_profile', 'tnp_profile', 'tm_disulfide'],
+  vhh: ['fold', 'rosetta', 'maturation', 'developability', 'design', 'hydro_redesign', 'cic_profile', 'tnp_profile', 'tm_disulfide'],
   antibody: ['fold', 'design', 'rosetta', 'developability', 'maturation', 'hydro_redesign', 'cic_profile', 'tnp_profile', 'tm_disulfide'],
   small_molecule: ['docking', 'md'],
   general: ['fold', 'design'],
@@ -195,15 +195,6 @@ export const WORKFLOWS_BY_SCENARIO: Record<ScenarioId, WorkflowDef[]> = {
       ctaLabel: '进入可开发性画像',
       ctaRoute: '/tnp-profile/new',
       accent: 'violet',
-    },
-    {
-      id: 'vhh-synthesis',
-      title: '合成候选筛选',
-      description: '测序表与突变表交叉筛选，收敛到可下单验证的候选。',
-      steps: [{ label: '导入表' }, { label: '交叉筛选' }, { label: '导出候选' }],
-      ctaLabel: '进入合成候选',
-      ctaRoute: '/synthesis/new',
-      accent: 'cyan',
     },
   ],
   antibody: [
@@ -316,7 +307,6 @@ export const MODULE_ENGINES: Partial<Record<ModuleId, string>> = {
   cic_profile: 'Boltz2 · CIC 斑',
   tnp_profile: 'Boltz2 · Kabat 画像',
   tm_disulfide: 'Boltz2 · PyRosetta 二硫键',
-  synthesis: '表交叉筛选',
   docking: 'AutoDock Vina',
   md: 'GROMACS',
 }

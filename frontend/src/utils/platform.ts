@@ -68,7 +68,6 @@ export const NAV_GROUPS: NavGroup[] = [
       navItem('cic_profile'),
       navItem('tnp_profile'),
       navItem('tm_disulfide'),
-      navItem('synthesis'),
     ],
   },
   {

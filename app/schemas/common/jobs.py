@@ -90,16 +90,19 @@ class InterfaceResidueOut(BaseModel):
     chain_id: str
     seq_num: int
     resname: str
+    kabat: str | None = None
 
 
 class InterfaceInteractionOut(BaseModel):
     type: str
     chain_a: str
     resnum_a: int
+    kabat_a: str | None = None
     resname_a: str
     atom_a: str
     chain_b: str
     resnum_b: int
+    kabat_b: str | None = None
     resname_b: str
     atom_b: str
     distance_angstrom: float

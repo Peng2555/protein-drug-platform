@@ -12,7 +12,6 @@ export type ModuleId =
   | 'cic_profile'
   | 'tnp_profile'
   | 'tm_disulfide'
-  | 'synthesis'
   | 'docking'
   | 'md'
 
@@ -32,7 +31,6 @@ export type ModuleIconKey =
   | 'cic_profile'
   | 'tnp_profile'
   | 'tm_disulfide'
-  | 'synthesis'
   | 'docking'
   | 'md'
 
@@ -190,16 +188,6 @@ export const MODULE_REGISTRY = [
     iconKey: 'tm_disulfide',
     jobKind: 'tm_disulfide',
     routeTitles: { module: '额外二硫键', new: '新建筛选', tasks: '全部任务', task: '筛选详情' },
-  },
-  {
-    id: 'synthesis',
-    segment: 'synthesis',
-    routePrefix: 'synthesis',
-    label: '合成候选',
-    hint: '测序表与突变表交叉筛选',
-    iconKey: 'synthesis',
-    jobKind: 'synthesis',
-    routeTitles: { module: '合成候选', new: '新建筛选', tasks: '全部任务', task: '筛选结果' },
   },
   {
     id: 'docking',

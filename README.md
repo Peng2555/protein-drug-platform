@@ -19,8 +19,6 @@
 
 **亲和力改造**　算法源码只在仓库 `workflows/affinity_redesign/`：PLM + AntiFold 双轨，再 Boltz2 / Rosetta 重打分。Web 提交即可，无需再克隆外部 `antibody_redesign`。仍需本机 ESM / AntiFold / PyRosetta 环境。
 
-**合成筛选**　把 IgGM 结果和测序表对齐，筛可下单序列。
-
 **MD 验证**　从已完成折叠或上传的 CIF/PDB 发起 GROMACS 显式溶剂模拟。
 
 
@@ -46,7 +44,7 @@
 
 ## 任务怎么走
 
-浏览器带着 JWT 打 FastAPI，任务进 Redis 队列，Worker 拉任务，结构写到 `run/`，元数据进 PostgreSQL。默认队列是 `gpu`（每张卡一个 Worker）。Boltz2 在打开远程 NPU 时走 `fold`，额外二硫键走 `cpu`。合成筛选在 API 请求里同步完成。队列对应关系见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+浏览器带着 JWT 打 FastAPI，任务进 Redis 队列，Worker 拉任务，结构写到 `run/`，元数据进 PostgreSQL。默认队列是 `gpu`（每张卡一个 Worker）。Boltz2 在打开远程 NPU 时走 `fold`，额外二硫键走 `cpu`。队列对应关系见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 改 GPU 数量：在 `.env` 里设 `CELERY_GPU_COUNT`，然后重启平台。排队是否设上限看 `MAX_JOBS_PER_USER_QUEUED`（`0` 表示不限制）。
 

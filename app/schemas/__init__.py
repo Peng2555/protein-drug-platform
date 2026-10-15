@@ -105,14 +105,6 @@ from .maturation import (
 )
 from .md import MdJobCreate, MdJobListOut, MdJobOut
 from .rosetta import RosettaEvalJobCreate, RosettaEvalJobListOut, RosettaEvalJobOut
-from .synthesis import (
-    SynthesisCandidateOut,
-    SynthesisCandidatesOut,
-    SynthesisJobListOut,
-    SynthesisJobOut,
-    SynthesisSelectOut,
-    SynthesisSelectParams,
-)
 from .tm_disulfide import (
     TmDisulfideJobCreate,
     TmDisulfideJobListOut,

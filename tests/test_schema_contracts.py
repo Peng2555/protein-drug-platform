@@ -46,8 +46,6 @@ PUBLIC_SCHEMA_NAMES = (
     "MaturationJobCreate", "MaturationJobOut", "MaturationJobListOut",
     "MaturationVariantOut", "MaturationVariantsOut", "MaturationLogSection",
     "MaturationLogsOut", "AffinityRedesignProgressOut",
-    "SynthesisSelectParams", "SynthesisSelectOut", "SynthesisCandidateOut",
-    "SynthesisCandidatesOut", "SynthesisJobOut", "SynthesisJobListOut",
     "JobListOut", "HealthOut", "CdrSpanOut", "SequenceSegmentOut",
     "ResidueOut", "ChainSequenceOut", "JobSequencesOut",
     "InterfaceResidueOut", "InterfaceInteractionOut",
@@ -68,12 +66,11 @@ SCHEMA_SHA256 = {
     "JobOut": "fc678d0a32fac2085e78d6db358c6aeb47b83c0a4f317c33391ea7fac96fff24",
     "DockingJobCreate": "b4f201e4d5bac8b1fb788736f443272ce8dedee5f06833e7df14847a9ec80ed1",
     "MaturationJobCreate": "ca047ac81396bcc189926c9d705db03a81e4bcac1906d59040b476e7e725aeb4",
-    "SynthesisCandidateOut": "1c34166e7ae9fcc5cf5f92047a77084722faca498868e1991637a6cf911f79b9",
     "BatchOut": "f6e74f24c646143b8fbb63b9d1ace52f39a46379c2a06c9f9d5ecb7d145b6555",
     "VhhPanelCreate": "a9c863b5ff86fb666fa842f3303b18e553b60d8362423bf0c3f3918adb819d3c",
     "HydroRedesignJobCreate": "8f2e66db12ed312718aed99562c88db24ee111880a099e2bf02413749ff92032",
     "TnpProfileRankedOut": "bb19d128883d4f436703fe5cbec03d91c11a7f7431947df01e1f8e0f2413b609",
-    "JobInterfaceOut": "07b88140393356e55812b87a6bb2a080f65c706b61fbd367e9a8bc366291639d",
+    "JobInterfaceOut": "a9d391f948791eea1c89828dac05bf7fa859a5829b156c90d6a15412a03138c5",
 }
 
 

@@ -9,7 +9,6 @@ import ModuleHome from '@/components/layout/ModuleHome.vue'
     :tips="[
       '使用已有结构或折叠任务时可不填 FASTA',
       '支持 Boltz2 / ESMFold2 预测结构作为输入',
-      '送合成候选请到「合成候选」模块，无需在此提交筛选任务',
     ]"
   />
 </template>

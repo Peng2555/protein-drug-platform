@@ -269,11 +269,6 @@ onUnmounted(() => {
           <el-table-column prop="mutations" label="突变" min-width="120" show-overflow-tooltip />
           <el-table-column prop="antibody_seq_h" label="重链序列" min-width="280" show-overflow-tooltip />
         </el-table>
-        <p class="synthesis-link-hint">
-          送合成候选筛选已独立为
-          <RouterLink to="/synthesis">「合成候选」</RouterLink>
-          模块，可上传本地测序表 + cdr3_all_1to3.csv 直接运行。
-        </p>
       </section>
     </template>
     <div v-else-if="!loading" class="empty-state">未找到任务</div>
@@ -443,9 +438,4 @@ onUnmounted(() => {
   }
 }
 
-.synthesis-link-hint {
-  margin: 1rem 0 0;
-  font-size: 0.85rem;
-  color: var(--el-text-color-secondary);
-}
 </style>

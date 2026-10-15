@@ -175,66 +175,6 @@ export interface MaturationLogsOut {
   sections: MaturationLogSection[]
 }
 
-export interface SynthesisSelectOut {
-  job_id?: string | null
-  parent_cdr3?: string | null
-  parent_v_gene?: string | null
-  cdr3_region?: string | null
-  shm_filtered: number
-  matched_count: number
-  matched_cdr3_kinds: number
-  unmatched_iggm_count: number
-  order_count: number
-  a_count: number
-  b_count: number
-  matched_csv: string
-  unmatched_csv: string
-  order_csv: string
-  order_txt: string
-  out_dir: string
-}
-
-export interface SynthesisCandidate {
-  synthesis_id: string | null
-  priority: string | null
-  recommend: string | null
-  iggm_variant_id: string | null
-  iggm_cdr3: string | null
-  seq_count: number | null
-  shm_row: number | null
-  cdr3_mutation_sites: string | null
-  extra_mutation_sites: string | null
-  all_mutation_sites_for_synthesis: string | null
-  n_total_mutations: number | null
-  synthesis_sequence: string | null
-  nucleotide_sequence: string | null
-  v_gene: string | null
-  j_gene: string | null
-  PI: string | null
-  note: string | null
-  has_extra_shm?: string | null
-  cdr3_mutation_sites_in_shm_row?: string | null
-  extra_mutation_sites_in_shm_row?: string | null
-  aa_sequence?: string | null
-  iggm_frequency?: number | null
-  iggm_cdr3_mutations?: string | null
-  extra: Record<string, unknown>
-}
-
-export interface SynthesisCandidatesOut {
-  items: SynthesisCandidate[]
-  total: number
-  columns: string[]
-  summary: Record<string, unknown> | null
-}
-
-export interface SynthesisJob extends Job {}
-
-export interface SynthesisJobListOut {
-  items: SynthesisJob[]
-  total: number
-}
-
 export interface DevelopabilityJob extends Job {
   fasta_text?: string | null
 }
