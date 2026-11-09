@@ -26,7 +26,9 @@ import {
 import ChainSequencePair from './ChainSequencePair.vue'
 import VersionStructurePanel from './VersionStructurePanel.vue'
 
-const props = defineProps<{ projectId: string }>()
+const props = withDefaults(defineProps<{ projectId: string; visible?: boolean }>(), {
+  visible: true,
+})
 const router = useRouter()
 const candidates = ref<AntibodyCandidate[]>([])
 const versions = ref<AntibodyVersion[]>([])
@@ -204,14 +206,29 @@ function mutationLabel(version: AntibodyVersion) {
   }).join('、')
 }
 
+function isCensoredLow(qualifier: string | null | undefined) {
+  return qualifier === '<' || qualifier === '<='
+}
+
 function compareToParent(
   childKd: number | null,
   childResult: string | null,
   parentKd: number | null,
   parentResult: string | null,
+  childQualifier: string | null = null,
+  parentQualifier: string | null = null,
 ): { text: string; tone: ImpactTone } {
   const childNeg = isNoBind(childKd, childResult)
   const parentNeg = isNoBind(parentKd, parentResult)
+  const childLow = isCensoredLow(childQualifier)
+  const parentLow = isCensoredLow(parentQualifier)
+  if (childLow && parentLow) return { text: '都低于检测限', tone: 'same' }
+  if (parentLow && childKd != null && parentKd != null && childKd > parentKd * 1.15) {
+    return { text: '弱于检测下限', tone: 'worse' }
+  }
+  if (childLow && parentKd != null && childKd != null && childKd < parentKd / 1.15) {
+    return { text: '仍低于检测限', tone: 'better' }
+  }
   if (childKd != null && parentKd != null && childKd > 0 && parentKd > 0) {
     const fold = parentKd / childKd
     if (fold >= 1.15) return { text: `好 ${fold.toFixed(1)}×`, tone: 'better' }
@@ -228,10 +245,67 @@ const candidateExperiments = computed(() => {
   return experiments.value.filter((item) => ids.has(item.version_id) && item.experiment_type === 'affinity')
 })
 
+const physchemColumns = [
+  { key: 'SEC_monomer', label: 'SEC 单体', unit: '%', better: 'higher' as const },
+  { key: 'HIC_RT', label: 'HIC', unit: 'min', better: 'lower' as const },
+  { key: 'Tm1', label: 'Tm1', unit: '°C', better: 'higher' as const },
+  { key: 'Tm2', label: 'Tm2', unit: '°C', better: 'higher' as const },
+  { key: 'Tagg', label: 'Tagg', unit: '°C', better: 'higher' as const },
+  { key: 'pI', label: 'pI', unit: '', better: 'none' as const },
+]
+
+const candidatePhyschem = computed(() => {
+  const ids = new Set(versions.value.map((item) => item.id))
+  return experiments.value.filter((item) => ids.has(item.version_id) && item.experiment_type === 'physicochemical')
+})
+
+function physchemValue(versionId: string, metric: string) {
+  const experiments = candidatePhyschem.value.filter((item) => item.version_id === versionId)
+  for (const experiment of experiments) {
+    const measurement = metricOf(experiment, metric)
+    if (measurement?.value_numeric != null) return measurement.value_numeric
+  }
+  if (metric !== 'Tm1') return null
+  for (const experiment of experiments) {
+    const legacy = metricOf(experiment, 'Tm')
+    if (legacy?.value_numeric != null) return legacy.value_numeric
+  }
+  return null
+}
+
+function measuredPhyschem(row: Record<string, unknown>) {
+  const physchem = row.physchem as Record<string, { text: string; vsParent: string; tone: ImpactTone }> | undefined
+  return physchemColumns.flatMap((column) => {
+    const cell = physchem?.[column.key]
+    if (!cell || cell.text === '未测') return []
+    return [{ key: column.key, label: column.label, ...cell }]
+  })
+}
+
+function formatPhyschem(value: number | null, unit: string) {
+  if (value == null) return '未测'
+  const text = Number.isInteger(value) ? String(value) : value.toPrecision(3).replace(/\.?0+$/, '')
+  return unit ? `${text} ${unit}` : text
+}
+
+function comparePhyschem(
+  child: number | null,
+  parent: number | null,
+  better: 'higher' | 'lower' | 'none',
+): { text: string; tone: ImpactTone } {
+  if (better === 'none' || child == null || parent == null) return { text: '–', tone: 'na' }
+  const scale = Math.max(Math.abs(parent), 1e-9)
+  if (Math.abs(child - parent) / scale < 0.02) return { text: '接近父本', tone: 'same' }
+  const improved = better === 'higher' ? child > parent : child < parent
+  return { text: improved ? '好于父本' : '差于父本', tone: improved ? 'better' : 'worse' }
+}
+
 const impactAntigens = computed(() => {
   const names = new Set(candidateExperiments.value.map(experimentAntigen))
   return [...names].sort((a, b) => a.localeCompare(b, 'zh-CN'))
 })
+
+const impactTableKey = computed(() => impactAntigens.value.join('|'))
 
 function hitsForVersion(versionId: string) {
   const byAntigen = new Map<string, { kd: number | null; result: string | null; qualifier: string | null }>()
@@ -261,7 +335,14 @@ const impactRows = computed(() => {
       const child = childHits.get(antigen)
       const parentHit = parentHits.get(antigen)
       const vs = version.primary_parent_id
-        ? compareToParent(child?.kd ?? null, child?.result ?? null, parentHit?.kd ?? null, parentHit?.result ?? null)
+        ? compareToParent(
+            child?.kd ?? null,
+            child?.result ?? null,
+            parentHit?.kd ?? null,
+            parentHit?.result ?? null,
+            child?.qualifier ?? null,
+            parentHit?.qualifier ?? null,
+          )
         : { text: '基准', tone: 'na' as ImpactTone }
       byAntigen[antigen] = {
         kd: child?.kd ?? null,
@@ -271,12 +352,91 @@ const impactRows = computed(() => {
         tone: vs.tone,
       }
     }
+    const physchem: Record<string, { text: string; vsParent: string; tone: ImpactTone }> = {}
+    for (const column of physchemColumns) {
+      const child = physchemValue(version.id, column.key)
+      const parentValue = parent ? physchemValue(parent.id, column.key) : null
+      const vs = version.primary_parent_id
+        ? comparePhyschem(child, parentValue, column.better)
+        : { text: '基准', tone: 'na' as ImpactTone }
+      physchem[column.key] = {
+        text: formatPhyschem(child, column.unit),
+        vsParent: child == null ? '–' : vs.text,
+        tone: child == null ? 'na' : vs.tone,
+      }
+    }
     return {
       id: version.id,
       version_code: version.version_code,
       name: version.name,
+      parentCode: parent?.version_code || '',
       mutations: mutationLabel(version),
       byAntigen,
+      physchem,
+    }
+  }).sort((a, b) => {
+    if (!a.parentCode && b.parentCode) return -1
+    if (a.parentCode && !b.parentCode) return 1
+    return a.version_code.localeCompare(b.version_code, 'zh-CN', { numeric: true })
+  })
+})
+
+const patternNotes = computed(() => {
+  const notes: string[] = []
+  const variants = impactRows.value.filter((row) => row.parentCode)
+  if (!variants.length) return notes
+  for (const antigen of impactAntigens.value) {
+    const judged = variants.filter((row) => ['better', 'worse', 'same'].includes(row.byAntigen[antigen]?.tone || ''))
+    if (!judged.length) continue
+    const better = judged.filter((row) => row.byAntigen[antigen].tone === 'better')
+    const worse = judged.filter((row) => row.byAntigen[antigen].tone === 'worse')
+    const same = judged.length - better.length - worse.length
+    const worseText = worse.slice(0, 4).map((row) => `${row.version_code} ${row.mutations}`).join('；')
+    notes.push(
+      `${antigen}：${judged.length} 个改造里，${better.length} 个好于或仍低于检测限，${same} 个接近，${worse.length} 个变弱。`
+      + (worseText ? `变弱的有 ${worseText}${worse.length > 4 ? ' 等' : ''}。` : ''),
+    )
+  }
+  const hicRows = variants
+    .map((row) => ({ row, value: physchemValue(row.id, 'HIC_RT') }))
+    .filter((item): item is { row: typeof variants[number]; value: number } => item.value != null)
+  if (hicRows.length >= 2) {
+    const values = hicRows.map((item) => item.value)
+    const low = Math.min(...values)
+    const high = Math.max(...values)
+    const antigen = impactAntigens.value[0]
+    const highCut = low + (high - low) * 0.5
+    const hydrophobic = antigen
+      ? hicRows.filter((item) => item.value >= highCut && item.row.byAntigen[antigen]?.tone === 'worse')
+      : []
+    notes.push(
+      `HIC 已测 ${hicRows.length} 条，${low.toPrecision(3)}–${high.toPrecision(3)} min。`
+      + (hydrophobic.length
+        ? `保留时间偏高、同时亲和力变弱的有 ${hydrophobic.map((item) => item.row.version_code).join('、')}。`
+        : '保留时间高低和亲和力变弱没有挤在同一批版本上。'),
+    )
+  }
+  return notes
+})
+
+const activePhyschem = computed(() =>
+  candidatePhyschem.value.find((item) => item.version_id === activeVersionId.value) || null,
+)
+
+const activePhyschemRows = computed(() => {
+  const version = versions.value.find((item) => item.id === activeVersionId.value)
+  const parent = versions.value.find((item) => item.id === version?.primary_parent_id)
+  return physchemColumns.map((column) => {
+    const child = version ? physchemValue(version.id, column.key) : null
+    const parentValue = parent ? physchemValue(parent.id, column.key) : null
+    const vs = version?.primary_parent_id
+      ? comparePhyschem(child, parentValue, column.better)
+      : { text: '基准', tone: 'na' as ImpactTone }
+    return {
+      label: column.label,
+      text: formatPhyschem(child, column.unit),
+      vsParent: child == null ? '–' : vs.text,
+      tone: child == null ? 'na' : vs.tone,
     }
   })
 })
@@ -713,7 +873,19 @@ async function doLockDrafts(roundCode?: string, count = allDraftCount.value) {
   }
 }
 
+async function reloadExperiments() {
+  if (!activeCandidateId.value) return
+  try {
+    experiments.value = await fetchExperiments(props.projectId)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '亲和力数据刷新失败')
+  }
+}
+
 watch(activeCandidateId, loadVersions)
+watch(() => props.visible, (visible, wasVisible) => {
+  if (visible && wasVisible === false) void reloadExperiments()
+})
 onMounted(loadCandidates)
 </script>
 
@@ -819,15 +991,59 @@ onMounted(loadCandidates)
         </div>
       </section>
 
+      <section v-if="activeVersion" class="page-card structure-card">
+        <div class="section-head">
+          <div>
+            <h2 class="version-title">
+              {{ activeVersion.version_code }}
+              <template v-if="activeVersion.name"> · {{ activeVersion.name }}</template>
+            </h2>
+            <p>
+              父本 {{ parentVersion?.version_code || (activeVersion.primary_parent_id ? '未加载' : '无（本版为母本）') }}
+              · 指纹 {{ activeVersion.sequence_hash.slice(0, 12) }}…
+            </p>
+          </div>
+          <div class="candidate-actions">
+            <el-button type="primary" plain :loading="folding" @click="submitFold([activeVersion.id])">
+              折叠此版本
+            </el-button>
+            <el-button
+              v-if="activeVersion.status === 'draft' && activeVersion.version_code.toUpperCase() !== 'WT'"
+              type="danger"
+              plain
+              @click="doDelete"
+            >
+              删除序列
+            </el-button>
+            <el-button v-if="activeVersion.status === 'draft'" type="warning" plain @click="doLock">
+              锁定版本
+            </el-button>
+          </div>
+        </div>
+        <VersionStructurePanel
+          v-if="activeFoldJobId"
+          :key="activeFoldJobId"
+          :version="activeVersion"
+          :parent-version="parentVersion"
+          :job-id="activeFoldJobId"
+          :parent-job-id="parentFoldJobId || null"
+        />
+        <p v-else class="empty-note">还没有抗体自身折叠。点「折叠此版本」或左侧「折叠本候选结构」，完成后会在这里看突变。</p>
+      </section>
+
       <section class="page-card impact-card">
         <div class="section-head">
           <div>
-            <h2>改造对亲和力的影响</h2>
-            <p>一行一个版本。KD 低于父本视为更好（绿色），升高或变为无结合视为更差（红色）。点击行可查看该版本序列。</p>
+            <h2>亲和力与理化</h2>
+            <p>按版本号排在一起，每行对着父本看突变、KD 和已经测到的理化。父本低于检测限时，不再把倍数放大。</p>
           </div>
         </div>
+        <ul v-if="patternNotes.length" class="pattern-notes">
+          <li v-for="note in patternNotes" :key="note">{{ note }}</li>
+        </ul>
         <div v-if="impactRows.length" class="table-wrap">
           <el-table
+            :key="impactTableKey"
             :data="impactRows"
             size="small"
             highlight-current-row
@@ -836,9 +1052,10 @@ onMounted(loadCandidates)
             style="width: 100%"
             @row-click="selectImpactRow"
           >
-            <el-table-column prop="version_code" label="版本" min-width="90" fixed />
-            <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="mutations" label="相对父本突变" min-width="220" show-overflow-tooltip />
+            <el-table-column prop="version_code" label="版本" width="88" fixed />
+            <el-table-column prop="parentCode" label="父本" width="72" />
+            <el-table-column prop="name" label="名称" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="mutations" label="相对父本突变" min-width="120" show-overflow-tooltip />
             <el-table-column
               v-for="antigen in impactAntigens"
               :key="antigen"
@@ -854,6 +1071,18 @@ onMounted(loadCandidates)
                 </div>
               </template>
             </el-table-column>
+            <el-table-column label="已测理化" min-width="180">
+              <template #default="{ row }">
+                <div v-if="measuredPhyschem(row).length" class="physchem-grid">
+                  <div v-for="item in measuredPhyschem(row)" :key="item.key" class="physchem-item">
+                    <span>{{ item.label }}</span>
+                    <strong>{{ item.text }}</strong>
+                    <small :class="`impact-${item.tone}`">{{ item.vsParent }}</small>
+                  </div>
+                </div>
+                <span v-else class="impact-na">未测</span>
+              </template>
+            </el-table-column>
           </el-table>
         </div>
         <p v-else class="empty-note">当前候选还没有版本</p>
@@ -863,45 +1092,6 @@ onMounted(loadCandidates)
       </section>
 
       <section v-if="activeVersion" class="page-card version-detail">
-        <div class="section-head">
-          <div>
-            <h2 class="version-title">
-              {{ activeVersion.version_code }}
-              <template v-if="activeVersion.name"> · {{ activeVersion.name }}</template>
-            </h2>
-            <p>
-              父本 {{ parentVersion?.version_code || (activeVersion.primary_parent_id ? '未加载' : '无（本版为母本）') }}
-              · 指纹 {{ activeVersion.sequence_hash.slice(0, 12) }}…
-            </p>
-          </div>
-          <div class="candidate-actions">
-          <el-button
-            type="primary"
-            plain
-            :loading="folding"
-            @click="submitFold([activeVersion.id])"
-          >
-            折叠此版本
-          </el-button>
-          <el-button
-            v-if="activeVersion.status === 'draft' && activeVersion.version_code.toUpperCase() !== 'WT'"
-            type="danger"
-            plain
-            @click="doDelete"
-          >
-            删除序列
-          </el-button>
-          <el-button
-            v-if="activeVersion.status === 'draft'"
-            type="warning"
-            plain
-            @click="doLock"
-          >
-            锁定版本
-          </el-button>
-          </div>
-        </div>
-
         <div class="chain-grid">
           <ChainSequencePair
             v-for="chain in activeVersion.chains"
@@ -944,16 +1134,19 @@ onMounted(loadCandidates)
         </div>
         <p v-else class="empty-note">这个版本还没有亲和力实验。请到「样品与实验」导入。</p>
 
-        <h3 class="mutation-title">抗体自身结构</h3>
-        <VersionStructurePanel
-          v-if="activeFoldJobId"
-          :key="activeFoldJobId"
-          :version="activeVersion"
-          :parent-version="parentVersion"
-          :job-id="activeFoldJobId"
-          :parent-job-id="parentFoldJobId || null"
-        />
-        <p v-else class="empty-note">还没有抗体自身折叠。点上方「折叠此版本」或「折叠本候选结构」，完成后会在这里看突变。</p>
+        <h3 class="mutation-title">该版本的理化</h3>
+        <div v-if="activePhyschem" class="table-wrap">
+          <el-table :data="activePhyschemRows" size="small" style="width: 100%">
+            <el-table-column prop="label" label="指标" min-width="120" />
+            <el-table-column prop="text" label="结果" min-width="140" />
+            <el-table-column label="相对父本" min-width="120">
+              <template #default="{ row }">
+                <span :class="`impact-${row.tone}`">{{ row.vsParent }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+        <p v-else class="empty-note">这个版本还没有理化结果。请到「样品与实验」导入理化表格。</p>
       </section>
       </div>
     </template>
@@ -1111,15 +1304,23 @@ onMounted(loadCandidates)
 }
 .lineage-card {
   grid-column: 1;
-  grid-row: 1 / span 2;
-  position: sticky;
-  top: 12px;
+  grid-row: 1;
+  align-self: start;
   max-height: calc(100vh - 150px);
   overflow: auto;
   border-radius: 16px;
 }
-.version-detail { grid-column: 2; grid-row: 1; border-radius: 16px; }
-.impact-card { grid-column: 2; grid-row: 2; border-radius: 16px; }
+.structure-card {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  border-radius: 16px;
+}
+.version-detail,
+.impact-card {
+  grid-column: 1 / -1;
+  border-radius: 16px;
+}
 .candidate-picker {
   flex: 1 1 280px;
   min-width: 0;
@@ -1134,7 +1335,7 @@ onMounted(loadCandidates)
   justify-content: flex-end;
   gap: 0.55rem;
 }
-.lineage-card, .version-detail, .impact-card { padding: 1rem; min-width: 0; }
+.lineage-card, .structure-card, .version-detail, .impact-card { padding: 1rem; min-width: 0; }
 .lineage-card {
   .section-head,
   .candidate-actions {
@@ -1144,10 +1345,34 @@ onMounted(loadCandidates)
   .candidate-actions { justify-content: flex-start; }
   .el-button { margin: 0; }
 }
+.pattern-notes {
+  margin: 0 0 0.8rem;
+  padding-left: 1.1rem;
+  color: var(--body);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.physchem-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.28rem 0.7rem;
+}
+.physchem-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.35rem;
+  align-items: baseline;
+  line-height: 1.25;
+  span { color: var(--muted); font-size: 0.72rem; }
+  strong { font-size: 0.78rem; }
+  small { grid-column: 2; font-size: 0.68rem; }
+}
 .impact-cell {
   display: grid;
-  gap: 0.15rem;
-  line-height: 1.3;
+  gap: 0.12rem;
+  line-height: 1.25;
+  strong { font-size: 0.82rem; }
+  small { font-size: 0.72rem; }
 }
 .impact-better { color: #157a3a; font-weight: 700; }
 .impact-worse { color: #c0392b; font-weight: 700; }
@@ -1214,6 +1439,7 @@ onMounted(loadCandidates)
 @media (max-width: 960px) {
   .studio { grid-template-columns: minmax(0, 1fr); }
   .lineage-card,
+  .structure-card,
   .version-detail,
   .impact-card {
     grid-column: 1;

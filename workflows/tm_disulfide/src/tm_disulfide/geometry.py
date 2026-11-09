@@ -28,6 +28,7 @@ from tm_disulfide.constants import (
     SS_DISTANCE_TARGET,
     THREE_TO_ONE,
 )
+from tm_disulfide.numbering import format_pair_id
 from tm_disulfide.pairs import run_pair_screen
 from tm_disulfide.qc import _pick_atom
 
@@ -314,6 +315,7 @@ def evaluate_pair_on_structures(
         summary["site1"].update({k: pair_meta["site1"].get(k) for k in ("amino_acid", "kabat_number")})
         summary["site2"].update({k: pair_meta["site2"].get(k) for k in ("amino_acid", "kabat_number")})
         summary["sequence_separation"] = pair_meta.get("sequence_separation")
+    summary["pair_id"] = format_pair_id(summary["site1"], summary["site2"])
     return summary
 
 

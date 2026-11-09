@@ -3,11 +3,14 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteBatch, downloadBatchStructures, exportBatchCsv } from '@/api/batches'
+import { useAuthStore } from '@/stores/auth'
 import { useBatchDetailStore, useFoldTasksStore } from '@/stores/foldTasks'
 import { BATCH_JOBS_PAGE_SIZE, batchStatusLabel, statusLabel } from '@/utils/constants'
+import { canManageFoldTask } from '@/utils/foldAccess'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const batchStore = useBatchDetailStore()
 const foldStore = useFoldTasksStore()
 
@@ -57,10 +60,19 @@ async function onDelete() {
   }
 }
 
-function onExport() {
+const exportingCsv = ref(false)
+
+async function onExport() {
   const b = batchStore.batch
-  if (!b) return
-  void exportBatchCsv(b.id, b.name)
+  if (!b || exportingCsv.value) return
+  exportingCsv.value = true
+  try {
+    await exportBatchCsv(b.id, b.name)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败')
+  } finally {
+    exportingCsv.value = false
+  }
 }
 
 const downloadingZip = ref(false)
@@ -123,6 +135,9 @@ onUnmounted(() => {
               aa）· 重链链 ID {{ batchStore.batch.heavy_chain_id }} · 提交于
             </template>
             {{ new Date(batchStore.batch.created_at).toLocaleString('zh-CN') }}
+            <template v-if="auth.user?.is_admin && batchStore.batch.owner_username">
+              · 提交人 {{ batchStore.batch.owner_username }}
+            </template>
           </p>
         </div>
         <div class="detail-actions">
@@ -132,7 +147,7 @@ onUnmounted(() => {
           >
             {{ batchStatusLabel(batchStore.batch.status) }}
           </el-tag>
-          <el-button size="small" @click="onExport">导出 CSV</el-button>
+          <el-button size="small" :loading="exportingCsv" @click="onExport">导出 CSV</el-button>
           <el-button
             size="small"
             type="primary"
@@ -143,7 +158,15 @@ onUnmounted(() => {
           >
             下载全部构象 ZIP
           </el-button>
-          <el-button size="small" type="danger" plain @click="onDelete">删除批次</el-button>
+          <el-button
+            v-if="canManageFoldTask(auth.user, batchStore.batch.owner_username)"
+            size="small"
+            type="danger"
+            plain
+            @click="onDelete"
+          >
+            删除批次
+          </el-button>
         </div>
       </div>
 

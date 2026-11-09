@@ -142,6 +142,23 @@ def test_evaluate_pair_requires_four_of_five_models(tmp_path: Path):
     assert none["pair_geometry_pass"] is False
 
 
+def test_result_pair_id_uses_kabat_not_sequence_index():
+    report = evaluate_pair_on_structures(
+        [],
+        ("H", 51),
+        ("H", 110),
+        pair_meta={
+            "site1": {"amino_acid": "A", "kabat_number": "52"},
+            "site2": {"amino_acid": "S", "kabat_number": "100C"},
+            "sequence_separation": 59,
+        },
+    )
+    assert report["pair_id"] == "H:52-H:100C"
+    assert report["site1"]["sequence_index"] == 51
+    assert report["site2"]["sequence_index"] == 110
+    assert report["site2"]["kabat_number"] == "100C"
+
+
 def test_native_cd38_disulfide_is_recoverable():
     job = Path("/home/pengpai/data/Company_Project/Boltz2/run/outputs/CD38__34a370b0")
     pred = job / "output" / "boltz_results_input" / "predictions" / "input"

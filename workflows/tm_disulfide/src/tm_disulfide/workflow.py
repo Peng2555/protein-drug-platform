@@ -12,6 +12,7 @@ from tm_disulfide.constants import MINIMUM_MODELS_PASSED
 from tm_disulfide.energy import run_energy_compare
 from tm_disulfide.ensemble import run_ensemble_alignment
 from tm_disulfide.geometry import run_geometry_search
+from tm_disulfide.numbering import format_site_id
 from tm_disulfide.pairs import run_pair_screen
 from tm_disulfide.qc import discover_boltz_models, run_structure_qc
 from tm_disulfide.sites import run_site_mask
@@ -37,11 +38,7 @@ def _resolve_structure_paths(structure_paths: Iterable[Path] | Path) -> list[Pat
 
 
 def _site_label(site: dict[str, Any] | None) -> str:
-    if not site:
-        return ""
-    chain = site.get("structure_chain") or site.get("chain") or ""
-    index = site.get("sequence_index") or site.get("resi") or ""
-    return f"{chain}:{index}"
+    return format_site_id(site)
 
 
 def _write_status(

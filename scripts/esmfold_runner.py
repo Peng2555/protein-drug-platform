@@ -23,6 +23,10 @@ from boltz_runner import FoldResult, job_id_from_seqs, parse_fasta_text, write_f
 ESMFOLD_PY = Path(os.environ.get("ESMFOLD_PY", "/home/pengpai/data/envs/esmfold2/bin/python"))
 DEFAULT_OUT_ROOT = Path(os.environ.get("BOLTZ2_OUT_ROOT", str(ROOT / "outputs")))
 MODEL_NAME = os.environ.get("ESMFOLD_MODEL", "biohub/ESMFold2")
+# biohub/ESMFold2 main moved on 2026-10-28 to a transformers 5.16 export whose
+# nested configs include `architectures`. This env is transformers 4.57.6 and
+# only loads the earlier snapshot already cached with config + weights.
+MODEL_REVISION = os.environ.get("ESMFOLD_REVISION", "8fc3ff471022fdce52c77030685eb775de0c00a3")
 DEFAULT_OPTS = {
     "num_loops": int(os.environ.get("ESMFOLD_NUM_LOOPS", "10")),
     "num_sampling_steps": int(os.environ.get("ESMFOLD_NUM_SAMPLING_STEPS", "68")),
@@ -98,7 +102,10 @@ def _load_esmfold():
 
     device = _device()
     t0 = time.time()
-    model = ESMFold2Model.from_pretrained(MODEL_NAME).to(device).eval()
+    load_kwargs: dict[str, Any] = {}
+    if MODEL_REVISION and not Path(MODEL_NAME).expanduser().exists():
+        load_kwargs["revision"] = MODEL_REVISION
+    model = ESMFold2Model.from_pretrained(MODEL_NAME, **load_kwargs).to(device).eval()
     model.set_kernel_backend("fused")
     _MODEL = model
     _BUILDER = ESMFold2InputBuilder()

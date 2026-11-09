@@ -50,7 +50,9 @@ from app.modules.antibody_projects.service import (
     import_versions_from_fasta,
     import_versions_from_xlsx,
     import_affinity_xlsx,
+    import_physchem_xlsx,
     preview_affinity_xlsx,
+    preview_physchem_xlsx,
     delete_draft_version,
     lock_draft_versions,
     lock_version,
@@ -64,6 +66,8 @@ from app.modules.antibody_projects.storage import project_storage_dir, sha256_fi
 from app.schemas.antibody_project import (
     AffinityImportRequest,
     AffinityPreviewOut,
+    PhyschemImportRequest,
+    PhyschemPreviewOut,
     ArtifactOut,
     AuditEventOut,
     CandidateCreate,
@@ -714,6 +718,41 @@ def import_affinity_xlsx_api(
     project = project_access(db, project_id, user, ProjectRole.editor.value)
     candidate = get_candidate(db, project_id, candidate_id)
     experiments = import_affinity_xlsx(db, project, candidate, body, user)
+    db.commit()
+    return [_experiment_out(db, item) for item in experiments]
+
+
+@router.post(
+    "/{project_id}/candidates/{candidate_id}/experiments/preview-physchem-xlsx",
+    response_model=PhyschemPreviewOut,
+)
+def preview_physchem_xlsx_api(
+    project_id: str,
+    candidate_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    project = project_access(db, project_id, user, ProjectRole.editor.value)
+    candidate = get_candidate(db, project_id, candidate_id)
+    return preview_physchem_xlsx(db, project, candidate, file.file.read(), file.filename)
+
+
+@router.post(
+    "/{project_id}/candidates/{candidate_id}/experiments/import-physchem-xlsx",
+    response_model=list[ExperimentOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def import_physchem_xlsx_api(
+    project_id: str,
+    candidate_id: str,
+    body: PhyschemImportRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    project = project_access(db, project_id, user, ProjectRole.editor.value)
+    candidate = get_candidate(db, project_id, candidate_id)
+    experiments = import_physchem_xlsx(db, project, candidate, body, user)
     db.commit()
     return [_experiment_out(db, item) for item in experiments]
 

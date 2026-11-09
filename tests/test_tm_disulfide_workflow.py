@@ -40,16 +40,16 @@ def test_run_workflow_writes_ranked_csv(tmp_path: Path, monkeypatch: pytest.Monk
         "n_passed": 2,
         "pairs": [
             {
-                "pair_id": "H:6-H:20",
+                "pair_id": "H:52-H:100C",
                 "pair_geometry_pass": True,
-                "site1": {"structure_chain": "H", "sequence_index": 6},
-                "site2": {"structure_chain": "H", "sequence_index": 20},
+                "site1": {"structure_chain": "H", "sequence_index": 51, "kabat_number": "52"},
+                "site2": {"structure_chain": "H", "sequence_index": 110, "kabat_number": "100C"},
             },
             {
-                "pair_id": "H:3-H:18",
+                "pair_id": "H:31-H:95",
                 "pair_geometry_pass": True,
-                "site1": {"structure_chain": "H", "sequence_index": 3},
-                "site2": {"structure_chain": "H", "sequence_index": 18},
+                "site1": {"structure_chain": "H", "sequence_index": 30, "kabat_number": "31"},
+                "site2": {"structure_chain": "H", "sequence_index": 97, "kabat_number": "95"},
             },
         ],
     }
@@ -59,8 +59,8 @@ def test_run_workflow_writes_ranked_csv(tmp_path: Path, monkeypatch: pytest.Monk
         lambda *_a, **_k: {
             "n_pair_pass": 2,
             "pairs": [
-                {"pair_id": "H:6-H:20", "pair_build_pass": True, "n_models_passed": 4},
-                {"pair_id": "H:3-H:18", "pair_build_pass": True, "n_models_passed": 4},
+                {"pair_id": "H:52-H:100C", "pair_build_pass": True, "n_models_passed": 4},
+                {"pair_id": "H:31-H:95", "pair_build_pass": True, "n_models_passed": 4},
             ],
         },
     )
@@ -69,8 +69,8 @@ def test_run_workflow_writes_ranked_csv(tmp_path: Path, monkeypatch: pytest.Monk
         lambda *_a, **_k: {
             "n_pair_pass": 1,
             "pairs": [
-                {"pair_id": "H:6-H:20", "pair_energy_pass": True, "n_models_passed": 4, "median_ddg": 4.2},
-                {"pair_id": "H:3-H:18", "pair_energy_pass": False, "n_models_passed": 2, "median_ddg": -1.0},
+                {"pair_id": "H:52-H:100C", "pair_energy_pass": True, "n_models_passed": 4, "median_ddg": 4.2},
+                {"pair_id": "H:31-H:95", "pair_energy_pass": False, "n_models_passed": 2, "median_ddg": -1.0},
             ],
         },
     )
@@ -81,11 +81,14 @@ def test_run_workflow_writes_ranked_csv(tmp_path: Path, monkeypatch: pytest.Monk
 
     assert stages == ["qc", "ensemble", "sites", "pairs", "geometry", "build", "energy", "done"]
     assert result["n_energy_pass"] == 1
-    assert result["candidates"][0]["pair_id"] == "H:6-H:20"
+    assert result["candidates"][0]["pair_id"] == "H:52-H:100C"
+    assert result["candidates"][0]["site1"] == "H:52"
+    assert result["candidates"][0]["site2"] == "H:100C"
     assert result["candidates"][0]["energy_pass"] is True
     assert result["candidates"][0]["rank"] == 1
     csv_text = (work / "exports" / "candidates.csv").read_text(encoding="utf-8")
-    assert "H:6-H:20" in csv_text
+    assert "H:52-H:100C" in csv_text
+    assert "H:100C" in csv_text
     summary = (work / "exports" / "summary.json").read_text(encoding="utf-8")
     assert str(MINIMUM_MODELS_PASSED) in summary
     assert (work / "input" / "source_models.json").is_file()

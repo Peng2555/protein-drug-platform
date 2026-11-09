@@ -117,7 +117,7 @@ def fold_sequences(
         else:
             if not seqs:
                 raise ValueError("No sequences or YAML provided for Boltz2")
-            write_boltz_yaml(seqs, yaml_out)
+            write_boltz_yaml(seqs, yaml_out, single_sequence=not use_msa_server)
 
         predict_kwargs = {
             "use_msa_server": use_msa_server,

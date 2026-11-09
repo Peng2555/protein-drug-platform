@@ -66,6 +66,20 @@ def format_kabat_number(pos: int, ins: str | None) -> str:
     return f"{pos}{insertion}" if insertion else str(pos)
 
 
+def format_site_id(site: dict[str, Any] | None) -> str:
+    """结果里显示的位点：优先 Kabat，没有编号时退回序列序号。"""
+    if not site:
+        return ""
+    chain = str(site.get("structure_chain") or site.get("chain") or "")
+    kabat = str(site.get("kabat_number") or "").strip()
+    number = kabat or str(site.get("sequence_index") or site.get("resi") or "")
+    return f"{chain}:{number}" if chain else number
+
+
+def format_pair_id(site1: dict[str, Any] | None, site2: dict[str, Any] | None) -> str:
+    return f"{format_site_id(site1)}-{format_site_id(site2)}"
+
+
 def _anarci_inprocess(sequence: str) -> dict[str, Any] | None:
     from anarci import anarci
 

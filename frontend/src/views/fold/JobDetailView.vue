@@ -9,7 +9,9 @@ import FoldHeader from '@/components/fold/FoldHeader.vue'
 import QualityMetricCards from '@/components/fold/QualityMetricCards.vue'
 import InterfacePanel from '@/components/structure/InterfacePanel.vue'
 import { useSelectionStore } from '@/composables/useSelection'
+import { useAuthStore } from '@/stores/auth'
 import { useFoldTasksStore } from '@/stores/foldTasks'
+import { canManageFoldTask } from '@/utils/foldAccess'
 import type { Job, ChainSequence } from '@/api/types'
 import type { InterfaceChainMeta, InterfaceInteraction, JobInterfaceData } from '@/types/structure'
 import { metricLevel, type FoldComplexInfo, type FoldScoreCard } from '@/types/foldWorkbench'
@@ -17,6 +19,7 @@ import { engineLabel, formatEsmfoldParams, statusLabel } from '@/utils/constants
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const foldStore = useFoldTasksStore()
 const selectionStore = useSelectionStore()
 
@@ -75,6 +78,7 @@ const metaTags = computed(() => {
   const j = job.value
   if (!j) return []
   const tags: string[] = [`模型: ${engineLabel(j.engine)}`]
+  if (auth.user?.is_admin && j.owner_username) tags.push(`提交人: ${j.owner_username}`)
   if (j.total_length) tags.push(`总长: ${j.total_length} aa`)
   const chains = Object.entries(j.chains_json || {})
   if (chains.length) tags.push(`链: ${chains.map(([k, v]) => `${k}(${v})`).join(' · ')}`)
@@ -380,6 +384,7 @@ onUnmounted(() => {
         :show-design="job.status === 'done' && (job.engine === 'boltz2' || job.engine === 'esmfold2')"
         :show-rosetta="job.status === 'done' && (job.engine === 'boltz2' || job.engine === 'esmfold2')"
         :show-export="job.status === 'done'"
+        :show-delete="canManageFoldTask(auth.user, job.owner_username)"
         :export-label="foldSamples.length > 1 ? '导出全部构象 ZIP' : '导出结构'"
         @back="goBack"
         @start-md="startMd"

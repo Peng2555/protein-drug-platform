@@ -83,12 +83,14 @@ def validate_boltz_chain_ids(seqs: dict[str, str]) -> None:
         )
 
 
-def write_boltz_yaml(seqs: dict[str, str], path: Path) -> None:
+def write_boltz_yaml(seqs: dict[str, str], path: Path, *, single_sequence: bool = False) -> None:
     lines = ["version: 1", "sequences:"]
     for chain_id, seq in seqs.items():
         lines.append("  - protein:")
         lines.append(f"      id: {chain_id}")
         lines.append(f"      sequence: {seq}")
+        if single_sequence:
+            lines.append("      msa: empty")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

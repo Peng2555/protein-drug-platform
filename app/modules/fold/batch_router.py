@@ -45,6 +45,12 @@ from app.common.antibody_only import (
     prepare_antibody_only_jobs,
 )
 from app.common.batch_common import batch_out
+from app.modules.fold.access import (
+    FOLD_BATCH_TYPES,
+    owned_fold_batch,
+    readable_fold_batch,
+    usernames_for,
+)
 from app.modules.fold.samples import list_fold_samples
 from app.common.vhh_panel import HeavyChainSpec, prepare_panel_jobs
 
@@ -300,32 +306,36 @@ def list_batches(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    fold_types = ("vhh_panel", "antibody_only")
+    scope = [Batch.batch_type.in_(FOLD_BATCH_TYPES)]
+    if not user.is_admin:
+        scope.append(Batch.user_id == user.id)
     total = (
         db.scalar(
             select(func.count())
             .select_from(Batch)
-            .where(Batch.user_id == user.id, Batch.batch_type.in_(fold_types))
+            .where(*scope)
         )
         or 0
     )
     rows = db.scalars(
         select(Batch)
-        .where(Batch.user_id == user.id, Batch.batch_type.in_(fold_types))
+        .where(*scope)
         .order_by(Batch.created_at.desc())
         .limit(limit)
         .offset(offset)
     ).all()
-    return BatchListOut(items=[batch_out(b, db) for b in rows], total=total)
+    names = usernames_for(db, {item.user_id for item in rows})
+    return BatchListOut(
+        items=[batch_out(item, db, owner_username=names.get(item.user_id)) for item in rows],
+        total=total,
+    )
 
 
 @router.get("/{batch_id}", response_model=BatchDetailOut)
 def get_batch(batch_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    batch = db.get(Batch, batch_id)
-    if not batch or batch.user_id != user.id:
-        raise HTTPException(404, "Batch not found")
-
-    base = batch_out(batch, db)
+    batch = readable_fold_batch(user, db.get(Batch, batch_id))
+    owner = usernames_for(db, {batch.user_id}).get(batch.user_id)
+    base = batch_out(batch, db, owner_username=owner)
     return BatchDetailOut(
         **base.model_dump(),
         target_sequence=batch.target_sequence,
@@ -347,9 +357,7 @@ def download_batch_structures(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    batch = db.get(Batch, batch_id)
-    if not batch or batch.user_id != user.id:
-        raise HTTPException(404, "Batch not found")
+    batch = readable_fold_batch(user, db.get(Batch, batch_id))
 
     jobs = db.scalars(
         select(Job)
@@ -389,9 +397,8 @@ def list_batch_jobs(
     offset: int = Query(0, ge=0),
     status: str | None = Query(default=None, description="Filter: done, running, queued, failed"),
 ):
-    batch = db.get(Batch, batch_id)
-    if not batch or batch.user_id != user.id:
-        raise HTTPException(404, "Batch not found")
+    batch = readable_fold_batch(user, db.get(Batch, batch_id))
+    owner = usernames_for(db, {batch.user_id}).get(batch.user_id)
 
     q = select(Job).where(Job.batch_id == batch_id)
     count_q = select(func.count()).select_from(Job).where(Job.batch_id == batch_id)
@@ -403,8 +410,13 @@ def list_batch_jobs(
     jobs = db.scalars(
         q.order_by(Job.iptm.desc().nullslast(), Job.created_at).limit(limit).offset(offset)
     ).all()
+    items = []
+    for item in jobs:
+        out = _batch_job_out(item)
+        out.owner_username = owner
+        items.append(out)
     return BatchJobsListOut(
-        items=[_batch_job_out(j) for j in jobs],
+        items=items,
         total=total,
         limit=limit,
         offset=offset,
@@ -413,9 +425,7 @@ def list_batch_jobs(
 
 @router.delete("/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_batch(batch_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    batch = db.get(Batch, batch_id)
-    if not batch or batch.user_id != user.id:
-        raise HTTPException(404, "Batch not found")
+    batch = owned_fold_batch(user, db.get(Batch, batch_id))
 
     jobs = db.scalars(select(Job).where(Job.batch_id == batch_id)).all()
     from app.core.celery import celery_app

@@ -20,6 +20,7 @@ from tm_disulfide.constants import (
     MINIMUM_SEQUENCE_SEPARATION,
     THREE_TO_ONE,
 )
+from tm_disulfide.numbering import format_pair_id
 from tm_disulfide.qc import _pick_atom
 from tm_disulfide.sites import run_site_mask
 
@@ -218,21 +219,23 @@ def screen_pairs(
             reasons.append("cb_max")
         if reasons:
             continue
+        site1 = {
+            "structure_chain": left["structure_chain"],
+            "sequence_index": left["sequence_index"],
+            "amino_acid": left.get("amino_acid"),
+            "kabat_number": left.get("kabat_number"),
+        }
+        site2 = {
+            "structure_chain": right["structure_chain"],
+            "sequence_index": right["sequence_index"],
+            "amino_acid": right.get("amino_acid"),
+            "kabat_number": right.get("kabat_number"),
+        }
         passed.append(
             {
-                "pair_id": f"{key_i[0]}:{key_i[1]}-{key_j[0]}:{key_j[1]}",
-                "site1": {
-                    "structure_chain": left["structure_chain"],
-                    "sequence_index": left["sequence_index"],
-                    "amino_acid": left.get("amino_acid"),
-                    "kabat_number": left.get("kabat_number"),
-                },
-                "site2": {
-                    "structure_chain": right["structure_chain"],
-                    "sequence_index": right["sequence_index"],
-                    "amino_acid": right.get("amino_acid"),
-                    "kabat_number": right.get("kabat_number"),
-                },
+                "pair_id": format_pair_id(site1, site2),
+                "site1": site1,
+                "site2": site2,
                 "sequence_separation": sep,
                 "ca": ca_stats,
                 "cb": cb_stats,

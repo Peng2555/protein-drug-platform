@@ -26,6 +26,7 @@ export interface Job {
   created_at: string
   started_at: string | null
   finished_at: string | null
+  owner_username?: string | null
 }
 
 export interface JobListOut {
@@ -49,6 +50,7 @@ export interface Batch {
   queued_count: number
   failed_count: number
   cancelled_count: number
+  owner_username?: string | null
 }
 
 export interface BatchDetail extends Batch {

@@ -4,12 +4,15 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteJob } from '@/api/jobs'
 import { deleteBatch } from '@/api/batches'
+import { useAuthStore } from '@/stores/auth'
 import { useFoldTasksStore } from '@/stores/foldTasks'
 import type { Batch, Job } from '@/api/types'
+import { canManageFoldTask } from '@/utils/foldAccess'
 import { batchStatusLabel, batchTypeLabel, engineLabel, foldScoreTag, statusLabel } from '@/utils/constants'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const store = useFoldTasksStore()
 
 const activeJobId = computed(() =>
@@ -33,6 +36,10 @@ function statusTagType(status: string) {
   if (status === 'running' || status === 'partial') return 'warning'
   if (status === 'failed') return 'danger'
   return 'info'
+}
+
+function canDelete(ownerUsername?: string | null) {
+  return canManageFoldTask(auth.user, ownerUsername)
 }
 
 function openJob(job: Job) {
@@ -163,14 +170,21 @@ onMounted(() => {
             <template v-if="foldScoreTag(item.data as Job)">
               · {{ foldScoreTag(item.data as Job) }}
             </template>
+            <template v-if="auth.user?.is_admin && (item.data as Job).owner_username">
+              · {{ (item.data as Job).owner_username }}
+            </template>
           </template>
           <template v-else>
             {{ batchTypeLabel(item.data as Batch) }}
             · {{ (item.data as Batch).done_count }}/{{ (item.data as Batch).heavy_chain_count }} 完成
+            <template v-if="auth.user?.is_admin && (item.data as Batch).owner_username">
+              · {{ (item.data as Batch).owner_username }}
+            </template>
           </template>
           · {{ formatTime(item.data.created_at) }}
         </div>
         <button
+          v-if="canDelete(item.data.owner_username)"
           type="button"
           class="task-row__del"
           title="删除"

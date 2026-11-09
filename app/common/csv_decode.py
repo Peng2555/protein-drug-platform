@@ -163,18 +163,48 @@ def _pick_xlsx_sheet(
     raise HTTPException(400, f"找不到工作表「{wanted}」。文件里有：{available}")
 
 
-def _matrix_from_sheet(root: ET.Element, shared: list[str]) -> list[list[str]]:
+def _cell_ref(ref: str) -> tuple[int, int] | None:
+    letters = "".join(ch for ch in ref if ch.isalpha())
+    digits = "".join(ch for ch in ref if ch.isdigit())
+    if not letters or not digits:
+        return None
+    return int(digits), _col_to_index(letters)
+
+
+def _fill_merged_cells(root: ET.Element, rows: dict[int, dict[int, str]]) -> None:
+    """合并单元格只在左上角有值。把这个值铺到整块，避免 PPT 贴进来的表读丢。"""
+    for merge in root.findall(f".//{_XLSX_NS}mergeCell"):
+        ref = merge.get("ref") or ""
+        if ":" not in ref:
+            continue
+        start_ref, end_ref = ref.split(":", 1)
+        start = _cell_ref(start_ref)
+        end = _cell_ref(end_ref)
+        if start is None or end is None:
+            continue
+        row_start, col_start = start
+        row_end, col_end = end
+        value = rows.get(row_start, {}).get(col_start, "")
+        if not str(value).strip():
+            continue
+        for row_idx in range(row_start, row_end + 1):
+            for col_idx in range(col_start, col_end + 1):
+                row = rows.setdefault(row_idx, {})
+                if not str(row.get(col_idx, "")).strip():
+                    row[col_idx] = value
+
+
+def _matrix_from_sheet(root: ET.Element, shared: list[str], expand_merges: bool = False) -> list[list[str]]:
     rows: dict[int, dict[int, str]] = {}
     for row in root.findall(f".//{_XLSX_NS}row"):
         for cell in row.findall(f"{_XLSX_NS}c"):
-            ref = cell.get("r") or ""
-            letters = "".join(ch for ch in ref if ch.isalpha())
-            digits = "".join(ch for ch in ref if ch.isdigit())
-            if not letters or not digits:
+            parsed = _cell_ref(cell.get("r") or "")
+            if parsed is None:
                 continue
-            row_idx = int(digits)
-            col_idx = _col_to_index(letters)
+            row_idx, col_idx = parsed
             rows.setdefault(row_idx, {})[col_idx] = _cell_text(cell, shared)
+    if expand_merges:
+        _fill_merged_cells(root, rows)
     if not rows:
         raise HTTPException(400, "Excel 工作表为空")
     matrix: list[list[str]] = []

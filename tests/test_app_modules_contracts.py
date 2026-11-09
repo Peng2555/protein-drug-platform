@@ -95,7 +95,7 @@ THIRD_ROUTER_SERVICE_EXPORTS = {
     },
 }
 
-OPENAPI_SHA256 = "31dd4043c924a52997d08673d52da1e05267c40b37f03767fe3b0f937066e848"
+OPENAPI_SHA256 = "8dd033d0f0de99a71a4a6d76743515438cc247c50ae0789054cb28b7e90a4124"
 
 
 def test_first_module_group_has_exact_vertical_layout():
@@ -301,5 +301,5 @@ def test_openapi_contract_is_stable_after_third_module_move():
         separators=(",", ":"),
         sort_keys=True,
     )
-    assert len(schema["paths"]) == 130
+    assert len(schema["paths"]) == 132
     assert hashlib.sha256(payload.encode()).hexdigest() == OPENAPI_SHA256

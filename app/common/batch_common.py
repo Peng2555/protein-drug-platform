@@ -37,7 +37,7 @@ def batch_status(counts: dict[str, int], total: int) -> str:
     return "done"
 
 
-def batch_out(batch: Batch, db: Session) -> BatchOut:
+def batch_out(batch: Batch, db: Session, *, owner_username: str | None = None) -> BatchOut:
     counts = batch_counts(db, batch.id)
     total = batch.heavy_chain_count
     return BatchOut(
@@ -56,4 +56,5 @@ def batch_out(batch: Batch, db: Session) -> BatchOut:
         queued_count=counts["queued"],
         failed_count=counts["failed"],
         cancelled_count=counts["cancelled"],
+        owner_username=owner_username,
     )

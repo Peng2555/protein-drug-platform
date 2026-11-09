@@ -29,7 +29,7 @@ const moduleJobs = useModuleJobsStore()
 const pipelineSteps = [
   { id: 'fold', label: '折抗体', desc: 'Boltz2 仅折 H / H+L' },
   { id: 'patches', label: '算斑', desc: '表面疏水斑，SAP ≥ 0.5' },
-  { id: 'enumerate', label: '枚举', desc: 'STNQA 亲水突变打分' },
+  { id: 'enumerate', label: '枚举', desc: 'STNQ 亲水突变打分' },
   { id: 'export', label: '导出', desc: 'mutations / wetlab CSV' },
 ]
 
@@ -193,11 +193,11 @@ async function submit() {
               <span>斑落在 CDR 时才考虑；可能影响结合。</span>
             </button>
             <button type="button" class="choice" :class="{ on: !allowCharged }" @click="allowCharged = false">
-              <strong>STNQA</strong>
-              <span>中性亲水替换，湿实验更稳妥。</span>
+              <strong>STNQ</strong>
+              <span>中性亲水替换，不含丙氨酸。</span>
             </button>
             <button type="button" class="choice" :class="{ on: allowCharged }" @click="allowCharged = true">
-              <strong>STNQA + DEKR</strong>
+              <strong>STNQ + DEKR</strong>
               <span>加入带电残基，斑分下降可能更猛。</span>
             </button>
           </div>

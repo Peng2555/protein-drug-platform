@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.engines import FOLD_ENGINES
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.modules.fold.access import owned_fold_job, readable_fold_job, usernames_for
 from app.modules.fold.samples import fold_sample_payload, list_fold_samples, resolve_fold_cif
 from app.common.job_paths import attachment_content_disposition, default_job_name, remove_job_outputs
 from app.modules.fold.service import create_and_queue_job, dispatch_job, fasta_from_seqs, sequence_hash
@@ -233,29 +234,40 @@ def list_jobs(
     offset: int = Query(0, ge=0),
     singles_only: bool = Query(False, description="Exclude jobs that belong to a batch"),
 ):
-    q = select(Job).where(Job.user_id == user.id, Job.engine.in_(FOLD_ENGINES))
-    count_q = select(func.count()).select_from(Job).where(Job.user_id == user.id, Job.engine.in_(FOLD_ENGINES))
+    scope = [Job.engine.in_(FOLD_ENGINES)]
+    if not user.is_admin:
+        scope.append(Job.user_id == user.id)
+    q = select(Job).where(*scope)
+    count_q = select(func.count()).select_from(Job).where(*scope)
     if singles_only:
         q = q.where(Job.batch_id.is_(None))
         count_q = count_q.where(Job.batch_id.is_(None))
     total = db.scalar(count_q) or 0
     rows = db.scalars(q.order_by(Job.created_at.desc()).limit(limit).offset(offset)).all()
-    return JobListOut(items=[_job_out(j) for j in rows], total=total)
+    names = usernames_for(db, {item.user_id for item in rows})
+    items = []
+    for item in rows:
+        out = _job_out(item)
+        out.owner_username = names.get(item.user_id)
+        items.append(out)
+    return JobListOut(items=items, total=total)
+
+
+def _visible_job_out(db: Session, job: Job) -> JobOut:
+    out = _job_out(job)
+    out.owner_username = usernames_for(db, {job.user_id}).get(job.user_id)
+    return out
 
 
 @router.get("/{job_id}", response_model=JobOut)
 def get_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    job = db.get(Job, job_id)
-    if not job or job.user_id != user.id:
-        raise HTTPException(404, "Job not found")
-    return _job_out(job)
+    job = readable_fold_job(user, db.get(Job, job_id))
+    return _visible_job_out(db, job)
 
 
 @router.post("/{job_id}/cancel", response_model=JobOut)
 def cancel_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    job = db.get(Job, job_id)
-    if not job or job.user_id != user.id:
-        raise HTTPException(404, "Job not found")
+    job = owned_fold_job(user, db.get(Job, job_id))
     if job.status not in (JobStatus.queued.value, JobStatus.running.value):
         raise HTTPException(409, f"Cannot cancel job in status {job.status}")
     job.status = JobStatus.cancelled.value
@@ -266,9 +278,7 @@ def cancel_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    job = db.get(Job, job_id)
-    if not job or job.user_id != user.id:
-        raise HTTPException(404, "Job not found")
+    job = owned_fold_job(user, db.get(Job, job_id))
 
     if job.status in (JobStatus.queued.value, JobStatus.running.value):
         job.status = JobStatus.cancelled.value
@@ -292,9 +302,7 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(
 def get_job_sequences(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from app.common.kabat_results import annotate_job_chains
 
-    job = db.get(Job, job_id)
-    if not job or job.user_id != user.id:
-        raise HTTPException(404, "Job not found")
+    job = readable_fold_job(user, db.get(Job, job_id))
     chains = annotate_job_chains(job)
     return JobSequencesOut(job_id=job_id, chains=chains)
 
@@ -303,9 +311,7 @@ def get_job_sequences(job_id: str, db: Session = Depends(get_db), user: User = D
 def get_job_interface(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from app.modules.fold.interface import build_job_interface_analysis
 
-    job = db.get(Job, job_id)
-    if not job or job.user_id != user.id:
-        raise HTTPException(404, "Job not found")
+    job = readable_fold_job(user, db.get(Job, job_id))
     if job.status != JobStatus.done.value:
         raise HTTPException(409, f"Job status: {job.status}")
     try:
@@ -324,9 +330,7 @@ def download_structure(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    job = db.get(Job, job_id)
-    if not job or job.user_id != user.id:
-        raise HTTPException(404, "Job not found")
+    job = readable_fold_job(user, db.get(Job, job_id))
     if job.status != JobStatus.done.value:
         raise HTTPException(409, f"Job status: {job.status}")
 
@@ -369,9 +373,7 @@ def download_structures_zip(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    job = db.get(Job, job_id)
-    if not job or job.user_id != user.id:
-        raise HTTPException(404, "Job not found")
+    job = readable_fold_job(user, db.get(Job, job_id))
     if job.status != JobStatus.done.value:
         raise HTTPException(409, f"Job status: {job.status}")
     samples = list_fold_samples(job)

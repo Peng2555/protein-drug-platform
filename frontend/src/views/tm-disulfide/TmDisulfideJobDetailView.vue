@@ -133,9 +133,9 @@ async function download(name: string) {
         </div>
         <el-table :data="candidates" size="small" stripe max-height="520">
           <el-table-column prop="rank" label="#" width="56" />
-          <el-table-column prop="pair_id" label="pair" min-width="140" />
-          <el-table-column prop="site1" label="位点 1" width="88" />
-          <el-table-column prop="site2" label="位点 2" width="88" />
+          <el-table-column prop="pair_id" label="位点对（Kabat）" min-width="160" />
+          <el-table-column prop="site1" label="位点 1（Kabat）" min-width="120" />
+          <el-table-column prop="site2" label="位点 2（Kabat）" min-width="120" />
           <el-table-column label="几何" width="72">
             <template #default="{ row }">{{ yesNo(row.geometry_pass) }}</template>
           </el-table-column>

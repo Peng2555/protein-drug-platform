@@ -31,6 +31,7 @@ class JobOut(BaseModel):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    owner_username: str | None = None
 
     model_config = {"from_attributes": True}
 

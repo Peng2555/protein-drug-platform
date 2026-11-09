@@ -321,7 +321,7 @@ const mutationTable = computed(() => {
       </div>
       <div>
         <span>亲水字母表</span>
-        <strong>{{ params.allow_charged ? 'STNQA + DEKR' : 'STNQA' }}</strong>
+        <strong>{{ params.allow_charged ? 'STNQ + DEKR' : 'STNQ' }}</strong>
       </div>
       <div>
         <span>疏水尺度</span>
@@ -433,6 +433,9 @@ const mutationTable = computed(() => {
               @click="download('top20_mutant_sequences.fasta')"
             >
               下载推荐前20
+            </el-button>
+            <el-button size="small" type="primary" plain @click="download('screened_sequences.fasta')">
+              下载筛选序列
             </el-button>
             <el-button size="small" @click="download('wetlab.csv')">wetlab.csv</el-button>
             <el-button size="small" @click="download('mutations.csv')">mutations.csv</el-button>

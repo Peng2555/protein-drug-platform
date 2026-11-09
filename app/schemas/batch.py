@@ -68,6 +68,7 @@ class BatchOut(BaseModel):
     queued_count: int
     failed_count: int
     cancelled_count: int
+    owner_username: str | None = None
 
     model_config = {"from_attributes": True}
 

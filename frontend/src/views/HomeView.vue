@@ -14,6 +14,7 @@ import HomeSiteFooter from '@/components/home/HomeSiteFooter.vue'
 import ScenarioShowcase from '@/components/home/ScenarioShowcase.vue'
 import WorkflowCards from '@/components/home/WorkflowCards.vue'
 import { WORKFLOWS_BY_SCENARIO, type ScenarioId } from '@/config/workflows'
+import { useAuthStore } from '@/stores/auth'
 import { useModuleJobsStore } from '@/stores/moduleJobs'
 import { engineLabel, foldScoreTag } from '@/utils/constants'
 
@@ -29,6 +30,7 @@ type RecentItem = {
 
 const router = useRouter()
 const route = useRoute()
+const auth = useAuthStore()
 const moduleJobs = useModuleJobsStore()
 const recentItems = ref<RecentItem[]>([])
 const loadingRecent = ref(false)
@@ -87,6 +89,7 @@ async function loadRecent() {
       kind: kindForEngine(j.engine),
       routeName: routeForEngine(j.engine),
       meta: [
+        auth.user?.is_admin && j.owner_username ? j.owner_username : null,
         engineLabel(j.engine),
         j.total_length ? `${j.total_length} aa` : null,
         foldScoreTag(j),

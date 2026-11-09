@@ -252,7 +252,7 @@ class ExperimentCreate(BaseModel):
     sample_batch_id: str | None = None
     title: str = Field(min_length=1, max_length=160)
     experiment_type: str = Field(
-        pattern="^(expression|purity|affinity|activity|stability|custom)$"
+        pattern="^(expression|purity|affinity|activity|stability|physicochemical|custom)$"
     )
     experiment_date: date | None = None
     conditions_json: dict | None = None
@@ -298,6 +298,51 @@ class AffinityPreviewRow(BaseModel):
     version_name: str | None = None
     selected: bool = False
     message: str | None = None
+
+
+class PhyschemPreviewRow(BaseModel):
+    excel_row: int
+    loading_sample_id: str
+    protein_key: str
+    sec_monomer: float | None = None
+    hic_rt: float | None = None
+    tm: float | None = None
+    tm1: float | None = None
+    tm2: float | None = None
+    tagg: float | None = None
+    pi: float | None = None
+    status: str
+    version_id: str | None = None
+    version_code: str | None = None
+    version_name: str | None = None
+    selected: bool = False
+    message: str | None = None
+
+
+class PhyschemPreviewOut(BaseModel):
+    sheet_name: str
+    rows: list[PhyschemPreviewRow]
+    matched: int
+    unmatched: int
+    control: int
+
+
+class PhyschemImportItem(BaseModel):
+    excel_row: int
+    version_id: str
+    loading_sample_id: str
+    protein_key: str = ""
+    sec_monomer: float | None = None
+    hic_rt: float | None = None
+    tm: float | None = None
+    tm1: float | None = None
+    tm2: float | None = None
+    tagg: float | None = None
+    pi: float | None = None
+
+
+class PhyschemImportRequest(BaseModel):
+    items: list[PhyschemImportItem] = Field(min_length=1, max_length=200)
 
 
 class AffinityPreviewOut(BaseModel):

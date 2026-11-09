@@ -4,7 +4,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createJob, deleteJob } from '@/api/jobs'
 import { createAntibodyOnly, createVhhPanel, deleteBatch } from '@/api/batches'
+import { useAuthStore } from '@/stores/auth'
 import { useFoldTasksStore } from '@/stores/foldTasks'
+import { canManageFoldTask } from '@/utils/foldAccess'
 import type { Batch, Job } from '@/api/types'
 import {
   EXAMPLE_FASTA,
@@ -23,6 +25,7 @@ import {
 
 const router = useRouter()
 const route = useRoute()
+const auth = useAuthStore()
 const store = useFoldTasksStore()
 
 const submitTab = ref<'single' | 'batch' | 'ab'>('single')
@@ -667,6 +670,7 @@ onMounted(() => {
                 }}
               </el-tag>
               <button
+                v-if="canManageFoldTask(auth.user, item.data.owner_username)"
                 type="button"
                 class="job-delete-btn"
                 title="删除"
@@ -690,6 +694,9 @@ onMounted(() => {
               <template v-if="foldScoreTag(item.data as Job)">
                 · {{ foldScoreTag(item.data as Job) }}
               </template>
+              <template v-if="auth.user?.is_admin && (item.data as Job).owner_username">
+                · {{ (item.data as Job).owner_username }}
+              </template>
               <template v-if="(item.data as Job).complex_plddt != null">
                 · pLDDT {{
                   ((item.data as Job).complex_plddt! <= 1.5
@@ -703,6 +710,9 @@ onMounted(() => {
             <template v-else>
               {{ batchTypeLabel(item.data as Batch) }}
               · {{ (item.data as Batch).done_count }}/{{ (item.data as Batch).heavy_chain_count }} 完成
+              <template v-if="auth.user?.is_admin && (item.data as Batch).owner_username">
+                · {{ (item.data as Batch).owner_username }}
+              </template>
               · {{ formatTime(item.data.created_at) }}
             </template>
           </div>

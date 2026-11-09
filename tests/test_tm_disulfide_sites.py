@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from test_tm_disulfide_qc import _fasta, _write_cif
-from tm_disulfide.numbering import format_kabat_number, kabat_region, number_kabat_chain
+from tm_disulfide.numbering import format_kabat_number, format_pair_id, kabat_region, number_kabat_chain
 from tm_disulfide.sites import exclusion_reasons, normalize_plddt, run_site_mask
 
 VHH = (
@@ -34,6 +34,11 @@ def test_kabat_region_uses_integer_position_including_insertions():
     assert format_kabat_number(31, "A") == "31A"
     assert format_kabat_number(100, "C") == "100C"
     assert format_kabat_number(22, " ") == "22"
+    pair = format_pair_id(
+        {"structure_chain": "H", "sequence_index": 51, "kabat_number": "52"},
+        {"structure_chain": "H", "sequence_index": 110, "kabat_number": "100C"},
+    )
+    assert pair == "H:52-H:100C"
 
 
 def test_exclusion_reasons_keep_multiple_and_skip_glycine_missing_cb():

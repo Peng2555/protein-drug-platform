@@ -54,6 +54,10 @@ from app.schemas.antibody_project import (
     AffinityImportRequest,
     AffinityPreviewOut,
     AffinityPreviewRow,
+    PhyschemImportItem,
+    PhyschemImportRequest,
+    PhyschemPreviewOut,
+    PhyschemPreviewRow,
     CandidateCreate,
     ExperimentCreate,
     JobLinkCreate,
@@ -1030,7 +1034,7 @@ def _locate_chain_header(
     return index, name, vh, vl, seq
 
 
-def _xlsx_sheets(raw: bytes) -> list[tuple[str, list[list[str]]]]:
+def _xlsx_sheets(raw: bytes, expand_merges: bool = False) -> list[tuple[str, list[list[str]]]]:
     try:
         workbook = zipfile.ZipFile(io.BytesIO(raw))
     except zipfile.BadZipFile as exc:
@@ -1041,7 +1045,7 @@ def _xlsx_sheets(raw: bytes) -> list[tuple[str, list[list[str]]]]:
         if path not in workbook.namelist():
             continue
         try:
-            matrix = _matrix_from_sheet(ET.fromstring(workbook.read(path)), shared)
+            matrix = _matrix_from_sheet(ET.fromstring(workbook.read(path)), shared, expand_merges=expand_merges)
         except HTTPException:
             continue
         sheets.append((name, matrix))
@@ -1560,7 +1564,8 @@ def _clone_token(raw: str) -> str:
 
 def _clone_code(raw: str) -> str:
     """取出 RLCWM1AAZ69M 这种克隆号，忽略孔号、Vh1.0VKB 和 _h1.0。"""
-    matches = _CLONE_CODE.findall(str(raw or "").upper())
+    text = re.sub(r"\s+", "", str(raw or "")).upper()
+    matches = _CLONE_CODE.findall(text)
     return matches[-1] if matches else ""
 
 
@@ -1851,6 +1856,400 @@ def import_affinity_xlsx(
             )
         )
     return saved
+
+
+_PHYSCHEM_FIELDS = (
+    ("SEC_monomer", "sec_monomer", "%"),
+    ("HIC_RT", "hic_rt", "min"),
+    ("Tm1", "tm1", "°C"),
+    ("Tm2", "tm2", "°C"),
+    ("Tagg", "tagg", "°C"),
+    ("pI", "pi", None),
+)
+
+
+def _physchem_kind(header: str) -> str | None:
+    key = _header_key(header)
+    if not key:
+        return None
+    if "sec" in key or "单体" in key:
+        return "SEC_monomer"
+    if "hic" in key or "保留时间" in key:
+        return "HIC_RT"
+    if "tagg" in key or "聚集" in key:
+        return "Tagg"
+    if key.startswith("tm1"):
+        return "Tm1"
+    if key.startswith("tm2"):
+        return "Tm2"
+    if key == "tm" or key.startswith("tm") or "熔解" in key:
+        return "Tm"
+    if key in {"pi", "等电点"} or "等电" in key or re.fullmatch(r"pi\d*", key) or key.startswith("pi(") or key.startswith("pi（"):
+        return "pI"
+    return None
+
+
+def _prefer_tm_components(metrics: dict[str, int]) -> dict[str, int]:
+    """只有一列 Tm 时记成 Tm1。已经拆出 Tm1 时，不再把总表头 Tm 再存一遍。"""
+    chosen = dict(metrics)
+    if "Tm1" in chosen:
+        chosen.pop("Tm", None)
+    elif "Tm" in chosen:
+        chosen["Tm1"] = chosen.pop("Tm")
+    return chosen
+
+
+_PHYSCHEM_SAMPLE_HEADERS = _LOADING_ID_HEADERS | {
+    "protein",
+    "proteinname",
+    "proteinid",
+    "蛋白质",
+    "蛋白",
+    "蛋白名",
+    "分子",
+    "分子名称",
+}
+
+
+def _is_physchem_sample_header(header: str) -> bool:
+    if _physchem_kind(header):
+        return False
+    key = _header_key(header)
+    if not key:
+        return False
+    if key in _PHYSCHEM_SAMPLE_HEADERS:
+        return True
+    return any(token in key for token in ("样品", "克隆", "蛋白名称", "蛋白名", "clone", "sample"))
+
+
+def _physchem_header(row: list[str]) -> tuple[int | None, dict[str, int]]:
+    sample_col = None
+    metrics: dict[str, int] = {}
+    for col, cell in enumerate(row):
+        if sample_col is None and _is_physchem_sample_header(str(cell)):
+            sample_col = col
+        kind = _physchem_kind(str(cell))
+        if kind and kind not in metrics:
+            metrics[kind] = col
+    return sample_col, metrics
+
+
+def _locate_physchem_tables(
+    sheets: list[tuple[str, list[list[str]]]],
+) -> list[tuple[str, list[list[str]], int, int, int, dict[str, int]]]:
+    """每张表头单独成一块。Tm 下面的 Tm1 / Tm2 / Tagg 行并进同一张表。"""
+    tables: list[tuple[str, list[list[str]], int, int, int, dict[str, int]]] = []
+    for sheet_name, matrix in sheets:
+        index = 0
+        while index < len(matrix):
+            sample_col, metrics = _physchem_header(matrix[index])
+            header_index = index
+            if sample_col is not None and index + 1 < len(matrix):
+                next_sample, next_metrics = _physchem_header(matrix[index + 1])
+                if next_sample is None and next_metrics:
+                    metrics = next_metrics
+                    header_index = index + 1
+            if sample_col is None or not metrics:
+                index += 1
+                continue
+            metrics = _prefer_tm_components(metrics)
+            end = len(matrix)
+            scan = header_index + 1
+            while scan < len(matrix):
+                later_sample, later_metrics = _physchem_header(matrix[scan])
+                if later_sample is not None and later_metrics:
+                    end = scan
+                    break
+                scan += 1
+            tables.append((sheet_name, matrix, header_index, end, sample_col, metrics))
+            index = end
+    return tables
+
+
+def _locate_physchem_sheet(
+    sheets: list[tuple[str, list[list[str]]]],
+) -> tuple[str, list[list[str]], int, int, dict[str, int]] | None:
+    tables = _locate_physchem_tables(sheets)
+    if not tables:
+        return None
+    sheet_name, matrix, index, _end, sample_col, metrics = max(
+        tables, key=lambda item: (len(item[5]), -item[2])
+    )
+    return sheet_name, matrix, index, sample_col, metrics
+
+
+def _compact_sample_id(raw: str) -> str:
+    return re.sub(r"\s+", "", str(raw or "")).strip()
+
+
+def _physchem_merge_key(loading_id: str) -> str:
+    code = _clone_code(loading_id)
+    return code or loading_id.lower()
+
+
+def _read_physchem_rows(
+    sheets: list[tuple[str, list[list[str]]]],
+) -> tuple[list[str], list[dict]]:
+    """按克隆号把多张表合成一行。同一指标已有数值时，不拿后面的表覆盖。"""
+    tables = _locate_physchem_tables(sheets)
+    merged: dict[str, dict] = {}
+    order: list[str] = []
+    sheet_names: list[str] = []
+    for sheet_name, matrix, header_index, end, sample_col, metrics in tables:
+        if sheet_name not in sheet_names:
+            sheet_names.append(sheet_name)
+        for offset, row in enumerate(matrix[header_index + 1 : end]):
+            loading_id = _compact_sample_id(_cell(row, sample_col))
+            if not loading_id:
+                continue
+            values = {
+                field: _parse_physchem_number(_cell(row, metrics[metric]))
+                for metric, field, _unit in _PHYSCHEM_FIELDS
+                if metric in metrics
+            }
+            if not any(value is not None for value in values.values()):
+                continue
+            key = _physchem_merge_key(loading_id)
+            if key not in merged:
+                merged[key] = {
+                    "excel_row": header_index + 2 + offset,
+                    "loading_sample_id": loading_id,
+                    "protein_key": _protein_key_from_loading_id(loading_id),
+                    "values": {field: None for _metric, field, _unit in _PHYSCHEM_FIELDS},
+                }
+                order.append(key)
+            slot = merged[key]["values"]
+            for field, value in values.items():
+                if value is not None and slot.get(field) is None:
+                    slot[field] = value
+    return sheet_names, [merged[key] for key in order]
+
+
+def _parse_physchem_number(raw: str) -> float | None:
+    value = _parse_optional_number(raw)
+    if value is not None:
+        return value
+    match = re.search(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", str(raw or ""))
+    if not match:
+        return None
+    try:
+        return float(match.group(0))
+    except ValueError:
+        return None
+
+
+def _physchem_value(row: PhyschemPreviewRow | PhyschemImportItem, field: str) -> float | None:
+    value = getattr(row, field)
+    return float(value) if value is not None else None
+
+
+def _item_metric_value(item: PhyschemPreviewRow | PhyschemImportItem, metric_name: str, field: str) -> float | None:
+    value = _physchem_value(item, field)
+    if value is None and metric_name == "Tm1":
+        value = getattr(item, "tm", None)
+        if value is not None:
+            value = float(value)
+    return value
+
+
+def _physchem_measurements(item: PhyschemImportItem) -> list[MeasurementInput]:
+    rows: list[MeasurementInput] = []
+    for metric_name, field, unit in _PHYSCHEM_FIELDS:
+        value = _item_metric_value(item, metric_name, field)
+        if value is None:
+            continue
+        rows.append(MeasurementInput(metric_name=metric_name, value_numeric=value, unit=unit))
+    return rows
+
+
+def _physchem_summary(item: PhyschemImportItem) -> str:
+    return _physchem_summary_from_measurements(_physchem_measurements(item))
+
+
+def _physchem_summary_from_measurements(measurements: list[MeasurementInput]) -> str:
+    by_name = {item.metric_name: item for item in measurements}
+    parts = []
+    for metric_name, _field, unit in _PHYSCHEM_FIELDS:
+        item = by_name.get(metric_name)
+        if item is None or item.value_numeric is None:
+            continue
+        suffix = f" {unit}" if unit else ""
+        parts.append(f"{metric_name}={item.value_numeric:g}{suffix}")
+    return " · ".join(parts)
+
+
+def _overlay_physchem_measurements(
+    db: Session, experiment_id: str, item: PhyschemImportItem
+) -> list[MeasurementInput]:
+    """再次导入时补上新指标，保留这次表格里没有的旧指标。"""
+    existing = {
+        row.metric_name: row
+        for row in db.scalars(
+            select(ExperimentMeasurement).where(ExperimentMeasurement.experiment_id == experiment_id)
+        ).all()
+    }
+    incoming = {row.metric_name: row for row in _physchem_measurements(item)}
+    if "Tm1" not in incoming and "Tm1" not in existing and "Tm" in existing:
+        existing["Tm1"] = existing["Tm"]
+    merged: list[MeasurementInput] = []
+    for metric_name, _field, unit in _PHYSCHEM_FIELDS:
+        chosen = incoming.get(metric_name) or existing.get(metric_name)
+        if chosen is None or chosen.value_numeric is None:
+            continue
+        merged.append(
+            MeasurementInput(
+                metric_name=metric_name,
+                value_numeric=float(chosen.value_numeric),
+                unit=unit if metric_name in incoming else (chosen.unit or unit),
+            )
+        )
+    return merged
+
+
+def preview_physchem_xlsx(
+    db: Session,
+    project: AntibodyProject,
+    candidate: AntibodyCandidate,
+    raw: bytes,
+    filename: str | None,
+) -> PhyschemPreviewOut:
+    del project
+    if len(raw) > _MAX_TABLE_BYTES:
+        raise HTTPException(400, "表格文件超过 8MB")
+    suffix = Path(filename or "").suffix.lower()
+    if suffix and suffix not in {".xlsx", ".xlsm"}:
+        raise HTTPException(400, "请上传 .xlsx 表格")
+    sheet_names, raw_rows = _read_physchem_rows(_xlsx_sheets(raw, expand_merges=True))
+    if not raw_rows:
+        raise HTTPException(400, "没有找到样品列和理化列。需要样品号或 Protein 列，以及 SEC、HIC、Tm、pI 中的至少一列。")
+    versions = db.scalars(
+        select(AntibodyVersion)
+        .where(AntibodyVersion.candidate_id == candidate.id)
+        .order_by(AntibodyVersion.version_number)
+    ).all()
+    preview_rows: list[PhyschemPreviewRow] = []
+    for row in raw_rows:
+        loading_id = row["loading_sample_id"]
+        protein_key = row["protein_key"]
+        values = row["values"]
+        parsed = PhyschemPreviewRow(
+            excel_row=row["excel_row"],
+            loading_sample_id=loading_id,
+            protein_key=protein_key,
+            **values,
+            status="unmatched",
+        )
+        if _is_control_sample(loading_id, protein_key):
+            parsed.status = "control"
+            parsed.message = "对照行，默认不导入"
+            preview_rows.append(parsed)
+            continue
+        matched = _match_version_by_protein_name(protein_key, versions)
+        if matched is None:
+            parsed.message = "没有对上蛋白名称，可在预览里指定版本"
+        elif matched.status == VersionStatus.draft.value:
+            parsed.version_id = matched.id
+            parsed.version_code = matched.version_code
+            parsed.version_name = matched.name
+            parsed.status = "draft"
+            parsed.message = f"{matched.version_code} 仍是草稿，请先锁定再导入实验"
+        else:
+            parsed.version_id = matched.id
+            parsed.version_code = matched.version_code
+            parsed.version_name = matched.name
+            parsed.status = "matched"
+            parsed.selected = True
+        preview_rows.append(parsed)
+    if not preview_rows:
+        raise HTTPException(400, "表格里没有可读取的理化数据")
+    if len(preview_rows) > 200:
+        raise HTTPException(400, "一次最多预览 200 行")
+    return PhyschemPreviewOut(
+        sheet_name="、".join(sheet_names),
+        rows=preview_rows,
+        matched=sum(item.status == "matched" for item in preview_rows),
+        unmatched=sum(item.status == "unmatched" for item in preview_rows),
+        control=sum(item.status == "control" for item in preview_rows),
+    )
+
+
+def import_physchem_xlsx(
+    db: Session,
+    project: AntibodyProject,
+    candidate: AntibodyCandidate,
+    body: PhyschemImportRequest,
+    user: User,
+) -> list[ExperimentRecord]:
+    versions = {
+        item.id: item
+        for item in db.scalars(
+            select(AntibodyVersion).where(AntibodyVersion.candidate_id == candidate.id)
+        ).all()
+    }
+    existing_rows = db.scalars(
+        select(ExperimentRecord).where(
+            ExperimentRecord.version_id.in_(list(versions)),
+            ExperimentRecord.experiment_type == "physicochemical",
+        )
+    ).all()
+    existing = {item.version_id: item for item in existing_rows}
+    saved: dict[str, ExperimentRecord] = {}
+    for item in body.items:
+        version = versions.get(item.version_id)
+        if not version:
+            raise HTTPException(400, f"第 {item.excel_row} 行指定的版本不属于当前候选抗体")
+        measurements = _physchem_measurements(item)
+        if not measurements:
+            continue
+        current = existing.get(item.version_id)
+        if current:
+            before = model_snapshot(current)
+            measurements = _overlay_physchem_measurements(db, current.id, item)
+            db.execute(delete(ExperimentMeasurement).where(ExperimentMeasurement.experiment_id == current.id))
+            current.result_summary = _physchem_summary_from_measurements(measurements)
+            current.updated_at = datetime.now(timezone.utc)
+            db.flush()
+            for value in measurements:
+                db.add(ExperimentMeasurement(experiment_id=current.id, **value.model_dump()))
+            add_audit(
+                db,
+                project_id=project.id,
+                entity_type="experiment",
+                entity_id=current.id,
+                action="update",
+                actor_id=user.id,
+                before=before,
+                after=model_snapshot(current),
+            )
+            db.flush()
+            saved[item.version_id] = current
+            continue
+        created = create_experiment(
+            db,
+            project,
+            ExperimentCreate(
+                version_id=version.id,
+                title=_clip_name(f"理化 · {item.protein_key or item.loading_sample_id}") or "理化",
+                experiment_type="physicochemical",
+                conditions_json={
+                    "loading_sample_id": item.loading_sample_id,
+                    "protein_key": item.protein_key,
+                    "source": "physchem-xlsx",
+                },
+                result_summary=_physchem_summary(item),
+                measurements=measurements,
+            ),
+            user,
+        )
+        db.flush()
+        existing[item.version_id] = created
+        saved[item.version_id] = created
+    if not saved:
+        raise HTTPException(
+            400,
+            "没有读到可导入的数值。SEC、HIC、Tm1、Tm2、Tagg、pI 不必一次到齐，这次表里有的项会写入，之后再导入会补上。",
+        )
+    return list(saved.values())
 
 
 def create_job_link(

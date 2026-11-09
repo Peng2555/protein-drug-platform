@@ -70,7 +70,7 @@ onMounted(load)
 
       <el-tabs v-model="activeTab" class="project-tabs">
         <el-tab-pane label="版本管理" name="versions">
-          <VersionWorkspace :project-id="projectId" />
+          <VersionWorkspace :project-id="projectId" :visible="activeTab === 'versions'" />
         </el-tab-pane>
         <el-tab-pane label="序列对比" name="compare">
           <VersionComparePanel v-if="activeTab === 'compare'" :project-id="projectId" />

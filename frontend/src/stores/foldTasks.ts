@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { fetchBatches, fetchBatch, fetchBatchJobs } from '@/api/batches'
 import { fetchJob, fetchJobs } from '@/api/jobs'
 import { fetchMdJob, fetchMdJobs } from '@/api/md'
+import { useAuthStore } from '@/stores/auth'
 import { fetchMaturationJob, fetchMaturationJobs } from '@/api/maturation'
 import type { Batch, BatchDetail, Job, MdJob, MaturationJob } from '@/api/types'
 import { BATCH_JOBS_PAGE_SIZE } from '@/utils/constants'
@@ -47,7 +48,8 @@ export const useFoldTasksStore = defineStore('foldTasks', () => {
   async function refreshFoldTasks() {
     loading.value = true
     try {
-      const [j, b] = await Promise.all([fetchJobs(50, true), fetchBatches(50)])
+      const limit = useAuthStore().user?.is_admin ? 200 : 50
+      const [j, b] = await Promise.all([fetchJobs(limit, true), fetchBatches(limit)])
       jobs.value = j.items
       batches.value = b.items
     } finally {

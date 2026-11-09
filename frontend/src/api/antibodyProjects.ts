@@ -152,6 +152,33 @@ export interface AffinityPreviewRow {
   message: string | null
 }
 
+export interface PhyschemPreviewRow {
+  excel_row: number
+  loading_sample_id: string
+  protein_key: string
+  sec_monomer: number | null
+  hic_rt: number | null
+  tm: number | null
+  tm1: number | null
+  tm2: number | null
+  tagg: number | null
+  pi: number | null
+  status: string
+  version_id: string | null
+  version_code: string | null
+  version_name: string | null
+  selected: boolean
+  message: string | null
+}
+
+export interface PhyschemPreview {
+  sheet_name: string
+  rows: PhyschemPreviewRow[]
+  matched: number
+  unmatched: number
+  control: number
+}
+
 export interface AffinityPreview {
   sheet_name: string
   rows: AffinityPreviewRow[]
@@ -398,6 +425,43 @@ export const previewAffinityXlsx = (
     { method: 'POST', data: form },
   )
 }
+export const previewPhyschemXlsx = (
+  projectId: string,
+  candidateId: string,
+  file: File,
+) => {
+  const form = new FormData()
+  form.append('file', file)
+  return apiJson<PhyschemPreview>(
+    `${root}/${projectId}/candidates/${candidateId}/experiments/preview-physchem-xlsx`,
+    { method: 'POST', data: form },
+  )
+}
+export const importPhyschemXlsx = (
+  projectId: string,
+  candidateId: string,
+  items: PhyschemPreviewRow[],
+) => apiJson<Experiment[]>(
+  `${root}/${projectId}/candidates/${candidateId}/experiments/import-physchem-xlsx`,
+  {
+    method: 'POST',
+    data: {
+      items: items.map((item) => ({
+        excel_row: item.excel_row,
+        version_id: item.version_id,
+        loading_sample_id: item.loading_sample_id,
+        protein_key: item.protein_key,
+        sec_monomer: item.sec_monomer,
+        hic_rt: item.hic_rt,
+        tm: item.tm,
+        tm1: item.tm1,
+        tm2: item.tm2,
+        tagg: item.tagg,
+        pi: item.pi,
+      })),
+    },
+  },
+)
 export const importAffinityXlsx = (
   projectId: string,
   candidateId: string,

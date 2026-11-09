@@ -55,7 +55,8 @@ KYTE_DOOLITTLE: dict[str, float] = {
 }
 
 HYDROPHOBIC = frozenset(aa for aa, phi in BLACK_MOULD_GLY0.items() if phi > 0)
-HYDROPHILIC_DEFAULT = tuple("STNQA")
+# 中性替换。丙氨酸在 Kyte–Doolittle 上为 +1.8，不作为亲水选项。
+HYDROPHILIC_DEFAULT = tuple("STNQ")
 HYDROPHILIC_CHARGED = tuple("DEKR")
 
 # Tien et al. 2013 empirical max ASA (Å²)
@@ -105,4 +106,12 @@ N_SPHERE = 92
 FREEZE_NTERM = 4
 FREEZE_CTERM = 4
 WETLAB_TOP_N = 20
+# 复折后的筛选门。位点 pLDDT 不低于 70，相对野生型下跌不超过 10；整链均值不低于 60。
+SCREEN_PLDDT_MIN = 70.0
+SCREEN_PLDDT_DROP_MAX = 10.0
+SCREEN_CHAIN_PLDDT_MIN = 60.0
+# 原斑 SAP 合计至少下降 0.2，且不出现分数 ≥ 0.5 的新斑。
+SCREEN_SAP_DROP_MIN = 0.2
+# 亲水差值相同时的替换顺序：谷氨酰胺优先于天冬酰胺。
+SUBSTITUTION_PREFERENCE = {"Q": 0, "N": 1, "S": 2, "T": 3, "D": 4, "E": 5, "K": 6, "R": 7}
 HYDROPHOBICITY_SCALE = "SAP atom-level / Black–Mould (Gly=0), R=5 Å"

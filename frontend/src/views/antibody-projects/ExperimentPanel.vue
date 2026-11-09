@@ -9,7 +9,10 @@ import {
   fetchSamples,
   fetchVersions,
   importAffinityXlsx,
+  importPhyschemXlsx,
   previewAffinityXlsx,
+  previewPhyschemXlsx,
+  type PhyschemPreviewRow,
   type AffinityPreviewRow,
   type AntibodyCandidate,
   type AntibodyVersion,
@@ -27,6 +30,11 @@ const saving = ref(false)
 const showSample = ref(false)
 const showExperiment = ref(false)
 const showAffinityImport = ref(false)
+const showPhyschemImport = ref(false)
+const physchemCandidateId = ref('')
+const physchemFile = ref<File | null>(null)
+const physchemPreview = ref<PhyschemPreviewRow[]>([])
+const physchemSummary = ref({ matched: 0, unmatched: 0, control: 0 })
 const affinityCandidateId = ref('')
 const affinityFile = ref<File | null>(null)
 const affinityPreview = ref<AffinityPreviewRow[]>([])
@@ -126,6 +134,12 @@ async function submitSample() {
 const affinityCandidateVersions = computed(() =>
   versions.value.filter((item) => item.candidate_id === affinityCandidateId.value && item.status !== 'draft'),
 )
+const physchemCandidateVersions = computed(() =>
+  versions.value.filter((item) => item.candidate_id === physchemCandidateId.value && item.status !== 'draft'),
+)
+const physchemSelectedCount = computed(
+  () => physchemPreview.value.filter((item) => item.selected && item.version_id).length,
+)
 const affinitySelectedCount = computed(
   () => affinityPreview.value.filter((item) => item.selected && item.version_id).length,
 )
@@ -173,8 +187,64 @@ async function onAffinityFile(uploadFile: { raw?: File }) {
   }
 }
 
+function openPhyschemImport() {
+  physchemCandidateId.value = candidates.value[0]?.id || ''
+  physchemFile.value = null
+  physchemPreview.value = []
+  physchemSummary.value = { matched: 0, unmatched: 0, control: 0 }
+  showPhyschemImport.value = true
+}
+
+async function onPhyschemFile(uploadFile: { raw?: File }) {
+  physchemFile.value = uploadFile.raw || null
+  if (!physchemFile.value || !physchemCandidateId.value) return
+  saving.value = true
+  try {
+    const preview = await previewPhyschemXlsx(
+      props.projectId,
+      physchemCandidateId.value,
+      physchemFile.value,
+    )
+    physchemPreview.value = preview.rows
+    physchemSummary.value = {
+      matched: preview.matched,
+      unmatched: preview.unmatched,
+      control: preview.control,
+    }
+  } catch (error) {
+    physchemPreview.value = []
+    ElMessage.error(error instanceof Error ? error.message : '表格解析失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function submitPhyschemImport() {
+  const items = physchemPreview.value.filter((item) => item.selected && item.version_id)
+  if (!items.length || !physchemCandidateId.value) return
+  saving.value = true
+  try {
+    const created = await importPhyschemXlsx(props.projectId, physchemCandidateId.value, items)
+    showPhyschemImport.value = false
+    await load()
+    ElMessage.success(`已导入 ${created.length} 条理化结果`)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '导入失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+function physchemText(value: number | null, unit: string) {
+  if (value == null) return '–'
+  return unit ? `${value} ${unit}` : String(value)
+}
+
 watch(affinityCandidateId, () => {
   if (affinityFile.value) void onAffinityFile({ raw: affinityFile.value })
+})
+watch(physchemCandidateId, () => {
+  if (physchemFile.value) void onPhyschemFile({ raw: physchemFile.value })
 })
 
 async function submitAffinityImport() {
@@ -275,9 +345,10 @@ onMounted(load)
 
     <section class="page-card resource-card">
       <div class="section-head">
-        <div><h2>实验记录</h2><p>表达、纯度、亲和力、活性和稳定性</p></div>
+        <div><h2>实验记录</h2><p>亲和力、理化、表达、纯度和稳定性</p></div>
         <div>
           <el-button @click="openAffinityImport">导入亲和力表格</el-button>
+          <el-button @click="openPhyschemImport">导入理化表格</el-button>
           <el-button type="primary" @click="openExperimentDialog">录入实验</el-button>
         </div>
       </div>
@@ -346,6 +417,7 @@ onMounted(load)
               <el-option label="表达量" value="expression" />
               <el-option label="纯度/聚集" value="purity" />
               <el-option label="亲和力" value="affinity" />
+              <el-option label="理化" value="physicochemical" />
               <el-option label="活性" value="activity" />
               <el-option label="稳定性" value="stability" />
               <el-option label="自定义" value="custom" />
@@ -446,6 +518,94 @@ onMounted(load)
         <el-button @click="showAffinityImport = false">取消</el-button>
         <el-button type="primary" :loading="saving" :disabled="!affinitySelectedCount" @click="submitAffinityImport">
           导入 {{ affinitySelectedCount }} 条
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="showPhyschemImport" title="导入理化表格" width="980px">
+      <el-form label-position="top">
+        <div class="form-grid">
+          <el-form-item label="候选抗体">
+            <el-select v-model="physchemCandidateId" style="width: 100%">
+              <el-option
+                v-for="candidate in candidates"
+                :key="candidate.id"
+                :label="`[${candidate.antibody_category || '待分类'}] ${candidate.candidate_code} · ${candidate.name}`"
+                :value="candidate.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="Excel 文件">
+            <el-upload
+              drag
+              :auto-upload="false"
+              :limit="1"
+              accept=".xlsx,.xlsm"
+              :on-change="onPhyschemFile"
+              :on-remove="() => { physchemFile = null; physchemPreview = [] }"
+            >
+              <div class="el-upload__text">可以只含已经出的项目，例如只有 Tm。之后再导入 HIC 或 SEC，会补到同一版本上</div>
+            </el-upload>
+          </el-form-item>
+        </div>
+      </el-form>
+      <p v-if="physchemPreview.length" class="empty-note">
+        已匹配 {{ physchemSummary.matched }} 行，未匹配 {{ physchemSummary.unmatched }} 行，对照 {{ physchemSummary.control }} 行已跳过。
+      </p>
+      <el-table v-if="physchemPreview.length" :data="physchemPreview" size="small" max-height="420">
+        <el-table-column label="导入" width="70">
+          <template #default="{ row }">
+            <el-checkbox v-model="row.selected" :disabled="row.status === 'control' || !row.version_id" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="excel_row" label="行" width="60" />
+        <el-table-column prop="loading_sample_id" label="样品" min-width="180" />
+        <el-table-column label="SEC" width="90">
+          <template #default="{ row }">{{ physchemText(row.sec_monomer, '%') }}</template>
+        </el-table-column>
+        <el-table-column label="HIC" width="90">
+          <template #default="{ row }">{{ physchemText(row.hic_rt, 'min') }}</template>
+        </el-table-column>
+        <el-table-column label="Tm1" width="80">
+          <template #default="{ row }">{{ physchemText(row.tm1 ?? row.tm, '°C') }}</template>
+        </el-table-column>
+        <el-table-column label="Tm2" width="80">
+          <template #default="{ row }">{{ physchemText(row.tm2, '°C') }}</template>
+        </el-table-column>
+        <el-table-column label="Tagg" width="80">
+          <template #default="{ row }">{{ physchemText(row.tagg, '°C') }}</template>
+        </el-table-column>
+        <el-table-column label="pI" width="70">
+          <template #default="{ row }">{{ physchemText(row.pi, '') }}</template>
+        </el-table-column>
+        <el-table-column label="版本" min-width="220">
+          <template #default="{ row }">
+            <el-select
+              v-model="row.version_id"
+              clearable
+              filterable
+              :disabled="row.status === 'control'"
+              placeholder="指定版本"
+              style="width: 100%"
+              @change="row.selected = Boolean(row.version_id) && row.status !== 'draft'"
+            >
+              <el-option
+                v-for="version in physchemCandidateVersions"
+                :key="version.id"
+                :label="`${version.version_code}${version.name ? ' · ' + version.name : ''}`"
+                :value="version.id"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" min-width="140">
+          <template #default="{ row }">{{ statusText(row.status) }}{{ row.message ? ` · ${row.message}` : '' }}</template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="showPhyschemImport = false">取消</el-button>
+        <el-button type="primary" :loading="saving" :disabled="!physchemSelectedCount" @click="submitPhyschemImport">
+          导入 {{ physchemSelectedCount }} 条
         </el-button>
       </template>
     </el-dialog>

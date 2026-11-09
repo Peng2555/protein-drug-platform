@@ -5,6 +5,7 @@ import type {
   BatchDetail,
   BatchJobsListOut,
   BatchListOut,
+  Job,
   VhhPanelCreateOut,
 } from './types'
 
@@ -52,8 +53,26 @@ export async function deleteBatch(id: string) {
   await apiJson(`/api/batches/${id}`, { method: 'DELETE' })
 }
 
+/** 与批次任务接口 Query(le=500) 一致；一次请求更大的 limit 会被 422 拒绝。 */
+const EXPORT_JOBS_PAGE = 500
+
+function csvCell(value: string | number | null | undefined): string {
+  const text = value == null ? '' : String(value)
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
+  return text
+}
+
 export async function exportBatchCsv(batchId: string, batchName: string) {
-  const data = await fetchBatchJobs(batchId, 5000, 0)
+  const items: Job[] = []
+  let offset = 0
+  let total = Number.POSITIVE_INFINITY
+  while (offset < total) {
+    const data = await fetchBatchJobs(batchId, EXPORT_JOBS_PAGE, offset)
+    total = data.total
+    items.push(...data.items)
+    if (!data.items.length) break
+    offset += data.items.length
+  }
   const header = [
     'heavy_chain_id',
     'job_name',
@@ -68,7 +87,7 @@ export async function exportBatchCsv(batchId: string, batchName: string) {
     'job_id',
   ]
   const lines = [header.join(',')]
-  for (const j of data.items) {
+  for (const j of items) {
     lines.push(
       [
         j.heavy_chain_id || '',
@@ -82,10 +101,12 @@ export async function exportBatchCsv(batchId: string, batchName: string) {
         j.confidence_score ?? '',
         j.runtime_seconds ?? '',
         j.id,
-      ].join(','),
+      ]
+        .map(csvCell)
+        .join(','),
     )
   }
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+  const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
   downloadBlob(blob, `${batchName.replace(/[^\w.-]+/g, '_')}_results.csv`)
 }
 

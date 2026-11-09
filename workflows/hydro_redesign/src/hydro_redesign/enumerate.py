@@ -10,6 +10,7 @@ from hydro_redesign.constants import (
     HYDROPHILIC_CHARGED,
     HYDROPHILIC_DEFAULT,
     KYTE_DOOLITTLE,
+    SUBSTITUTION_PREFERENCE,
     WETLAB_TOP_N,
 )
 
@@ -125,7 +126,14 @@ def enumerate_mutations(
             )
 
     candidates.sort(
-        key=lambda r: (-float(r["delta_patch"]), -float(r["hydro_delta"]), r["chain"], r["position"], r["mut"])
+        key=lambda r: (
+            -float(r["delta_patch"]),
+            -float(r["hydro_delta"]),
+            r["chain"],
+            r["position"],
+            SUBSTITUTION_PREFERENCE.get(r["mut"], 50),
+            r["mut"],
+        )
     )
     for i, row in enumerate(candidates, start=1):
         row["rank"] = i

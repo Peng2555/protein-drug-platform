@@ -124,7 +124,7 @@ export const PIPELINE_WORKFLOWS: PipelineWorkflowDef[] = [
     id: 'hydro-redesign',
     title: '抗体疏水性改造',
     description:
-      '无抗原、第一版无 PLM：Boltz2 折抗体（或上传结构）→ 原子级 SAP → 可改造表面疏水斑 → STNQA 枚举。',
+      '无抗原、第一版无 PLM：Boltz2 折抗体（或上传结构）→ 原子级 SAP → 可改造表面疏水斑 → STNQ 枚举。',
     scene: 'antibody',
     accent: 'violet',
     estimatedDuration: '折结构约十余分钟至数小时；有结构时仅数分钟',

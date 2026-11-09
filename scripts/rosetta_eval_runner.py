@@ -137,7 +137,7 @@ def _ensure_pyrosetta(weights: str = "ref2015"):
                     "-no_optH false",
                     "-relax:constrain_relax_to_start_coords true",
                     "-relax:coord_constrain_sidechains true",
-                    "-relax:ramp_constraints false",
+                    "-relax:ramp_constraints true",
                     f"-score:weights {weights}",
                 ]
             )
@@ -168,7 +168,7 @@ def _make_fastrelax(sfxn):
     for method, value in (
         ("constrain_relax_to_start_coords", True),
         ("coord_constrain_sidechains", True),
-        ("ramp_down_constraints", False),
+        ("ramp_down_constraints", True),
     ):
         fn = getattr(fr, method, None)
         if callable(fn):
@@ -194,7 +194,8 @@ def _relax_one_model(
     fr = _make_fastrelax(sfxn)
     pose = pose_from_pdb(str(pdb))
     fr.apply(pose)
-    score = float(sfxn(pose))
+    # FastRelax 会把约束项写进传入的 scorefunction，结束后用一份干净的打分函数记能量。
+    score = float(create_score_function(weights)(pose))
     dest.parent.mkdir(parents=True, exist_ok=True)
     pose.dump_pdb(str(dest))
     return score
@@ -906,11 +907,26 @@ def rank_variants(rows: list[dict[str, Any]], weights: dict[str, float] | None =
     return ranked
 
 
-def _qc_flags(row: dict[str, Any], wt: dict[str, Any] | None, fa_rep_cut: float = 200.0) -> list[str]:
+# 突变体 fa_rep 比野生型高出超过这个值，才算这次突变引入了严重排斥。
+# 绝对值 200 会把几百个残基的复合物连同野生型一起标成 clash。
+FA_REP_DELTA_MAX = 40.0
+
+
+def _qc_flags(
+    row: dict[str, Any],
+    wt: dict[str, Any] | None,
+    fa_rep_cut: float = 200.0,
+    fa_rep_delta_max: float = FA_REP_DELTA_MAX,
+) -> list[str]:
     flags: list[str] = []
     fa_rep = row.get("fa_rep")
-    if isinstance(fa_rep, (int, float)) and fa_rep > fa_rep_cut:
-        flags.append("severe_clash")
+    wt_rep = None if not wt else wt.get("fa_rep")
+    if isinstance(fa_rep, (int, float)):
+        if isinstance(wt_rep, (int, float)):
+            if float(fa_rep) - float(wt_rep) > fa_rep_delta_max:
+                flags.append("severe_clash")
+        elif not row.get("is_wt") and float(fa_rep) > fa_rep_cut:
+            flags.append("severe_clash")
     if wt:
         wt_sasa = wt.get("dSASA_int")
         sasa = row.get("dSASA_int")

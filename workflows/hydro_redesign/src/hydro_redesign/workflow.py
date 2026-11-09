@@ -24,6 +24,12 @@ from hydro_redesign.constants import (
 from hydro_redesign.enumerate import enumerate_mutations
 from hydro_redesign.patches import cluster_patches
 from hydro_redesign.sap import discover_ensemble_structures
+from hydro_redesign.screen import (
+    SCREENED_FASTA,
+    mutation_header,
+    render_screened_fasta,
+    select_screened_sites,
+)
 from hydro_redesign.sequences import (
     ALL_MUTANT_FASTA,
     TOP20_MUTANT_FASTA,
@@ -206,6 +212,17 @@ def run_workflow(
     )
     (exports / TOP20_MUTANT_FASTA).write_text(
         build_mutant_sequences_fasta(seqs, select_top20_rows(mutations, wetlab)),
+        encoding="utf-8",
+    )
+    screened_entries = [
+        (
+            mutation_header(str(row["chain"]), str(row["wt"]), str(row.get("kabat") or row["position"]), str(row["mut"])),
+            str(row.get("sequence") or ""),
+        )
+        for row in select_screened_sites(mutations)
+    ]
+    (exports / SCREENED_FASTA).write_text(
+        render_screened_fasta(screened_entries),
         encoding="utf-8",
     )
 

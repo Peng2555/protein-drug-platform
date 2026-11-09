@@ -11,10 +11,15 @@ import { StructureFocusRepresentation } from 'molstar/lib/mol-plugin/behavior/dy
 import { PresetStructureRepresentations } from 'molstar/lib/mol-plugin-state/builder/structure/representation-preset'
 import { ColorThemeCategory } from 'molstar/lib/mol-theme/color/categories'
 import type { ColorTheme } from 'molstar/lib/mol-theme/color'
+import { Shape } from 'molstar/lib/mol-model/shape'
+import { Cylinders } from 'molstar/lib/mol-geo/geometry/cylinders/cylinders'
+import { CylindersBuilder } from 'molstar/lib/mol-geo/geometry/cylinders/cylinders-builder'
+import { ShapeRepresentation } from 'molstar/lib/mol-repr/shape/representation'
 import { Color } from 'molstar/lib/mol-util/color'
 import { ParamDefinition as PD } from 'molstar/lib/mol-util/param-definition'
 import type { PluginUIContext } from 'molstar/lib/mol-plugin-ui/context'
-import type { InterfaceChainMeta, SelectedResidue, ViewerColorMode } from '@/types/structure'
+import type { InterfaceChainMeta, InterfaceInteraction, SelectedResidue, ViewerColorMode } from '@/types/structure'
+import { IX_COLORS, IX_DRAW_IN_3D, IX_TYPE_LABELS } from '@/types/structure'
 
 export interface MolstarViewer {
   plugin: PluginUIContext
@@ -427,6 +432,74 @@ export function bindMolstarResiduePick(
 export function hexColorToInt(hex: string | undefined | null): number {
   if (!hex) return 0x8b949e
   return parseInt(hex.replace('#', ''), 16)
+}
+
+/** 界面视图不使用 Mol* 默认的蓝色相互作用线，改由 PLIP 坐标按类型上色。 */
+export async function setMolstarFocusComponents(
+  viewer: MolstarViewer,
+  components: Array<'target' | 'surroundings' | 'interactions'>,
+): Promise<void> {
+  try {
+    await viewer.plugin.state.updateBehavior(StructureFocusRepresentation, (params) => {
+      params.components = components
+      params.ignoreHydrogens = true
+    })
+  } catch {
+    /* 部分 Mol* 版本无此 behavior */
+  }
+}
+
+const IX_CYLINDER_RADIUS: Record<string, number> = {
+  hbond: 0.08,
+  salt_bridge: 0.1,
+}
+
+/** 按图例颜色画氢键（黄）和盐桥（红）。疏水、π、水桥不画进三维。 */
+export async function drawMolstarInteractionLines(
+  viewer: MolstarViewer,
+  interactions: InterfaceInteraction[],
+): Promise<void> {
+  const drawable = interactions.filter(
+    (ix) => IX_DRAW_IN_3D.has(ix.type) && ix.coord_a?.length === 3 && ix.coord_b?.length === 3,
+  )
+  if (!drawable.length) return
+
+  const builder = CylindersBuilder.create(drawable.length * 8, drawable.length * 8)
+  const colors: Color[] = []
+  const labels: string[] = []
+  const start = Vec3()
+  const end = Vec3()
+
+  drawable.forEach((ix, group) => {
+    Vec3.set(start, ix.coord_a[0], ix.coord_a[1], ix.coord_a[2])
+    Vec3.set(end, ix.coord_b[0], ix.coord_b[1], ix.coord_b[2])
+    builder.addFixedLengthDashes(
+      start,
+      end,
+      0.35,
+      IX_CYLINDER_RADIUS[ix.type] ?? 0.08,
+      false,
+      false,
+      false,
+      group,
+    )
+    colors.push(Color(IX_COLORS[ix.type] ?? 0x64748b))
+    const label = IX_TYPE_LABELS[ix.type] || ix.type
+    labels.push(`${label} ${ix.resname_a}${ix.resnum_a}–${ix.resname_b}${ix.resnum_b}`)
+  })
+
+  const shape = Shape.create(
+    'plip-interactions',
+    {},
+    builder.getCylinders(),
+    (groupId) => colors[groupId] ?? Color(0x64748b),
+    () => 1,
+    (groupId) => labels[groupId] ?? '',
+  )
+  const repr = ShapeRepresentation((_, data: Shape<Cylinders>) => data, Cylinders.Utils)
+  await viewer.plugin.runTask(repr.createOrUpdate({}, shape))
+  viewer.plugin.canvas3d?.add(repr)
+  viewer.plugin.canvas3d?.commit(true)
 }
 
 export function highlightMolstarResidues(

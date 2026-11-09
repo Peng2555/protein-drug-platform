@@ -76,7 +76,8 @@ def test_cluster_and_enumerate(tmp_path: Path):
     assert muts, f"应枚举出亲水突变，skipped={skipped[:5]}"
     assert muts[0]["delta_patch"] >= muts[-1]["delta_patch"]
     assert all(m["hydro_delta"] > 0 for m in muts)
-    assert all(m["mut"] in "STNQA" for m in muts)
+    assert all(m["mut"] in "STNQ" for m in muts)
+    assert all(m["mut"] != "A" for m in muts)
     assert all(m["wt"] == "I" for m in muts)
     # N/C 端各 4 位冻结：Ile 从 5 起
     assert all(int(m["position"]) >= 5 for m in muts)
@@ -203,6 +204,38 @@ def test_atom_sap_uses_five_angstrom_neighborhood(tmp_path: Path):
             if dist <= 5.0:
                 expected += float(other["rsa"]) * hydrophobicity(str(other["aa"]))
         assert atom["sap"] == round(expected, 4)
+
+
+def test_screen_keeps_one_glutamine_per_framework_site():
+    from hydro_redesign.screen import (
+        accept_verified,
+        combo_header,
+        fold_gate,
+        mutation_header,
+        render_screened_fasta,
+        sap_gate,
+        select_screened_sites,
+    )
+
+    rows = [
+        {"chain": "H", "position": 47, "kabat": "47", "wt": "W", "mut": "Q", "region": "FR2", "patch_id": "P1", "hydro_delta": 2.6, "delta_patch": 1.9, "cdr_risk": False, "sequence": "QQQ"},
+        {"chain": "H", "position": 47, "kabat": "47", "wt": "W", "mut": "N", "region": "FR2", "patch_id": "P1", "hydro_delta": 2.6, "delta_patch": 1.9, "cdr_risk": False, "sequence": "NNN"},
+        {"chain": "H", "position": 59, "kabat": "58", "wt": "Y", "mut": "Q", "region": "CDR-H2", "patch_id": "P1", "hydro_delta": 2.2, "delta_patch": 1.6, "cdr_risk": True, "sequence": "YYY"},
+        {"chain": "H", "position": 45, "kabat": "45", "wt": "L", "mut": "R", "region": "FR2", "patch_id": "P2", "hydro_delta": 8.3, "delta_patch": 0.8, "cdr_risk": False, "sequence": "RRR"},
+    ]
+    picked = select_screened_sites(rows)
+    assert [row["mut"] for row in picked] == ["Q"]
+    assert picked[0]["position"] == 47
+    assert mutation_header("H", "W", "47", "Q") == "H_W47Q"
+    assert combo_header(["H_W47Q", "H_Y58Q"]) == "H_W47Q/H_Y58Q"
+    text = render_screened_fasta([("H_W47Q", "QQQ")])
+    assert text == ">H_W47Q\nQQQ\n"
+    assert fold_gate([{"plddt": 94.5, "drop": 0.7}], 96.1)
+    assert not fold_gate([{"plddt": 68.0, "drop": 12.7}], 93.9)
+    assert sap_gate(6.07, 2.67, [])
+    assert not sap_gate(6.07, 2.67, [{"score": 1.2}])
+    assert accept_verified({"fold_ok": True, "sap_ok": True, "binding_ok": True})
+    assert not accept_verified({"fold_ok": True, "sap_ok": True, "binding_ok": False})
 
 
 def test_build_mutant_sequences_fasta():

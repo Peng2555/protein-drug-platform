@@ -3,11 +3,13 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import {
   createMolstarViewer,
   destroyMolstarViewer,
+  drawMolstarInteractionLines,
   focusMolstarPoint,
   focusMolstarResidues,
   highlightMolstarResidues,
   loadMolstarStructure,
   resizeMolstarViewer,
+  setMolstarFocusComponents,
   type MolstarViewer,
 } from '@/composables/useMolstar'
 import type {
@@ -91,9 +93,10 @@ async function loadViewer(): Promise<void> {
     destroyMolstarViewer(viewer.value, viewerEl.value)
     const v = await createMolstarViewer(viewerEl.value, { viewportBackgroundColor: '0xf8fafc' })
     viewer.value = v
+    await setMolstarFocusComponents(v, ['target', 'surroundings'])
     await loadMolstarStructure(v, props.cifText)
 
-    const { ixResKeys } = collectInterfaceResidueKeys(primary)
+    const { interactions, ixResKeys } = collectInterfaceResidueKeys(primary)
     const ifaceRes = [...(primary.residues_a || []), ...(primary.residues_b || [])]
     const interactionResidues = [...ixResKeys].map((key) => {
       const [chain_id, seq_num] = key.split(':')
@@ -106,6 +109,7 @@ async function loadViewer(): Promise<void> {
     }
 
     focusSelectionsCache.value = buildFocusResidues(primary, ixResKeys)
+    await drawMolstarInteractionLines(v, interactions)
     focusMolstarResidues(v, focusSelectionsCache.value)
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : '3D 界面视图加载失败'
@@ -232,7 +236,7 @@ defineExpose({ focusInteraction, resetView, getViewer: () => viewer.value })
       </template>
 
       <div class="interface-viewer-legend-note">
-        界面残基高亮由 Mol* 渲染；PLIP 详细相互作用见右侧表格
+        氢键为黄色，盐桥为红色。详细相互作用见右侧表格
         <template v-if="showExtraIxNote">（π/疏水/水桥等）</template>
       </div>
     </div>
