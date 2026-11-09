@@ -38,6 +38,7 @@ class HydroRedesignProgressOut(BaseModel):
 class HydroRedesignRankedOut(BaseModel):
     mutations: list[dict] = Field(default_factory=list)
     wetlab: list[dict] = Field(default_factory=list)
+    combos: list[dict] = Field(default_factory=list)
     patches: list[dict] = Field(default_factory=list)
     residues: list[dict] = Field(default_factory=list)
     chains: list[dict] = Field(default_factory=list)

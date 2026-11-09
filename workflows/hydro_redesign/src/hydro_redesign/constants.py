@@ -112,6 +112,8 @@ SCREEN_PLDDT_DROP_MAX = 10.0
 SCREEN_CHAIN_PLDDT_MIN = 60.0
 # 原斑 SAP 合计至少下降 0.2，且不出现分数 ≥ 0.5 的新斑。
 SCREEN_SAP_DROP_MIN = 0.2
+# 每个斑最多取 SAP 最高的 4 个框架区位点，再枚举全部非空组合。
+SCREEN_MAX_SITES_PER_PATCH = 4
 # 亲水差值相同时的替换顺序：谷氨酰胺优先于天冬酰胺。
 SUBSTITUTION_PREFERENCE = {"Q": 0, "N": 1, "S": 2, "T": 3, "D": 4, "E": 5, "K": 6, "R": 7}
 HYDROPHOBICITY_SCALE = "SAP atom-level / Black–Mould (Gly=0), R=5 Å"

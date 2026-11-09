@@ -133,6 +133,7 @@ export const HYDRO_REDESIGN_STAGE_LABELS: Record<string, string> = {
   fold: '折抗体',
   patches: '算疏水斑',
   enumerate: '枚举突变',
+  verify: '复折筛选',
   done: '完成',
   failed: '失败',
 }

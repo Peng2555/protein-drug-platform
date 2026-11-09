@@ -12,13 +12,13 @@ import {
   fetchHydroRedesignRanked,
 } from '@/api/hydroRedesign'
 import { fetchJobSequences } from '@/api/sequences'
-import type { ChainSequence, HydroRedesignJob } from '@/api/types'
+import type { ChainSequence, HydroComboRow, HydroRedesignJob } from '@/api/types'
 import { formatAaKabat, kabatForPosition } from '@/utils/kabatDisplay'
 import { usePolling } from '@/composables/usePolling'
 import { HYDRO_REDESIGN_STAGE_LABELS, statusLabel } from '@/utils/constants'
 import { parseHydroPatches, parseHydroResidues, type HydroPatch, type HydroResidue } from '@/utils/hydroPatches'
 
-const STAGE_ORDER = ['fold', 'patches', 'enumerate', 'done']
+const STAGE_ORDER = ['fold', 'patches', 'enumerate', 'verify', 'done']
 
 const route = useRoute()
 const router = useRouter()
@@ -26,14 +26,16 @@ const job = ref<HydroRedesignJob | null>(null)
 const stage = ref('queued')
 const mutations = ref<Record<string, unknown>[]>([])
 const wetlab = ref<Record<string, unknown>[]>([])
+const combos = ref<HydroComboRow[]>([])
 const patchRows = ref<Record<string, unknown>[]>([])
 const residueRows = ref<Record<string, unknown>[]>([])
 const summary = ref<Record<string, unknown> | null>(null)
 const cifText = ref<string | null>(null)
 const sequences = ref<ChainSequence[]>([])
-const tableTab = ref<'wetlab' | 'all' | 'patches'>('patches')
+const tableTab = ref<'combos' | 'wetlab' | 'all' | 'patches'>('combos')
 const selectedPatchId = ref<string | null>(null)
 const selectedResidue = ref<{ chainId: string; resi: number } | null>(null)
+const selectedComboLabel = ref<string | null>(null)
 
 const params = computed(() => job.value?.params_json || {})
 const residues = computed(() => parseHydroResidues(residueRows.value))
@@ -109,6 +111,8 @@ async function load() {
       const data = await fetchHydroRedesignRanked(id)
       mutations.value = data.mutations
       wetlab.value = data.wetlab
+      combos.value = data.combos || []
+      tableTab.value = combos.value.length ? 'combos' : 'patches'
       patchRows.value = data.patches
       residueRows.value = data.residues
       summary.value = data.summary
@@ -137,6 +141,8 @@ watch(
   async () => {
     mutations.value = []
     wetlab.value = []
+    combos.value = []
+    selectedComboLabel.value = null
     patchRows.value = []
     residueRows.value = []
     summary.value = null
@@ -197,6 +203,61 @@ function mutationSequence(row: Record<string, unknown>) {
   if (!chain || !mut || !Number.isFinite(pos) || pos < 1 || pos > chain.sequence.length) return ''
   if (wt && chain.sequence[pos - 1] !== wt) return ''
   return chain.sequence.slice(0, pos - 1) + mut + chain.sequence.slice(pos)
+}
+
+function asBool(value: unknown) {
+  return value === true || value === 'true' || value === 'True' || value === 1 || value === '1'
+}
+
+function comboSites(label: string) {
+  return label.split('/').flatMap((part) => {
+    const match = part.trim().match(/^([A-Za-z]+)_([A-Z])(\d+[A-Za-z]?)([A-Z])$/)
+    if (!match) return []
+    return [{ chain: match[1], wt: match[2], kabat: match[3], mut: match[4] }]
+  })
+}
+
+function comboPositions(label: string) {
+  return comboSites(label).flatMap((site) => {
+    const hit = residues.value.find((row) => row.chain === site.chain && row.kabat === site.kabat)
+    return hit ? [`${hit.chain}:${hit.position}`] : []
+  })
+}
+
+const selectedCombo = computed(
+  () => combos.value.find((row) => row.label === selectedComboLabel.value) ?? null,
+)
+const comboMutatedKeys = computed(() => {
+  if (selectedCombo.value) return comboPositions(selectedCombo.value.label)
+  if (selectedResidue.value) return [`${selectedResidue.value.chainId}:${selectedResidue.value.resi}`]
+  return []
+})
+const comboTable = computed(() =>
+  [...combos.value].sort((a, b) => {
+    const passDelta = Number(asBool(b.pass)) - Number(asBool(a.pass))
+    if (passDelta) return passDelta
+    const dropA = Number(a.wt_patch_sap_sum || 0) - Number(a.p1_sap_sum || 0)
+    const dropB = Number(b.wt_patch_sap_sum || 0) - Number(b.p1_sap_sum || 0)
+    return dropB - dropA
+  }),
+)
+
+function sapDrop(row: { wt_patch_sap_sum?: unknown; p1_sap_sum?: unknown }) {
+  if (row.wt_patch_sap_sum == null || row.p1_sap_sum == null) return null
+  return Number(row.wt_patch_sap_sum) - Number(row.p1_sap_sum)
+}
+
+function selectCombo(row: HydroComboRow | Record<string, unknown>) {
+  const combo = row as HydroComboRow
+  selectedComboLabel.value = combo.label
+  if (combo.patch_id) selectedPatchId.value = combo.patch_id
+  const first = comboPositions(combo.label)[0]
+  if (!first) {
+    selectedResidue.value = null
+    return
+  }
+  const [chainId, resi] = first.split(':')
+  selectedResidue.value = { chainId, resi: Number(resi) }
 }
 
 function mutationText(row: Record<string, unknown>) {
@@ -340,12 +401,16 @@ const mutationTable = computed(() => {
         <strong>{{ nMutableSites }}</strong>
       </div>
       <div>
-        <span>突变条数</span>
+        <span>单点条数</span>
         <strong>{{ summary?.n_mutations ?? mutations.length }}</strong>
       </div>
       <div>
-        <span>湿实验短名单</span>
-        <strong>{{ summary?.n_wetlab ?? wetlab.length }}</strong>
+        <span>组合复折</span>
+        <strong>{{ summary?.n_combo_checked ?? combos.length }}</strong>
+      </div>
+      <div>
+        <span>筛选通过</span>
+        <strong>{{ summary?.n_screened ?? combos.filter((row) => asBool(row.pass)).length }}</strong>
       </div>
     </div>
 
@@ -366,7 +431,7 @@ const mutationTable = computed(() => {
           <SequenceStrip
             v-if="sequences.length"
             :chains="sequences"
-            :mutated-keys="selectedResidue ? [`${selectedResidue.chainId}:${selectedResidue.resi}`] : []"
+            :mutated-keys="comboMutatedKeys"
             @residue-click="(p) => pickResidue(p.chainId, p.resi)"
           />
         </div>
@@ -408,11 +473,14 @@ const mutationTable = computed(() => {
       <section class="results">
         <div class="results__bar">
           <div class="seg">
+            <button type="button" :class="{ on: tableTab === 'combos' }" @click="tableTab = 'combos'">
+              组合筛选
+            </button>
             <button type="button" :class="{ on: tableTab === 'patches' }" @click="tableTab = 'patches'">
               斑残基
             </button>
             <button type="button" :class="{ on: tableTab === 'wetlab' }" @click="tableTab = 'wetlab'">
-              湿实验
+              单点湿实验
             </button>
             <button type="button" :class="{ on: tableTab === 'all' }" @click="tableTab = 'all'">全部突变</button>
           </div>
@@ -444,7 +512,66 @@ const mutationTable = computed(() => {
           </div>
         </div>
 
-        <p v-if="selectedPatch" class="focus">
+        <el-table
+          v-if="tableTab === 'combos'"
+          :data="comboTable"
+          size="small"
+          stripe
+          max-height="460"
+          highlight-current-row
+          row-key="label"
+          :row-class-name="({ row }) => (row.label === selectedComboLabel ? 'combo-on' : '')"
+          @row-click="selectCombo"
+        >
+          <el-table-column label="结果" width="88">
+            <template #default="{ row }">
+              <span class="mut-flag" :data-ok="asBool(row.pass)">{{ asBool(row.pass) ? '通过' : '未过' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="组合" min-width="220">
+            <template #default="{ row }">
+              <b>{{ row.label }}</b>
+              <span v-if="Number(row.n_sites) > 1" class="combo-count">{{ row.n_sites }} 点</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="斑" width="80">
+            <template #default="{ row }">
+              <span class="dot" :style="{ background: patches.find((p) => p.patch_id === row.patch_id)?.color }" />
+              {{ row.patch_id || '—' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="野生型 SAP" width="110">
+            <template #default="{ row }">{{ fmt(row.wt_patch_sap_sum) }}</template>
+          </el-table-column>
+          <el-table-column label="复折 SAP" width="100">
+            <template #default="{ row }">{{ fmt(row.p1_sap_sum) }}</template>
+          </el-table-column>
+          <el-table-column label="下降" width="88">
+            <template #default="{ row }">{{ fmt(sapDrop(row)) }}</template>
+          </el-table-column>
+          <el-table-column label="pLDDT" width="88">
+            <template #default="{ row }">{{ fmt(row.plddt_mean, 1) }}</template>
+          </el-table-column>
+          <el-table-column label="折叠" width="72">
+            <template #default="{ row }">{{ asBool(row.fold_ok) ? '通过' : '未过' }}</template>
+          </el-table-column>
+          <el-table-column label="疏水斑" width="80">
+            <template #default="{ row }">{{ asBool(row.sap_ok) ? '通过' : '未过' }}</template>
+          </el-table-column>
+          <el-table-column label="结合面" width="80">
+            <template #default="{ row }">{{ asBool(row.binding_ok) ? '通过' : '未过' }}</template>
+          </el-table-column>
+          <el-table-column label="序列" min-width="180" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.sequence || row.skip || row.error || '—' }}</template>
+          </el-table-column>
+        </el-table>
+        <p v-if="tableTab === 'combos'" class="hint">
+          同一疏水斑内的谷氨酰胺组合会重新折叠。通过表示折叠、原斑下降且没有新斑、突变不在 CDR。
+          点一行会在序列上标出这些位点。筛选 FASTA 只包含「通过」的组合。
+        </p>
+        <el-empty v-if="tableTab === 'combos' && !combos.length" description="这次任务还没有组合复折结果" />
+
+        <p v-if="selectedPatch && tableTab !== 'combos'" class="focus">
           当前聚焦
           <b :style="{ color: selectedPatch.color }">{{ selectedPatch.patch_id }}</b>
           · {{ selectedPatch.residues.length }} 残基
@@ -498,7 +625,7 @@ const mutationTable = computed(() => {
         </p>
 
         <el-table
-          v-else
+          v-if="tableTab === 'wetlab' || tableTab === 'all'"
           :data="mutationTable.slice(0, 200)"
           size="small"
           stripe
@@ -534,8 +661,8 @@ const mutationTable = computed(() => {
           </el-table-column>
         </el-table>
         <p v-if="tableTab === 'all' && mutations.length > 200" class="hint">仅展示前 200 条，完整结果请下载 CSV。</p>
-        <p class="hint">
-          「下载全部序列 / 推荐前20」为 FASTA（含 WT 与各突变体 H/L 链）。推荐前20对应湿实验短名单。
+        <p v-if="tableTab !== 'combos'" class="hint">
+          「下载全部序列 / 推荐前20」是单点 FASTA。筛选序列才是复折后通过三道门的单点和多点。
         </p>
       </section>
     </template>
@@ -853,6 +980,12 @@ const mutationTable = computed(() => {
   &[data-ok='false'] {
     color: #b45309;
   }
+}
+
+.combo-count {
+  margin-left: 0.4rem;
+  font-size: 0.68rem;
+  color: #64748b;
 }
 
 .results {

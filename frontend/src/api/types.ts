@@ -325,9 +325,26 @@ export interface HydroRedesignProgressOut {
   summary: Record<string, unknown> | null
 }
 
+export interface HydroComboRow {
+  label: string
+  patch_id?: string
+  n_sites?: number
+  p1_sap_sum?: number
+  wt_patch_sap_sum?: number
+  plddt_mean?: number
+  fold_ok?: boolean
+  sap_ok?: boolean
+  binding_ok?: boolean
+  pass?: boolean
+  sequence?: string
+  skip?: string
+  error?: string
+}
+
 export interface HydroRedesignRankedOut {
   mutations: Record<string, unknown>[]
   wetlab: Record<string, unknown>[]
+  combos?: HydroComboRow[]
   patches: Record<string, unknown>[]
   residues: Record<string, unknown>[]
   chains?: ChainSequence[]

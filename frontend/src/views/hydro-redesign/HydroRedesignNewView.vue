@@ -30,6 +30,7 @@ const pipelineSteps = [
   { id: 'fold', label: '折抗体', desc: 'Boltz2 仅折 H / H+L' },
   { id: 'patches', label: '算斑', desc: '表面疏水斑，SAP ≥ 0.5' },
   { id: 'enumerate', label: '枚举', desc: 'STNQ 亲水突变打分' },
+  { id: 'verify', label: '复折', desc: '同斑组合过三道门后导出 FASTA' },
   { id: 'export', label: '导出', desc: 'mutations / wetlab CSV' },
 ]
 

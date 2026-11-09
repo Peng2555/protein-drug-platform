@@ -103,7 +103,7 @@ def test_hydro_workflow_stage_and_artifact_names(tmp_path: Path, monkeypatch: py
     source = tmp_path / "source.pdb"
     source.write_text("END\n", encoding="utf-8")
     _mock_structure_exports(monkeypatch, workflow, source)
-    monkeypatch.setattr(workflow, "_annotate_regions", lambda _seqs: {("H", 1): "FR1"})
+    monkeypatch.setattr(workflow, "_annotate_chains", lambda _seqs: ({("H", 1): "FR1"}, {("H", 1): "1"}))
     monkeypatch.setattr(
         workflow,
         "cluster_patches",
@@ -122,7 +122,7 @@ def test_hydro_workflow_stage_and_artifact_names(tmp_path: Path, monkeypatch: py
         on_stage=stages.append,
     )
 
-    assert stages == ["fold", "patches", "enumerate", "done"]
+    assert stages == ["fold", "patches", "enumerate", "verify", "done"]
     assert result["summary"]["n_residues"] == 1
     assert result["summary"]["hydrophobicity_scale"] == "SAP atom-level / Black–Mould (Gly=0), R=5 Å"
     assert (tmp_path / "hydro" / "exports" / "pred.cif").is_file()
@@ -138,7 +138,7 @@ def test_cic_workflow_stage_and_artifact_names(tmp_path: Path, monkeypatch: pyte
     source = tmp_path / "source.pdb"
     source.write_text("END\n", encoding="utf-8")
     _mock_structure_exports(monkeypatch, workflow, source)
-    monkeypatch.setattr(workflow, "_annotate_regions", lambda _seqs: {("H", 1): "FR1"})
+    monkeypatch.setattr(workflow, "_annotate_chains", lambda _seqs: ({("H", 1): "FR1"}, {("H", 1): "1"}))
     monkeypatch.setattr(
         workflow,
         "cluster_cic_patches",

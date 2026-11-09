@@ -1,4 +1,4 @@
-"""疏水改造第一版：Boltz2 折抗体 → 斑 → 枚举打分。"""
+"""疏水改造：Boltz2 折抗体 → 疏水斑 → 单点枚举 → 同斑组合复折筛选。"""
 
 from __future__ import annotations
 
@@ -26,8 +26,21 @@ from hydro_redesign.patches import cluster_patches
 from hydro_redesign.sap import discover_ensemble_structures
 from hydro_redesign.screen import (
     SCREENED_FASTA,
-    mutation_header,
+    accept_verified,
+    apply_combo,
+    build_patch_combos,
+    chain_plddt_mean,
+    combo_job_id,
+    combo_label,
+    fold_gate,
+    introduces_sequon,
+    novel_patches,
+    patch_member_positions,
+    patch_sap,
+    plddt_drop,
     render_screened_fasta,
+    residue_plddt,
+    sap_gate,
     select_screened_sites,
 )
 from hydro_redesign.sequences import (
@@ -71,6 +84,93 @@ def _relabel_patches(patches: list[dict[str, Any]], kabats: dict[tuple[str, int]
             kabat = kabats.get((chain, int(pos_s)), pos_s)
             labels.append(f"{chain}:{aa}{kabat}")
         patch["residues"] = labels
+
+def _verify_patch_combos(
+    seqs: dict[str, str],
+    mutations: list[dict[str, Any]],
+    wildtype_residues: list[dict[str, Any]],
+    wildtype_structure: Path,
+    fold_root: Path,
+) -> tuple[list[tuple[str, str]], list[dict[str, Any]]]:
+    """同一斑的 Q 组合复折后，只留下折叠、疏水斑和结合面都通过的序列。"""
+    wildtype_positions = {
+        (str(row["chain"]), int(row["position"]))
+        for row in wildtype_residues
+        if row.get("patch_id")
+    }
+    wildtype_plddt = residue_plddt(wildtype_structure) if wildtype_structure.is_file() else {}
+    reports: list[dict[str, Any]] = []
+    passed: list[tuple[str, str, float]] = []
+
+    for sites in build_patch_combos(select_screened_sites(mutations)):
+        label = combo_label(sites)
+        patch_id = str(sites[0].get("patch_id") or "")
+        try:
+            mutated = apply_combo(seqs, sites)
+        except (KeyError, ValueError) as exc:
+            reports.append({"label": label, "patch_id": patch_id, "error": str(exc)})
+            continue
+        if any(introduces_sequon(seqs.get(chain, ""), mutated.get(chain, "")) for chain in mutated):
+            reports.append({"label": label, "patch_id": patch_id, "skip": "nglycosylation"})
+            continue
+
+        fasta_path = fold_root / f"{combo_job_id(label)}.fasta"
+        fasta_path.parent.mkdir(parents=True, exist_ok=True)
+        write_fasta(mutated, fasta_path)
+        try:
+            prediction = fold_antibody(fasta_path, fold_root, combo_job_id(label))
+        except Exception as exc:
+            reports.append({"label": label, "patch_id": patch_id, "error": str(exc)})
+            continue
+
+        mutant_residues, mutant_patches = cluster_patches(
+            prediction,
+            rsa_cut=SURFACE_RSA,
+            patch_cut=PATCH_LINK_RADIUS,
+            sap_cut=SAP_PATCH_CUTOFF,
+            sap_radius=SAP_RADIUS,
+        )
+        mutant_plddt = residue_plddt(prediction)
+        positions = patch_member_positions(wildtype_residues, patch_id)
+        wildtype_sum = patch_sap(wildtype_residues, positions)
+        mutant_sum = patch_sap(mutant_residues, positions)
+        fresh_patches = novel_patches(mutant_patches, wildtype_positions)
+        site_scores = []
+        for site in sites:
+            key = (str(site["chain"]), int(site["position"]))
+            value = mutant_plddt.get(key)
+            site_scores.append(
+                {
+                    "plddt": value,
+                    "drop": plddt_drop(wildtype_plddt.get(key), value),
+                }
+            )
+        report = {
+            "label": label,
+            "patch_id": patch_id,
+            "n_sites": len(sites),
+            "p1_sap_sum": round(mutant_sum, 3),
+            "wt_patch_sap_sum": round(wildtype_sum, 3),
+            "plddt_mean": round(chain_plddt_mean(mutant_plddt), 2),
+            "fold_ok": fold_gate(site_scores, chain_plddt_mean(mutant_plddt)),
+            "sap_ok": sap_gate(wildtype_sum, mutant_sum, fresh_patches),
+            "binding_ok": not any(bool(site.get("cdr_risk")) for site in sites),
+            "structure": str(prediction),
+        }
+        report["pass"] = accept_verified(report)
+        reports.append(report)
+        if not report["pass"]:
+            continue
+        changed = [chain for chain in ("H", "L") if chain in mutated and mutated[chain] != seqs.get(chain)]
+        if not changed:
+            changed = [str(sites[0]["chain"])]
+        drop = wildtype_sum - mutant_sum
+        for chain in changed:
+            passed.append((label, mutated[chain], drop))
+
+    passed.sort(key=lambda item: (-item[2], item[0]))
+    return [(label, sequence) for label, sequence, _drop in passed], reports
+
 
 def run_workflow(
     work_dir: Path,
@@ -214,15 +314,20 @@ def run_workflow(
         build_mutant_sequences_fasta(seqs, select_top20_rows(mutations, wetlab)),
         encoding="utf-8",
     )
-    screened_entries = [
-        (
-            mutation_header(str(row["chain"]), str(row["wt"]), str(row.get("kabat") or row["position"]), str(row["mut"])),
-            str(row.get("sequence") or ""),
-        )
-        for row in select_screened_sites(mutations)
-    ]
+    stage("verify")
+    screened_entries, verify_rows = _verify_patch_combos(
+        seqs,
+        mutations,
+        residues,
+        pdb_path,
+        fold_root / "combos",
+    )
     (exports / SCREENED_FASTA).write_text(
         render_screened_fasta(screened_entries),
+        encoding="utf-8",
+    )
+    (exports / "combo_screen.json").write_text(
+        json.dumps(verify_rows, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -236,6 +341,8 @@ def run_workflow(
         "n_mutable_sites": len(mutable_sites),
         "n_mutations": len(mutations),
         "n_wetlab": len(wetlab),
+        "n_screened": len({label for label, _sequence in screened_entries}),
+        "n_combo_checked": len(verify_rows),
         "n_skipped_cdr": skipped_cdr,
         "allow_cdr": allow_cdr,
         "allow_charged": allow_charged,
@@ -259,6 +366,7 @@ def run_workflow(
         "patches": patches,
         "mutations": mutations[:200],
         "wetlab": wetlab,
+        "combos": verify_rows,
         "n_skipped": len(skipped),
         "pred_cif": str(cif_path) if cif_path.is_file() else None,
     }

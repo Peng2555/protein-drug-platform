@@ -94,6 +94,9 @@ async function exportCsv() {
       <el-table-column label="湿实验" width="88">
         <template #default="{ row }">{{ fmt(summaryVal(row as Job, 'n_wetlab')) }}</template>
       </el-table-column>
+      <el-table-column label="筛选通过" width="96">
+        <template #default="{ row }">{{ fmt(summaryVal(row as Job, 'n_screened')) }}</template>
+      </el-table-column>
       <el-table-column label="冻 CDR 跳过" width="110">
         <template #default="{ row }">{{ fmt(summaryVal(row as Job, 'n_skipped_cdr')) }}</template>
       </el-table-column>

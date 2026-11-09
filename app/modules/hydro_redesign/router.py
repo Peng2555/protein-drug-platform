@@ -86,6 +86,37 @@ def _hydro_batch_or_404(db: Session, user_id: str, batch_id: str) -> Batch:
     return batch
 
 
+def _screened_sequences(exports: Path) -> dict[str, str]:
+    fasta_path = exports / "screened_sequences.fasta"
+    if not fasta_path.is_file():
+        return {}
+    try:
+        return parse_fasta(fasta_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _read_combo_rows(job: Job) -> list[dict]:
+    exports = _exports(job)
+    rows: list[dict] = []
+    path = exports / "combo_screen.json"
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                rows = [dict(row) for row in data if isinstance(row, dict)]
+        except json.JSONDecodeError:
+            rows = []
+    elif job.results_json:
+        rows = [dict(row) for row in (job.results_json.get("combos") or []) if isinstance(row, dict)]
+    sequences = _screened_sequences(exports)
+    for row in rows:
+        label = str(row.get("label") or "")
+        if label and label in sequences and not row.get("sequence"):
+            row["sequence"] = sequences[label]
+    return rows
+
+
 def _read_csv_rows(path: Path) -> list[dict]:
     if not path.is_file():
         return []
@@ -387,9 +418,12 @@ def get_ranked(job_id: str, db: Session = Depends(get_db), user: User = Depends(
     apply_kabat_rows(mutations, chains, with_sequence=True)
     apply_kabat_rows(wetlab, chains, with_sequence=True)
     relabel_patch_rows(patches, residues)
+    if (exports / "summary.json").is_file():
+        summary = json.loads((exports / "summary.json").read_text(encoding="utf-8"))
     return HydroRedesignRankedOut(
         mutations=mutations,
         wetlab=wetlab,
+        combos=_read_combo_rows(job),
         patches=patches,
         residues=residues,
         chains=chains,

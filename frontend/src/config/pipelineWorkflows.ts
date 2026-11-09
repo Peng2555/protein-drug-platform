@@ -150,7 +150,7 @@ export const PIPELINE_WORKFLOWS: PipelineWorkflowDef[] = [
       {
         id: 'export',
         label: '枚举与导出',
-        description: 'mutations.csv、wetlab 短名单与 pred.cif。',
+        description: '同斑组合复折后，只导出通过折叠、疏水斑和结合面三道门的 FASTA。',
         moduleId: 'hydro_redesign',
         moduleRoute: '/hydro-redesign/new',
       },

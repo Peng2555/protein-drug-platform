@@ -237,6 +237,27 @@ def test_screen_keeps_one_glutamine_per_framework_site():
     assert accept_verified({"fold_ok": True, "sap_ok": True, "binding_ok": True})
     assert not accept_verified({"fold_ok": True, "sap_ok": True, "binding_ok": False})
 
+    from hydro_redesign.screen import build_patch_combos, combo_label, novel_patches
+
+    both = [
+        {"chain": "H", "position": 47, "kabat": "47", "wt": "W", "mut": "Q", "patch_id": "P1", "delta_patch": 1.9},
+        {"chain": "H", "position": 45, "kabat": "45", "wt": "L", "mut": "Q", "patch_id": "P1", "delta_patch": 0.8},
+        {"chain": "H", "position": 12, "kabat": "12", "wt": "L", "mut": "Q", "patch_id": "P2", "delta_patch": 3.0},
+    ]
+    combos = build_patch_combos(both)
+    labels = {combo_label(group) for group in combos}
+    assert "H_L45Q/H_W47Q" in labels
+    assert "H_L12Q" in labels
+    assert all(len({row["patch_id"] for row in group}) == 1 for group in combos)
+    assert novel_patches(
+        [{"score": 2.4, "residues": ["H:L45", "H:P103"]}],
+        {("H", 45), ("H", 103)},
+    ) == []
+    assert novel_patches(
+        [{"score": 1.2, "residues": ["H:A31", "H:F32"]}],
+        {("H", 45)},
+    )
+
 
 def test_build_mutant_sequences_fasta():
     from hydro_redesign.sequences import (

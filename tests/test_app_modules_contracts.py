@@ -95,7 +95,7 @@ THIRD_ROUTER_SERVICE_EXPORTS = {
     },
 }
 
-OPENAPI_SHA256 = "8dd033d0f0de99a71a4a6d76743515438cc247c50ae0789054cb28b7e90a4124"
+OPENAPI_SHA256 = "7452d74c7d69aeeed557e54abc628d89300f8a64bcc9783b584727d2f2dea482"
 
 
 def test_first_module_group_has_exact_vertical_layout():
